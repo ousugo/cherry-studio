@@ -4,6 +4,8 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import * as React from 'react'
 
+import { usePortalContainer } from './portal-container'
+
 function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
@@ -22,8 +24,10 @@ function PopoverContent({
 }: React.ComponentProps<typeof PopoverPrimitive.Content> & {
   portalContainer?: React.ComponentProps<typeof PopoverPrimitive.Portal>['container']
 }) {
+  const defaultPortalContainer = usePortalContainer()
+
   return (
-    <PopoverPrimitive.Portal forceMount={forceMount} container={portalContainer}>
+    <PopoverPrimitive.Portal forceMount={forceMount} container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}

@@ -6,6 +6,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { usePortalContainer } from './portal-container'
+
 /* ─── Style variants ──────────────────────────────────────────────────────── */
 
 const menuContentStyles = cn(
@@ -136,8 +138,15 @@ function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuP
   return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
 }
 
-function ContextMenuPortal({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
-  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
+function ContextMenuPortal({ container, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
+  const defaultPortalContainer = usePortalContainer()
+  return (
+    <ContextMenuPrimitive.Portal
+      data-slot="context-menu-portal"
+      container={container ?? defaultPortalContainer ?? undefined}
+      {...props}
+    />
+  )
 }
 
 function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
@@ -206,15 +215,16 @@ function ContextMenuSubContent({
   )
 }
 
-function ContextMenuContent({
-  className,
-  onPointerUpCapture,
-  ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+type ContextMenuContentProps = React.ComponentProps<typeof ContextMenuPrimitive.Content> & {
+  portalContainer?: React.ComponentProps<typeof ContextMenuPrimitive.Portal>['container']
+}
+
+function ContextMenuContent({ className, onPointerUpCapture, portalContainer, ...props }: ContextMenuContentProps) {
   const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+  const defaultPortalContainer = usePortalContainer()
 
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
         className={cn(

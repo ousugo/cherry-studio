@@ -1,8 +1,9 @@
+import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { openAutoFocusEvents, popoverContentProps } = vi.hoisted(() => ({
+const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
   openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>,
   popoverContentProps: [] as Array<{
     align?: string
@@ -10,7 +11,10 @@ const { openAutoFocusEvents, popoverContentProps } = vi.hoisted(() => ({
     sideOffset?: number
     collisionPadding?: number
     portalContainer?: unknown
-  }>
+  }>,
+  portalContainerMock: {
+    current: null as HTMLElement | null
+  }
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -19,6 +23,10 @@ vi.mock('@cherrystudio/ui', () => ({
   Input: ({ ref, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
     <input ref={ref} {...props} />
   ),
+  PortalContainerProvider: ({ children, container }: { children: ReactNode; container: HTMLElement | null }) => {
+    portalContainerMock.current = container
+    return <>{children}</>
+  },
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({
     children,
@@ -56,14 +64,14 @@ vi.mock('@cherrystudio/ui', () => ({
     return <div {...props}>{children}</div>
   },
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Switch: () => <button type="button" role="switch" />
+  Switch: () => <button type="button" role="switch" />,
+  usePortalContainer: () => portalContainerMock.current
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-import { SelectorPortalContainerProvider } from '../shell/SelectorPortalContainerContext'
 import { SelectorShell } from '../shell/SelectorShell'
 
 describe('SelectorShell', () => {
@@ -72,6 +80,7 @@ describe('SelectorShell', () => {
     globalThis.ResizeObserver = originalResizeObserver
     openAutoFocusEvents.length = 0
     popoverContentProps.length = 0
+    portalContainerMock.current = null
   })
 
   it('defaults popover placement to bottom with viewport padding', () => {
@@ -107,11 +116,11 @@ describe('SelectorShell', () => {
     const pagePortalContainer = document.createElement('div')
 
     render(
-      <SelectorPortalContainerProvider container={pagePortalContainer}>
+      <PortalContainerProvider container={pagePortalContainer}>
         <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
           <div />
         </SelectorShell>
-      </SelectorPortalContainerProvider>
+      </PortalContainerProvider>
     )
 
     expect(popoverContentProps.at(-1)?.portalContainer).toBe(pagePortalContainer)
@@ -133,7 +142,7 @@ describe('SelectorShell', () => {
     const portalContainer = document.createElement('div')
 
     render(
-      <SelectorPortalContainerProvider container={pagePortalContainer}>
+      <PortalContainerProvider container={pagePortalContainer}>
         <SelectorShell
           trigger={<button type="button">Open</button>}
           open
@@ -141,7 +150,7 @@ describe('SelectorShell', () => {
           portalContainer={portalContainer}>
           <div />
         </SelectorShell>
-      </SelectorPortalContainerProvider>
+      </PortalContainerProvider>
     )
 
     expect(popoverContentProps.at(-1)?.portalContainer).toBe(portalContainer)

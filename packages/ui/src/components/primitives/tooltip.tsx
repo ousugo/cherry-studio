@@ -9,6 +9,8 @@ import {
 } from '@radix-ui/react-tooltip'
 import * as React from 'react'
 
+import { usePortalContainer } from './portal-container'
+
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
 
@@ -38,18 +40,6 @@ export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
 }
 
-const TooltipPortalContainerContext = React.createContext<HTMLElement | null>(null)
-
-export function TooltipPortalContainerProvider({
-  container,
-  children
-}: {
-  container: HTMLElement | null
-  children: React.ReactNode
-}) {
-  return <TooltipPortalContainerContext value={container}>{children}</TooltipPortalContainerContext>
-}
-
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
   return <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
 }
@@ -72,7 +62,7 @@ const contentStyles =
 const arrowStyles = 'z-[80] fill-neutral-900 dark:fill-neutral-100'
 
 function TooltipContent({ className, sideOffset = 0, children, portalContainer, ...props }: TooltipContentProps) {
-  const defaultPortalContainer = React.use(TooltipPortalContainerContext)
+  const defaultPortalContainer = usePortalContainer()
   return (
     <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <RadixContent
@@ -124,6 +114,7 @@ export const Tooltip = ({
   portalContainer
 }: TooltipProps) => {
   const tooltipContent = content ?? title
+  const defaultPortalContainer = usePortalContainer()
   if (!tooltipContent || isDisabled) {
     return (
       <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
@@ -133,7 +124,6 @@ export const Tooltip = ({
   }
 
   const { side, align } = parsePlacement(placement)
-  const defaultPortalContainer = React.use(TooltipPortalContainerContext)
 
   const controlledProps: Partial<TooltipRootProps> = {}
   if (isOpen != null) {

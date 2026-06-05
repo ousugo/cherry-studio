@@ -1,5 +1,4 @@
-import { TooltipPortalContainerProvider } from '@cherrystudio/ui'
-import { SelectorPortalContainerProvider } from '@renderer/components/Selector/shell/SelectorPortalContainerContext'
+import { PortalContainerProvider } from '@cherrystudio/ui'
 import { TabIdProvider } from '@renderer/context/TabIdContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -51,11 +50,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <TabIdProvider tabId={tab.id}>
         <div ref={setTabPortalContainer} className="flex h-full min-h-0 w-full flex-1 flex-col">
-          <SelectorPortalContainerProvider container={tabPortalContainer}>
-            <TooltipPortalContainerProvider container={tabPortalContainer}>
-              <RouterProvider router={router} />
-            </TooltipPortalContainerProvider>
-          </SelectorPortalContainerProvider>
+          <PortalContainerProvider container={tabPortalContainer}>
+            <RouterProvider router={router} />
+          </PortalContainerProvider>
         </div>
       </TabIdProvider>
     </Activity>

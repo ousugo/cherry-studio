@@ -1,4 +1,4 @@
-import { Input, Popover, PopoverContent, PopoverTrigger, Switch } from '@cherrystudio/ui'
+import { Input, Popover, PopoverContent, PopoverTrigger, Switch, usePortalContainer } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search } from 'lucide-react'
 import {
@@ -13,8 +13,6 @@ import {
   useRef,
   useState
 } from 'react'
-
-import { useSelectorPortalContainer } from './SelectorPortalContainerContext'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 /**
@@ -170,7 +168,7 @@ export function SelectorShell({
   const [localPortalContainer] = useState(createLocalPortalContainer)
   const [availableListHeight, setAvailableListHeight] = useState<number | undefined>(undefined)
   const [hasOpened, setHasOpened] = useState(open)
-  const pagePortalContainer = useSelectorPortalContainer()
+  const pagePortalContainer = usePortalContainer()
   const hasSearch = Boolean(search)
   const hasFilterContent = Boolean(filterContent)
   const hasMultiSelect = Boolean(multiSelect)

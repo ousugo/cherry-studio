@@ -2,14 +2,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { type MouseEvent as ReactMouseEvent, type MouseEventHandler, type ReactNode, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerErrorMock, loggerWarnMock, preferenceValues, showNativePopupMenuMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn(),
-  loggerWarnMock: vi.fn(),
-  preferenceValues: {
-    'menu.presentation_mode': 'native'
-  } as Record<string, unknown>,
-  showNativePopupMenuMock: vi.fn()
-}))
+const { contextMenuOpenValues, loggerErrorMock, loggerWarnMock, preferenceValues, showNativePopupMenuMock } =
+  vi.hoisted(() => ({
+    contextMenuOpenValues: [] as Array<boolean | undefined>,
+    loggerErrorMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    preferenceValues: {
+      'menu.presentation_mode': 'native'
+    } as Record<string, unknown>,
+    showNativePopupMenuMock: vi.fn()
+  }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -35,10 +37,32 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
+  let contextMenuOnOpenChange: ((open: boolean) => void) | undefined
+
   return {
-    ContextMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    ContextMenu: ({
+      children,
+      onOpenChange,
+      open
+    }: {
+      children: ReactNode
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+    }) => {
+      contextMenuOnOpenChange = onOpenChange
+      contextMenuOpenValues.push(open)
+      return <div data-open={String(open)}>{children}</div>
+    },
     ContextMenuTrigger: ({ children, onContextMenu }: { children: ReactNode; onContextMenu?: MouseEventHandler }) => (
-      <span onContextMenu={onContextMenu}>{children}</span>
+      <span
+        onContextMenu={(event) => {
+          onContextMenu?.(event)
+          if (!event.defaultPrevented) {
+            contextMenuOnOpenChange?.(true)
+          }
+        }}>
+        {children}
+      </span>
     ),
     ContextMenuContent: ({ children }: { children: ReactNode }) => <div data-testid="menu-content">{children}</div>,
     ContextMenuSeparator: () => <hr />,
@@ -101,12 +125,14 @@ function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
 function renderMenu({
   extraItems = [],
   onExecute = vi.fn(),
+  onOpenChange,
   getExtraItems,
   pendingExtraItems,
   location = 'chat.input.tools.context'
 }: {
   extraItems?: readonly CommandContextMenuExtraItem[]
   onExecute?: () => void
+  onOpenChange?: (open: boolean) => void
   getExtraItems?: (
     event: ReactMouseEvent
   ) => readonly CommandContextMenuExtraItem[] | PromiseLike<readonly CommandContextMenuExtraItem[]>
@@ -121,7 +147,8 @@ function renderMenu({
           location={location}
           extraItems={extraItems}
           pendingExtraItems={pendingExtraItems}
-          getExtraItems={getExtraItems}>
+          getExtraItems={getExtraItems}
+          onOpenChange={onOpenChange}>
           <button type="button">trigger</button>
         </CommandContextMenu>
       </CommandProvider>
@@ -132,6 +159,7 @@ function renderMenu({
 describe('CommandContextMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    contextMenuOpenValues.length = 0
     preferenceValues['menu.presentation_mode'] = 'native'
     window.api = {
       command: {
@@ -273,6 +301,28 @@ describe('CommandContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it('closes controlled cherry context menus before running selected extra items', async () => {
+    const events: string[] = []
+    const onSelect = vi.fn(() => events.push('action'))
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    renderMenu({
+      extraItems: [{ type: 'item', id: 'tool:web-search', label: 'Web Search', onSelect }],
+      onOpenChange: (open) => events.push(open ? 'open' : 'close')
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+    await waitFor(() => expect(contextMenuOpenValues.at(-1)).toBe(true))
+
+    fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
+
+    expect(events).toEqual(['open', 'close'])
+    expect(contextMenuOpenValues.at(-1)).toBe(false)
+    expect(onSelect).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(events).toEqual(['open', 'close', 'action']))
   })
 
   it('renders extra item shortcutCommand in cherry mode', () => {

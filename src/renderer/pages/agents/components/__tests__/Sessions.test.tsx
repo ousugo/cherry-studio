@@ -1354,6 +1354,7 @@ describe('Sessions', () => {
   it('renames sessions from the context menu dialog', async () => {
     render(<SessionsForTest />)
 
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Rename' }))
@@ -1379,6 +1380,7 @@ describe('Sessions', () => {
   it('opens a session message page in a new app tab from the context menu', async () => {
     render(<SessionsForTest />)
 
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []

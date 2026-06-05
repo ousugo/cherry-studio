@@ -765,6 +765,7 @@ describe('Topics', () => {
   it('keeps pin actions in the topic context menu and removes topic position actions', () => {
     const { getByText } = renderTopicList()
 
+    fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
@@ -777,6 +778,7 @@ describe('Topics', () => {
   it('groups topic context menu actions and marks delete as destructive', () => {
     const { getByText } = renderTopicList()
 
+    fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     expect(menuContent ?? null).toBeInTheDocument()
@@ -806,6 +808,7 @@ describe('Topics', () => {
   it('opens a topic message page in a new app tab from the context menu', async () => {
     const { getByText } = renderTopicList()
 
+    fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []
@@ -833,6 +836,7 @@ describe('Topics', () => {
 
   it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
     const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
+    fireEvent.contextMenu(getByText('Gamma topic'))
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []
@@ -899,6 +903,7 @@ describe('Topics', () => {
 
   it('shows an error toast when a queued topic image copy request fails', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
+    fireEvent.contextMenu(getByText('Gamma topic'))
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []
@@ -946,6 +951,7 @@ describe('Topics', () => {
   it('confirms topic deletion from the shared context menu before deleting', async () => {
     const { getByText } = renderTopicList()
 
+    fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
