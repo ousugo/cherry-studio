@@ -221,19 +221,17 @@ export function renderModelPickerToolbarAction({
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
-    actionContext.actions.renderRegenerateModelPicker?.({
-      message: actionContext.message,
-      messageParts: actionContext.messageParts,
-      trigger: (
-        <MessageActionButton
-          className="message-action-button"
-          aria-label={label}
-          title={label}
-          softHoverBg={softHoverBg}>
-          {action.icon}
-        </MessageActionButton>
-      )
-    }) ?? null
+    <Tooltip content={action.label} delay={800}>
+      {actionContext.actions.renderRegenerateModelPicker?.({
+        message: actionContext.message,
+        messageParts: actionContext.messageParts,
+        trigger: (
+          <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
+            {action.icon}
+          </MessageActionButton>
+        )
+      }) ?? null}
+    </Tooltip>
   )
 }
 
