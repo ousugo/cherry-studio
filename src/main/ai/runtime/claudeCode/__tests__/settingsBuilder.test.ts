@@ -114,8 +114,7 @@ vi.mock('@main/utils', () => ({
 }))
 
 vi.mock('@main/utils/file/pathStatus', () => ({
-  getPathStatus: mocks.getPathStatus,
-  formatPathStatusMessage: vi.fn(() => 'missing')
+  getPathStatus: mocks.getPathStatus
 }))
 
 vi.mock('@main/utils/language', () => ({
@@ -179,7 +178,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getLoginShellEnvironment.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
-    mocks.getPathStatus.mockResolvedValue({ ok: true })
+    mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.reconcileAgentSkills.mockResolvedValue(undefined)
   })
