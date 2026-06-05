@@ -64,7 +64,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const bindEditorPasteHandler = actions.bindEditorPasteHandler
   const focusEditorPasteTarget = actions.focusEditorPasteTarget
   const getDroppedEditorFiles = actions.getDroppedEditorFiles
-  const { fontSize, sendMessageShortcut, enableSpellCheck } = messageUi.editorConfig ?? defaultMessageEditorConfig
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } =
+    messageUi.editorConfig ?? defaultMessageEditorConfig
   const { t } = useTranslation()
   const isUserMessage = message.role === 'user'
   const firstTextPartIndex = useMemo(() => editedParts.findIndex((part) => part.type === 'text'), [editedParts])
@@ -113,10 +114,12 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       return handleEditorPasteAction({
         event,
         extensions,
-        addFiles
+        addFiles,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold
       })
     },
-    [addFiles, extensions, handleEditorPasteAction]
+    [addFiles, extensions, handleEditorPasteAction, pasteLongTextAsFile, pasteLongTextThreshold]
   )
 
   useEffect(() => {

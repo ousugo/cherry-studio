@@ -36,7 +36,7 @@ export function useMessageEditorCapabilities(): MessageEditorActions {
   )
 
   const handleEditorPaste = useCallback<NonNullable<MessageListActions['handleEditorPaste']>>(
-    async ({ event, extensions, addFiles }) => {
+    async ({ event, extensions, addFiles, pasteLongTextAsFile, pasteLongTextThreshold }) => {
       let pastedFiles: FileMetadata[] = []
 
       const isSameFile = (left: FileMetadata, right: FileMetadata) =>
@@ -55,6 +55,8 @@ export function useMessageEditorCapabilities(): MessageEditorActions {
           pastedFiles = nextFiles
         },
         undefined,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
         undefined,
         undefined,
         t

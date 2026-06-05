@@ -66,6 +66,8 @@ export interface MessageEditorPasteInput {
   event: ClipboardEvent
   extensions: string[]
   addFiles: (files: FileMetadata[]) => void
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
 }
 
 export type MessageEditorPasteHandler = (event: ClipboardEvent) => Promise<boolean>
@@ -77,6 +79,8 @@ export interface MessageFileView {
 }
 
 export interface MessageEditorConfig {
+  pasteLongTextAsFile: boolean
+  pasteLongTextThreshold: number
   fontSize: number
   sendMessageShortcut: SendMessageShortcut
   enableSpellCheck: boolean
@@ -250,6 +254,8 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
 }
 
 export const defaultMessageEditorConfig: MessageEditorConfig = {
+  pasteLongTextAsFile: true,
+  pasteLongTextThreshold: 2000,
   fontSize: defaultMessageRenderConfig.fontSize,
   sendMessageShortcut: 'Enter',
   enableSpellCheck: false
