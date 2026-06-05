@@ -366,6 +366,41 @@ describe('ComposerSurface', () => {
     expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
   })
 
+  it('renders an editing mode bar with locate and cancel actions inside the inputbar', () => {
+    const onCancel = vi.fn()
+    const onLocate = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        editingState={{
+          messageId: 'message-1',
+          onLocate,
+          onCancel
+        }}
+      />
+    )
+
+    const editingBar = screen.getByText('chat.input.editing_message').closest('[data-composer-editing-bar]')
+
+    expect(editingBar?.closest('[data-composer-inputbar]')).not.toBeNull()
+    expect(editingBar).toHaveClass('border-border-subtle', 'bg-muted/40', 'text-foreground-secondary')
+    expect(editingBar).not.toHaveClass('border-info/40', 'bg-[var(--color-info-bg)]', 'text-info', 'mb-2')
+
+    const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
+    expect(locateButton).toHaveClass('text-foreground-secondary', 'hover:bg-accent')
+    fireEvent.click(locateButton)
+    expect(onLocate).toHaveBeenCalledTimes(1)
+
+    const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
+    expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
+
+    fireEvent.click(cancelButton)
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('sets quick phrase text as prompt variable token content', async () => {
     render(<Harness />)
 

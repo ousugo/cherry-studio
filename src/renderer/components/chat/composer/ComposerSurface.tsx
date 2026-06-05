@@ -17,7 +17,7 @@ import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
-import { CirclePause, Maximize2, Minimize2 } from 'lucide-react'
+import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,6 +59,13 @@ export interface ComposerSurfaceActions {
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken) => void
+  getDraft: () => ComposerSerializedDraft
+}
+
+export interface ComposerSurfaceEditingState {
+  messageId: string
+  onCancel: () => void
+  onLocate?: () => void
 }
 
 export interface ComposerSurfaceProps {
@@ -87,6 +94,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -334,6 +342,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  editingState,
   getToolLaunchers,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
@@ -524,15 +533,23 @@ export default function ComposerSurface({
     insertComposerTokenAtCursor(editor, token)
   }, [])
 
+  const getDraft = useCallback((): ComposerSerializedDraft => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return { text: textRef.current, tokens: [] }
+
+    return serializeComposerDocument(editor)
+  }, [])
+
   useEffect(() => {
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
       toggleExpanded: handleToggleExpanded,
       removeToken,
-      insertToken
+      insertToken,
+      getDraft
     })
-  }, [focusEditor, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
+  }, [focusEditor, getDraft, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const rootSuggestionStateRef = useRef({
@@ -1064,6 +1081,41 @@ export default function ComposerSurface({
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
   const ExpandIcon = isExpanded ? Minimize2 : Maximize2
+  const editingModeBar = editingState ? (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={t('chat.input.editing_message')}
+      data-composer-editing-bar=""
+      className="mx-2 mb-1.5 flex min-h-8 items-center gap-2 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-foreground-secondary text-xs">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-foreground-muted" />
+      <span className="min-w-0 flex-1 truncate font-medium">{t('chat.input.editing_message')}</span>
+      {editingState.onLocate ? (
+        <Tooltip content={t('chat.input.locate_editing_message')}>
+          <Button
+            type="button"
+            onClick={editingState.onLocate}
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 shrink-0 rounded-full text-foreground-secondary hover:bg-accent"
+            aria-label={t('chat.input.locate_editing_message')}>
+            <LocateFixed size={14} />
+          </Button>
+        </Tooltip>
+      ) : null}
+      <Tooltip content={t('chat.input.cancel_editing')}>
+        <Button
+          type="button"
+          onClick={editingState.onCancel}
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+          aria-label={t('chat.input.cancel_editing')}>
+          <X size={14} />
+        </Button>
+      </Tooltip>
+    </div>
+  ) : null
   const inputbarElement = (
     <div
       id="inputbar"
@@ -1099,6 +1151,7 @@ export default function ComposerSurface({
           <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
         </Button>
       </div>
+      {editingModeBar}
       <div
         ref={editorFrameRef}
         className="overflow-hidden transition-[height] ease-out"
