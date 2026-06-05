@@ -44,6 +44,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { getFileTypeByExt } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot } from 'lucide-react'
@@ -70,6 +71,7 @@ const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
+const FILE_COMPOSER_TOKEN_ID_PREFIX = 'file:'
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
@@ -125,6 +127,33 @@ interface EditableMessageDraft {
 
 type EditableFileMetadata = FileMetadata & Pick<Extract<CherryMessagePart, { type: 'file' }>, 'providerMetadata'>
 
+function getComposerFileTokenSourceId(token?: ComposerSerializedToken) {
+  if (!token?.id.startsWith(FILE_COMPOSER_TOKEN_ID_PREFIX)) return undefined
+  return token.id.slice(FILE_COMPOSER_TOKEN_ID_PREFIX.length) || undefined
+}
+
+function getFileSourceTokenId(sourceId: string) {
+  return `${FILE_COMPOSER_TOKEN_ID_PREFIX}${sourceId}`
+}
+
+function findEditableFileToken(
+  part: Extract<CherryMessagePart, { type: 'file' }>,
+  path: string,
+  fileTokens: ComposerSerializedToken[],
+  usedTokenIds: Set<string>
+) {
+  const sourceIds = [readCherryMeta(part)?.fileEntryId, path].filter((sourceId): sourceId is string => !!sourceId)
+  const matchedToken = fileTokens.find(
+    (token) => !usedTokenIds.has(token.id) && sourceIds.some((sourceId) => token.id === getFileSourceTokenId(sourceId))
+  )
+  if (matchedToken) return matchedToken
+
+  // Only fall back when exactly one file token remains unused — guessing among multiple unmatched
+  // tokens could attach a part to the wrong token source id.
+  const unusedTokens = fileTokens.filter((token) => !usedTokenIds.has(token.id))
+  return unusedTokens.length === 1 ? unusedTokens[0] : undefined
+}
+
 function getFileExtension(value: string | undefined, mediaType: string | undefined) {
   const source = value ?? ''
   const fileName = source.split(/[\\/]/).pop() ?? source
@@ -136,21 +165,25 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
 
 function createEditableFileMetadata(
   part: Extract<CherryMessagePart, { type: 'file' }>,
-  index: number
+  index: number,
+  token?: ComposerSerializedToken
 ): EditableFileMetadata | null {
   const path = part.url
   if (!path) return null
 
   const name = part.filename || path.split(/[\\/]/).pop() || `attachment-${index + 1}`
   const ext = getFileExtension(name || path, part.mediaType)
+  const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext)
+  const id = getComposerFileTokenSourceId(token) ?? path
+
   return {
-    id: path,
+    id: id || path,
     name,
     origin_name: name,
     path,
     size: 0,
     ext,
-    type: part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : FILE_TYPE.DOCUMENT,
+    type,
     created_at: new Date().toISOString(),
     count: 1,
     ...(part.providerMetadata && { providerMetadata: part.providerMetadata })
@@ -172,9 +205,14 @@ function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessage
           ]
         : []
     ) ?? []
+  const fileTokens = draftTokens.filter((token) => token.kind === 'file')
+  const usedFileTokenIds = new Set<string>()
   const files = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
-    const file = createEditableFileMetadata(part, index)
+    const path = part.url
+    const token = path ? findEditableFileToken(part, path, fileTokens, usedFileTokenIds) : undefined
+    if (token) usedFileTokenIds.add(token.id)
+    const file = createEditableFileMetadata(part, index, token)
     return file ? [file] : []
   })
 
@@ -966,11 +1004,19 @@ const ChatComposerInner = ({
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       const originalFilePartsByTokenId = new Map<string, Extract<CherryMessagePart, { type: 'file' }>>()
 
-      editingMessageForCurrentTopic?.parts.forEach((part, index) => {
-        if (part.type !== 'file') return
-        const file = createEditableFileMetadata(part, index)
-        if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
-      })
+      if (editingMessageForCurrentTopic) {
+        const editableDraft = createEditableMessageDraft(editingMessageForCurrentTopic.parts)
+        // Keep this filter aligned with editableDraft.files: createEditableFileMetadata only drops
+        // parts without a url, so excluding url-less file parts keeps the two arrays index-aligned.
+        const originalFileParts = editingMessageForCurrentTopic.parts.filter(
+          (part): part is Extract<CherryMessagePart, { type: 'file' }> => part.type === 'file' && !!part.url
+        )
+
+        originalFileParts.forEach((part, index) => {
+          const file = editableDraft.files[index]
+          if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
+        })
+      }
 
       const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
       const rebuiltParts = createComposerUserMessageParts(draft, { files: newFiles })
@@ -991,7 +1037,7 @@ const ChatComposerInner = ({
         })
       ]
     },
-    [editingMessageForCurrentTopic?.parts, files]
+    [editingMessageForCurrentTopic, files]
   )
 
   const handleSendDraft = useCallback(

@@ -9,6 +9,7 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import type { ComposerSerializedToken } from '../../tokens'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -1121,8 +1122,14 @@ describe('ChatComposer', () => {
       },
       {
         type: 'file',
+        url: 'file:///tmp/default-topic.png',
+        mediaType: '.png',
+        filename: 'default-topic.png'
+      },
+      {
+        type: 'file',
         url: 'file:///tmp/report.pdf',
-        mediaType: 'application/pdf',
+        mediaType: '.pdf',
         filename: 'report.pdf'
       }
     ] as any[]
@@ -1145,6 +1152,35 @@ describe('ChatComposer', () => {
       })
     ])
     expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        label: 'default-topic.png',
+        payload: expect.objectContaining({
+          type: 'image',
+          ext: '.png',
+          name: 'default-topic.png',
+          origin_name: 'default-topic.png'
+        })
+      }),
+      expect.objectContaining({
+        kind: 'file',
+        label: 'report.pdf',
+        payload: expect.objectContaining({
+          type: 'document',
+          ext: '.pdf',
+          name: 'report.pdf',
+          origin_name: 'report.pdf'
+        })
+      })
+    ])
+    expect(mocks.surfaceProps?.tokens).not.toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        label: 'default-topic.png',
+        payload: expect.objectContaining({
+          type: 'document'
+        })
+      }),
       expect.objectContaining({
         kind: 'file',
         label: 'report.pdf'
@@ -1274,6 +1310,243 @@ describe('ChatComposer', () => {
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, unknown>>
     expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
     expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('keeps edited message file tokens at their persisted text offsets', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const filePart = {
+      type: 'file',
+      url: 'file:///tmp/test.pdf',
+      mediaType: 'application/pdf',
+      filename: 'test.pdf',
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'file-entry-1'
+        }
+      }
+    }
+    const fileToken: ComposerSerializedToken = {
+      id: 'file:file-entry-1',
+      kind: 'file',
+      label: 'test.pdf',
+      index: 0,
+      textOffset: 0,
+      promptText: 'test.pdf',
+      payload: {
+        type: 'document',
+        ext: '.pdf',
+        name: 'test.pdf',
+        origin_name: 'test.pdf'
+      }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'test.pdf 你好',
+                providerMetadata: {
+                  cherry: {
+                    composer: {
+                      version: 1,
+                      tokens: [fileToken]
+                    }
+                  }
+                }
+              },
+              filePart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining(fileToken)])
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: fileToken.id, kind: 'file' })])
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'test.pdf 你好',
+        tokens: [fileToken]
+      })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    expect(editedParts[0]).toMatchObject({
+      type: 'text',
+      text: 'test.pdf 你好',
+      providerMetadata: {
+        cherry: {
+          composer: {
+            tokens: [expect.objectContaining({ id: fileToken.id, kind: 'file', textOffset: 0 })]
+          }
+        }
+      }
+    })
+    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('re-links multiple edited file tokens to their original parts by source id regardless of order', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const pdfPart = {
+      type: 'file',
+      url: 'file:///tmp/a.pdf',
+      mediaType: 'application/pdf',
+      filename: 'a.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'entry-pdf' } }
+    }
+    const pngPart = {
+      type: 'file',
+      url: 'file:///tmp/b.png',
+      mediaType: '.png',
+      filename: 'b.png',
+      providerMetadata: { cherry: { fileEntryId: 'entry-png' } }
+    }
+    const pdfToken: ComposerSerializedToken = {
+      id: 'file:entry-pdf',
+      kind: 'file',
+      label: 'a.pdf',
+      index: 1,
+      textOffset: 0,
+      promptText: 'a.pdf',
+      payload: { type: 'document', ext: '.pdf', name: 'a.pdf', origin_name: 'a.pdf' }
+    }
+    const pngToken: ComposerSerializedToken = {
+      id: 'file:entry-png',
+      kind: 'file',
+      label: 'b.png',
+      index: 0,
+      textOffset: 6,
+      promptText: 'b.png',
+      payload: { type: 'image', ext: '.png', name: 'b.png', origin_name: 'b.png' }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'a.pdf b.png',
+                // Stored token order is intentionally reversed relative to text offset to prove
+                // matching is by source id, not document position.
+                providerMetadata: { cherry: { composer: { version: 1, tokens: [pngToken, pdfToken] } } }
+              },
+              pngPart,
+              pdfPart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'a.pdf b.png', tokens: [pdfToken, pngToken] })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const fileParts = editedParts.filter((part) => part.type === 'file')
+    // Both originals are reused verbatim (no re-attachment as new files), each linked to the
+    // correct part by fileEntryId despite the reversed token order.
+    expect(fileParts).toEqual([pngPart, pdfPart])
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the sole remaining file token when no source id matches', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    // Neither the part's fileEntryId nor its url equals the token source id, so only the
+    // single-unused-token fallback can keep the attachment linked.
+    const filePart = {
+      type: 'file',
+      url: 'file:///tmp/x.pdf',
+      mediaType: 'application/pdf',
+      filename: 'x.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'real-1' } }
+    }
+    const ghostToken: ComposerSerializedToken = {
+      id: 'file:ghost',
+      kind: 'file',
+      label: 'x.pdf',
+      index: 0,
+      textOffset: 0,
+      promptText: 'x.pdf',
+      payload: { type: 'document', ext: '.pdf', name: 'x.pdf', origin_name: 'x.pdf' }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'x.pdf 你好',
+                providerMetadata: { cherry: { composer: { version: 1, tokens: [ghostToken] } } }
+              },
+              filePart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'x.pdf 你好', tokens: [ghostToken] })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    // The attachment is preserved (reused verbatim), not dropped, via the unambiguous fallback.
+    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
