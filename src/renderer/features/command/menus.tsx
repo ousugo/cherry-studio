@@ -509,13 +509,13 @@ export function CommandContextMenu({
       try {
         nativeExtraItems = resolveExtraItems(event)
       } catch (error) {
-        logger.warn('Failed to resolve command menu extra items', error as Error)
+        logger.error('Failed to resolve command menu extra items', error as Error)
         nativeExtraItems = EMPTY_EXTRA_ITEMS
       }
 
       void Promise.resolve(nativeExtraItems)
         .catch((error) => {
-          logger.warn('Failed to resolve command menu extra items', error as Error)
+          logger.error('Failed to resolve command menu extra items', error as Error)
           return EMPTY_EXTRA_ITEMS
         })
         .then((resolvedNativeExtraItems) => {
