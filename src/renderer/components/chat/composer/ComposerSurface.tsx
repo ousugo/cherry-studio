@@ -65,6 +65,7 @@ export interface ComposerSurfaceActions {
 
 export interface ComposerSurfaceEditingState {
   messageId: string
+  highlightKey?: number
   onCancel: () => void
   onLocate?: () => void
 }
@@ -287,6 +288,8 @@ const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
 const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
 const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
 const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
+const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
+const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
 function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
@@ -370,6 +373,7 @@ export default function ComposerSurface({
   const editorFrameAnimationRef = useRef<number | null>(null)
   const pendingEditorFrameExpandedRef = useRef<boolean | null>(null)
   const [editorFrameHeight, setEditorFrameHeight] = useState<string | null>(null)
+  const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
@@ -383,6 +387,7 @@ export default function ComposerSurface({
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
+  const editingHighlightKey = editingState?.highlightKey
 
   useEffect(() => {
     textRef.current = text
@@ -399,6 +404,21 @@ export default function ComposerSurface({
   useEffect(() => {
     onSendDraftRef.current = onSendDraft
   }, [onSendDraft])
+
+  useEffect(() => {
+    if (editingHighlightKey === undefined) {
+      setEditingBorderHighlighted(false)
+      return
+    }
+
+    setEditingBorderHighlighted(true)
+
+    return setTimeoutTimer(
+      COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY,
+      () => setEditingBorderHighlighted(false),
+      COMPOSER_EDITING_BORDER_HIGHLIGHT_MS
+    )
+  }, [editingHighlightKey, setTimeoutTimer])
 
   const showBlockedSendReason = useCallback(() => {
     if (sendBlockedReasonRef.current) {
@@ -1133,6 +1153,7 @@ export default function ComposerSurface({
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
         belowControls ? 'mb-0.5' : 'mb-3',
+        isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'

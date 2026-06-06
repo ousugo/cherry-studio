@@ -1198,6 +1198,7 @@ const ChatComposerInner = ({
           editingMessageForCurrentTopic
             ? {
                 messageId: editingMessageForCurrentTopic.message.id,
+                highlightKey: editingMessageForCurrentTopic.editingSessionId,
                 onLocate: handleLocateEditingMessage,
                 onCancel: handleCancelEditing
               }

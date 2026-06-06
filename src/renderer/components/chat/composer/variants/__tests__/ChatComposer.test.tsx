@@ -457,6 +457,16 @@ const StartEditingOnMount = ({ enabled = true, message, parts }: { enabled?: boo
   return null
 }
 
+const StartEditingButton = ({ message, parts }: { message: any; parts: any }) => {
+  const { startEditing } = useMessageEditing()
+
+  return (
+    <button type="button" onClick={() => startEditing(message, parts)}>
+      start editing
+    </button>
+  )
+}
+
 describe('ChatComposer', () => {
   beforeEach(() => {
     resizeObserverMockInstances.length = 0
@@ -1218,6 +1228,33 @@ describe('ChatComposer', () => {
     })
 
     expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:message-1', true)
+  })
+
+  it('passes a new composer highlight key for each edit trigger', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old' }] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    const firstHighlightKey = mocks.surfaceProps?.editingState?.highlightKey
+    expect(firstHighlightKey).toEqual(expect.any(Number))
+    if (typeof firstHighlightKey !== 'number') throw new Error('Expected first highlight key')
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.highlightKey).toBeGreaterThan(firstHighlightKey))
   })
 
   it('exits edit mode and restores the saved draft when the topic changes', async () => {

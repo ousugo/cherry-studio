@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  setTimeoutTimer: vi.fn(),
   preferences: {
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
@@ -157,7 +158,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
-    setTimeoutTimer: vi.fn()
+    setTimeoutTimer: mocks.setTimeoutTimer
   })
 }))
 
@@ -257,6 +258,11 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.setTimeoutTimer.mockReset()
+    mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
+      const timer = setTimeout(callback, delay)
+      return () => clearTimeout(timer)
+    })
     mocks.preferences = {
       'chat.input.send_message_shortcut': 'Enter'
     }
@@ -396,6 +402,38 @@ describe('ComposerSurface', () => {
     fireEvent.click(cancelButton)
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('briefly highlights the inputbar border when editing starts', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { rerender } = render(
+        <ComposerSurface
+          {...baseProps}
+          editingState={{
+            messageId: 'message-1',
+            highlightKey: 1,
+            onCancel: vi.fn()
+          }}
+        />
+      )
+      const inputbar = document.querySelector('[data-composer-inputbar]')
+
+      expect(inputbar).toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+
+      act(() => {
+        vi.advanceTimersByTime(900)
+      })
+
+      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+
+      rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
+
+      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
