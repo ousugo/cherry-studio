@@ -170,7 +170,12 @@ const MessageActionMenuPopover = ({
   )
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+    <CommandPopupMenu
+      location="webcontents.context"
+      extraItems={extraItems}
+      align={align}
+      side="top"
+      contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
   )
@@ -203,7 +208,12 @@ const TranslateMenuPopover = ({
   )
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+    <CommandPopupMenu
+      location="webcontents.context"
+      extraItems={extraItems}
+      align={align}
+      side="top"
+      contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
   )
