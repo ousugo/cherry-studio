@@ -9,6 +9,8 @@ import {
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   type Prompt as SdkPrompt,
+  ReadResourceRequestSchema,
+  type ReadResourceResult,
   type Resource as SdkResource,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
@@ -38,6 +40,17 @@ function toSdkPrompt(prompt: McpPrompt): SdkPrompt {
   Reflect.deleteProperty(sdkPrompt, 'serverId')
   Reflect.deleteProperty(sdkPrompt, 'serverName')
   return sdkPrompt
+}
+
+// McpResource carries both list metadata and read payload fields; a read content
+// block must collapse to the SDK's text-or-blob union, keyed on whichever is present.
+function toSdkResourceContents(content: McpResource): ReadResourceResult['contents'][number] {
+  const base: { uri: string; mimeType?: string } = { uri: content.uri }
+  if (content.mimeType) base.mimeType = content.mimeType
+  if (typeof content.text === 'string') return { ...base, text: content.text }
+  if (typeof content.blob === 'string') return { ...base, blob: content.blob }
+  // Neither text nor blob isn't representable in the protocol; surface as empty text.
+  return { ...base, text: '' }
 }
 
 /**
@@ -103,6 +116,20 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
       }
     } catch (error) {
       logger.error('SDK bridge: failed to list resources', { mcpId, error })
+      throw error
+    }
+  })
+
+  rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params
+    try {
+      logger.debug('SDK bridge: reading resource', { mcpId, uri })
+      const { contents } = await application.get('McpRuntimeService').getResource({ serverId: serverConfig.id, uri })
+      return {
+        contents: contents.map(toSdkResourceContents)
+      }
+    } catch (error) {
+      logger.error('SDK bridge: failed to read resource', { mcpId, uri, error })
       throw error
     }
   })

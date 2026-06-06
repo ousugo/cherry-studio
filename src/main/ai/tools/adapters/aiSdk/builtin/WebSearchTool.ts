@@ -14,9 +14,6 @@ import { application } from '@main/core/application'
 import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
-  webFetchInputSchema,
-  type WebFetchOutput,
-  webFetchOutputSchema,
   webSearchInputSchema,
   type WebSearchOutput,
   webSearchOutputSchema
@@ -45,10 +42,8 @@ export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
  */
 const webSearchErrorSchema = z.object({ error: z.string() })
 const webSearchResultSchema = z.union([webSearchOutputSchema, webSearchErrorSchema])
-const webFetchResultSchema = z.union([webFetchOutputSchema, webSearchErrorSchema])
 
 type WebSearchResult = WebSearchOutput | z.infer<typeof webSearchErrorSchema>
-type WebFetchResult = WebFetchOutput | z.infer<typeof webSearchErrorSchema>
 
 const WEB_LOOKUP_ERROR_NOTE = 'Web search failed (network/provider error); retry or inform the user.'
 
@@ -117,47 +112,6 @@ Cite sources by [id] in your final answer.`,
   }
 })
 
-const webFetchTool = tool({
-  description: `Fetch the readable content from one or more known web page URLs.
-
-Use this when:
-- You already have specific URLs from the user, prior context, or web__search
-- You need page content from an article, documentation page, or reference URL
-- Search snippets are not enough and you need the source page text
-
-Don't use this when you only have a topic or question; call web__search first.
-
-Cite sources by [id] in your final answer.`,
-  inputSchema: webFetchInputSchema,
-  outputSchema: webFetchResultSchema,
-  strict: true,
-  execute: async ({ urls }, options): Promise<WebFetchResult> => {
-    const { request } = getToolCallContext(options)
-
-    try {
-      const webSearchService = application.get('WebSearchService')
-      const response = await webSearchService.fetchUrls(
-        {
-          urls
-        },
-        { signal: request.abortSignal }
-      )
-      return mapWebSearchOutput(response)
-    } catch (error) {
-      logger.error('webSearchService.fetchUrls failed', error as Error, {
-        urls
-      })
-      return { error: error instanceof Error ? error.message : String(error) }
-    }
-  },
-  toModelOutput: ({ output }) => {
-    if (isWebLookupError(output)) {
-      return { type: 'text' as const, value: WEB_LOOKUP_ERROR_NOTE }
-    }
-    return { type: 'json' as const, value: output }
-  }
-})
-
 export function createWebSearchToolEntry(): ToolEntry {
   return {
     name: WEB_SEARCH_TOOL_NAME,
@@ -169,18 +123,5 @@ export function createWebSearchToolEntry(): ToolEntry {
   }
 }
 
-export function createWebFetchToolEntry(): ToolEntry {
-  return {
-    name: WEB_FETCH_TOOL_NAME,
-    namespace: 'web',
-    description: 'Fetch readable content from known web page URLs',
-    defer: 'auto',
-    tool: webFetchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
-  }
-}
-
 export type WebSearchToolInput = InferToolInput<typeof webSearchTool>
 export type WebSearchToolOutput = InferToolOutput<typeof webSearchTool>
-export type WebFetchToolInput = InferToolInput<typeof webFetchTool>
-export type WebFetchToolOutput = InferToolOutput<typeof webFetchTool>
