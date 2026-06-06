@@ -184,7 +184,7 @@ const MessageItem: FC<Props> = ({
 
   const plainMessageContent = (
     <Scrollbar
-      className="message-content-container mt-0 max-w-full overflow-y-auto pl-0"
+      className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
       style={{
         fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
         fontSize,
@@ -197,7 +197,7 @@ const MessageItem: FC<Props> = ({
   )
 
   const userFooter = showUserFooterActions ? (
-    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full items-center text-foreground-muted text-xs leading-none">
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-muted text-xs leading-none">
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
@@ -219,7 +219,7 @@ const MessageItem: FC<Props> = ({
   const assistantFooter = showAssistantFooterActions ? (
     <div
       className={cn(
-        'MessageFooter mt-1 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none',
+        'MessageFooter mt-1 flex min-h-6.5 shrink-0 items-center justify-between gap-1.5 text-xs leading-none',
         assistantFooterVisibilityClass
       )}>
       <HorizontalScrollContainer
