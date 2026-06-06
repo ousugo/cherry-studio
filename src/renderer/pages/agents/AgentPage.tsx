@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useCommandHandler } from '@renderer/commands'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
@@ -12,6 +11,7 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { useCommandHandler } from '@renderer/features/command'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -22,7 +22,7 @@ import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -442,9 +442,11 @@ const AgentPage = () => {
           setLastUsedWorkspaceId(persisted.session.workspaceId)
         }
         setActiveSessionId(persisted.sessionId)
-        void invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`]).catch((err) => {
-          logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
-        })
+        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${persisted.sessionId}`]).catch(
+          (err) => {
+            logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
+          }
+        )
         return persisted
       }
       return null

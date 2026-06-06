@@ -32,7 +32,6 @@ import { KnowledgeOrchestrationService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { NativeCommandPopupMenuService } from '@main/services/NativeCommandPopupMenuService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -89,7 +88,6 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
-  NativeCommandPopupMenuService,
   ExcelPreviewService,
   WordPreviewService,
   LanTransferService,

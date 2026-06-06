@@ -36,8 +36,8 @@ import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporary
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,7 +99,7 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
-const EMPTY_WORKSPACE_ROWS: WorkspaceEntity[] = []
+const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 type CreateSessionSeed = {
   agentId: string
   workspaceId?: string
@@ -365,7 +365,7 @@ const Sessions = ({
   } | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
-  const { data: channels } = useQuery('/channels')
+  const { data: channels } = useQuery('/agent-channels')
   const channelTypeMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const ch of channels ?? []) {
@@ -452,7 +452,7 @@ const Sessions = ({
     isLoading: isWorkspacesLoading,
     isRefreshing: isWorkspacesRefreshing,
     refetch: refetchWorkspaces
-  } = useQuery('/workspaces', { enabled: displayMode === 'workdir' })
+  } = useQuery('/agent-workspaces', { enabled: displayMode === 'workdir' })
   const workspaceRows = workspaces ?? EMPTY_WORKSPACE_ROWS
   const isWorkdirMetadataLoading = displayMode === 'workdir' && isWorkspacesLoading
   const isWorkdirMetadataRefreshing = displayMode === 'workdir' && isWorkspacesRefreshing
@@ -646,21 +646,23 @@ const Sessions = ({
     [sessionItems, t, updateSession]
   )
 
-  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/workspaces', { refresh: ['/workspaces'] })
+  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
+    refresh: ['/agent-workspaces']
+  })
   const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
     'PATCH',
-    '/workspaces/:workspaceId',
+    '/agent-workspaces/:workspaceId',
     {
-      refresh: ['/workspaces', '/sessions']
+      refresh: ['/agent-workspaces', '/agent-sessions']
     }
   )
-  const { trigger: deleteWorkspace } = useMutation('DELETE', '/workspaces/:workspaceId', {
-    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
-  const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
+  const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
   const createSessionFromSeed = useCallback(

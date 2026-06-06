@@ -379,7 +379,6 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        getPathStatus: mocks.getPathStatus,
         listDirectory: mocks.listDirectory
       }
     }

@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -350,7 +350,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       }
     }
 
-    if (path === '/workspaces') {
+    if (path === '/agent-workspaces') {
       return {
         data: dataApiMocks.workspaces,
         isLoading: dataApiMocks.workspacesLoading,
@@ -374,13 +374,13 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
     return {
       trigger:
-        method === 'PATCH' && path === '/workspaces/:id/order'
+        method === 'PATCH' && path === '/agent-workspaces/:id/order'
           ? dataApiMocks.reorderWorkspace
           : method === 'PATCH' && path === '/agents/:id/order'
             ? dataApiMocks.reorderAgent
-            : method === 'PATCH' && path === '/workspaces/:workspaceId'
+            : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
               ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/workspaces/:workspaceId'
+              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
                 ? dataApiMocks.deleteWorkspace
                 : method === 'DELETE' && path === '/agents/:agentId/sessions'
                   ? dataApiMocks.deleteAgentSessions
@@ -552,7 +552,7 @@ function getSessionGroupExpansionPreference() {
   >
 }
 
-function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
+function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = {}): AgentWorkspaceEntity {
   return {
     id: `ws-${path}`,
     name: path.split('/').at(-1) ?? path,
@@ -1782,9 +1782,9 @@ describe('Sessions', () => {
         params: { workspaceId: 'ws-a' }
       })
     )
-    expect(dataApiMocks.mutationOptions.get('PATCH /workspaces/:workspaceId')?.refresh).toEqual([
-      '/workspaces',
-      '/sessions'
+    expect(dataApiMocks.mutationOptions.get('PATCH /agent-workspaces/:workspaceId')?.refresh).toEqual([
+      '/agent-workspaces',
+      '/agent-sessions'
     ])
     expect(window.toast.success).toHaveBeenCalledWith('Saved')
   })
@@ -1848,11 +1848,11 @@ describe('Sessions', () => {
         content: 'Deleting this project also deletes sessions under it. The actual folder is not deleted.'
       })
     )
-    expect(dataApiMocks.mutationOptions.get('DELETE /workspaces/:workspaceId')?.refresh).toEqual([
-      '/sessions',
-      '/workspaces',
+    expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([
+      '/agent-sessions',
+      '/agent-workspaces',
       '/pins',
-      '/channels'
+      '/agent-channels'
     ])
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(callOrder).toEqual(['workspace'])
@@ -2009,10 +2009,10 @@ describe('Sessions', () => {
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId/sessions')?.refresh).toEqual([
-      '/sessions',
-      '/workspaces',
+      '/agent-sessions',
+      '/agent-workspaces',
       '/pins',
-      '/channels'
+      '/agent-channels'
     ])
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(

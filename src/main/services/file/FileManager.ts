@@ -134,10 +134,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
-import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -145,7 +142,6 @@ import type {
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
-  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   FilePath,
   FileURLString,
@@ -153,7 +149,6 @@ import type {
 } from '@shared/file/types'
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
-import type { GetPathStatusIpcParams } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 import * as z from 'zod'
@@ -709,19 +704,16 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
-      this.getPathStatus(GetPathStatusIpcSchema.parse(params))
-    )
-    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: FilePath) => this.getFileSize(filePath))
-    this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
-    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
-      searchListDirectory(dirPath, options)
-    )
-    // `File_TreeCreate` / `File_TreeDispose` are owned by `DirectoryTreeManager`
-    // itself — that service registers them in its own `onInit` so the
-    // handler lifetime tracks the service that holds the underlying
-    // chokidar watchers and IPC subscriptions.
-
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
+      const handle = FileHandleSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        async () => {
+          throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
+        },
+        (path) => this.getMetadataByPath(path)
+      )
+    })
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
@@ -931,16 +923,19 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileURLString
   }
 
-  private async getPathStatus(params: GetPathStatusIpcParams) {
-    return readPathStatus(params.path, { expectedKind: params.expectedKind })
-  }
-
-  private async getFileSize(filePath: FilePath): Promise<number> {
-    const s = await fsStat(filePath)
+  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+    const s = await fsStat(path)
     if (s.isDirectory) {
-      throw new Error(`Cannot read size: path is a directory (${filePath})`)
+      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
     }
-    return s.size
+    return {
+      kind: 'file',
+      type: 'other',
+      size: s.size,
+      createdAt: s.createdAt || s.modifiedAt,
+      modifiedAt: s.modifiedAt,
+      mime: mime.getType(path) ?? 'application/octet-stream'
+    }
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

@@ -1,12 +1,12 @@
 import { agentService } from '@data/services/AgentService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { workspaceService } from '@data/services/WorkspaceService'
 import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { v4 as uuidv4 } from 'uuid'
 
 type TemporarySessionRow = {
@@ -15,12 +15,12 @@ type TemporarySessionRow = {
   name: string
   description: string
   workspaceId?: string
-  workspaceType?: WorkspaceEntity['type']
+  AgentWorkspaceType?: AgentWorkspaceEntity['type']
   createdAt: number
   updatedAt: number
 }
 
-function rowToSession(row: TemporarySessionRow, workspace: WorkspaceEntity | null): AgentSessionEntity {
+function rowToSession(row: TemporarySessionRow, workspace: AgentWorkspaceEntity | null): AgentSessionEntity {
   return {
     id: row.id,
     agentId: row.agentId,
@@ -55,9 +55,9 @@ export class TemporarySessionService {
     // display; an invalid id surfaces as a precise 404 before the row is kept.
     const workspace =
       dto.workspaceMode === 'system'
-        ? await workspaceService.createSystemWorkspaceForSession(id)
+        ? await agentWorkspaceService.createSystemAgentWorkspaceForSession(id)
         : dto.workspaceId
-          ? await workspaceService.getById(dto.workspaceId)
+          ? await agentWorkspaceService.getById(dto.workspaceId)
           : null
 
     const row: TemporarySessionRow = {
@@ -66,7 +66,7 @@ export class TemporarySessionService {
       name: dto.name?.trim() || 'Untitled',
       description: dto.description ?? '',
       workspaceId: workspace?.id,
-      workspaceType: workspace?.type,
+      AgentWorkspaceType: workspace?.type,
       createdAt: now,
       updatedAt: now
     }
@@ -80,7 +80,7 @@ export class TemporarySessionService {
     if (!row) {
       throw DataApiErrorFactory.notFound('TemporarySession', id)
     }
-    if (row.workspaceId && row.workspaceType === 'system') {
+    if (row.workspaceId && row.AgentWorkspaceType === 'system') {
       await workspaceWorkflowService.deleteWorkspace(row.workspaceId)
     }
     this.sessions.delete(id)
@@ -102,14 +102,14 @@ export class TemporarySessionService {
 
     this.sessions.delete(id)
     try {
-      return await sessionService.createSession(
+      return await agentSessionService.createSession(
         {
           agentId: row.agentId,
           name: row.name,
           description: row.description,
           workspaceId: row.workspaceId
         },
-        { id: row.id, allowSystemWorkspaceId: row.workspaceType === 'system' }
+        { id: row.id, allowSystemWorkspaceId: row.AgentWorkspaceType === 'system' }
       )
     } catch (err) {
       this.sessions.set(id, row)

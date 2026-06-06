@@ -305,8 +305,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSessionMessageById = useCallback(
     async (sessionId: string, messageId: string) => {
-      await dataApiService.get(`/sessions/${sessionId}`)
-      await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
+      await dataApiService.get(`/agent-sessions/${sessionId}`)
+      await invalidateCache([
+        '/agent-sessions',
+        `/agent-sessions/${sessionId}`,
+        `/agent-sessions/${sessionId}/messages`
+      ])
       agentNav.openConversationTab(sessionId)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, { sessionId, messageId })

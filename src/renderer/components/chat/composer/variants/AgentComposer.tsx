@@ -39,13 +39,11 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
-import type { PathStatus } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { TFunction } from 'i18next'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,52 +61,6 @@ import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIcon
 
 const logger = loggerService.withContext('AgentComposer')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
-
-function useWorkspacePathStatus(path: string | undefined): PathStatus | null {
-  const [status, setStatus] = useState<PathStatus | null>(null)
-  useEffect(() => {
-    let disposed = false
-    setStatus(null)
-    if (!path) return
-
-    void (async () => {
-      try {
-        const next = await window.api.file.getPathStatus({ path, expectedKind: 'directory' })
-        if (!disposed) setStatus(next)
-      } catch (error) {
-        if (!disposed) {
-          logger.warn('Failed to check workspace path status', {
-            path,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-    })()
-
-    return () => {
-      disposed = true
-    }
-  }, [path])
-  return status
-}
-
-function formatWorkspacePathWarning(
-  t: TFunction,
-  status: PathStatus | null,
-  path: string | undefined
-): string | undefined {
-  if (!status || status.ok) return undefined
-  switch (status.reason) {
-    case 'missing':
-      return t('agent.session.workspace_status.missing', { path })
-    case 'not-directory':
-      return t('agent.session.workspace_status.not_directory', { path })
-    case 'not-file':
-      return t('agent.session.workspace_status.inaccessible', { path })
-    case 'inaccessible':
-      return t('agent.session.workspace_status.inaccessible', { path })
-  }
-}
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
@@ -667,8 +619,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
-  const workspacePathStatus = useWorkspacePathStatus(workspace?.path)
-  const workspaceWarning = formatWorkspacePathWarning(t, workspacePathStatus, workspace?.path)
+  const workspaceWarning: string | undefined = undefined
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))

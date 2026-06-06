@@ -16,8 +16,8 @@ import type { Topic } from '@shared/data/types/topic'
 import * as z from 'zod'
 
 import { AgentNameAtomSchema } from './agents'
+import { type AgentSessionEntity, WorkspaceModeSchema } from './agentSessions'
 import type { CreateMessageDto } from './messages'
-import { type AgentSessionEntity, WorkspaceModeSchema } from './sessions'
 import type { CreateTopicDto } from './topics'
 
 // ============================================================================

@@ -138,8 +138,8 @@ const SettingsComponentLabRoute = SettingsComponentLabRouteImport.update({
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
-  id: '/channels',
-  path: '/channels',
+  id: '/agent-channels',
+  path: '/agent-channels',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsApiServerRoute = SettingsApiServerRouteImport.update({
@@ -645,7 +645,7 @@ declare module '@tanstack/react-router' {
     }
     '/settings/channels': {
       id: '/settings/channels'
-      path: '/channels'
+      path: '/agent-channels'
       fullPath: '/settings/channels'
       preLoaderRoute: typeof SettingsChannelsRouteImport
       parentRoute: typeof SettingsRoute

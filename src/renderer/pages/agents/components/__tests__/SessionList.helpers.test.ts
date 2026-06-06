@@ -2,8 +2,8 @@ import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
 } from '@renderer/components/chat/resources'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -41,7 +41,7 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
+function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = {}): AgentWorkspaceEntity {
   return {
     id: `ws-${path}`,
     name: path,

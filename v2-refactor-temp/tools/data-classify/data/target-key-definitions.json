@@ -104,7 +104,12 @@
         "agents",
         "paintings",
         "translate",
-        "store"
+        "store",
+        "mini_app",
+        "knowledge",
+        "files",
+        "code_tools",
+        "notes"
       ],
       "status": "classified",
       "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"

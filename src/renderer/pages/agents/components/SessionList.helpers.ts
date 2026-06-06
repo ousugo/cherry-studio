@@ -10,8 +10,8 @@ import {
   type ResourceListTimeBucket
 } from '@renderer/components/chat/resources'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 export type AgentSessionDisplayMode = PreferenceAgentSessionDisplayMode
@@ -53,7 +53,7 @@ export type SessionListItem = AgentSessionEntity & {
 }
 
 type SessionWorkdirSource = Pick<AgentSessionEntity, 'workspace' | 'workspaceId'>
-type WorkspaceDisplaySource = Pick<WorkspaceEntity, 'id' | 'name' | 'path' | 'type'>
+type WorkspaceDisplaySource = Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path' | 'type'>
 
 export type SessionWorkdirDisplayMaps = {
   groupIdByPath: ReadonlyMap<string, string>

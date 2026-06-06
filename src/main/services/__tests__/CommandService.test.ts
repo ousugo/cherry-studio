@@ -20,7 +20,8 @@ const {
   quickAssistantServiceMock,
   selectionServiceMock,
   windowManagerMock,
-  handleZoomFactorMock
+  handleZoomFactorMock,
+  showNativePopupMenuMock
 } = vi.hoisted(() => ({
   windowServiceMock: {
     toggleMainWindow: vi.fn()
@@ -36,9 +37,10 @@ const {
     processSelectTextByShortcut: vi.fn()
   },
   windowManagerMock: {
-    getAllWindows: vi.fn((): Array<{ type: string; window: any }> => [])
+    getWindowsByType: vi.fn((): any[] => [])
   },
-  handleZoomFactorMock: vi.fn()
+  handleZoomFactorMock: vi.fn(),
+  showNativePopupMenuMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -53,7 +55,14 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {}
+  class MockBaseService {
+    protected readonly handlers = new Map<string, (...args: any[]) => unknown>()
+
+    protected ipcHandle(channel: string, handler: (...args: any[]) => unknown) {
+      this.handlers.set(channel, handler)
+      return { dispose: vi.fn() }
+    }
+  }
 
   return {
     BaseService: MockBaseService,
@@ -68,6 +77,11 @@ vi.mock('@main/utils/zoom', () => ({
   handleZoomFactor: handleZoomFactorMock
 }))
 
+vi.mock('@main/services/nativePopupMenu', () => ({
+  showNativePopupMenu: showNativePopupMenuMock
+}))
+
+import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { CommandService } from '../CommandService'
@@ -78,7 +92,7 @@ describe('CommandService', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    windowManagerMock.getAllWindows.mockReturnValue([])
+    windowManagerMock.getWindowsByType.mockReturnValue([])
     service = new CommandService()
     await (service as any).onInit()
   })
@@ -116,16 +130,49 @@ describe('CommandService', () => {
 
   it('falls back to all main windows for zoom commands without an explicit target window', () => {
     const mainWindow = { isDestroyed: vi.fn(() => false) } as any
-    const destroyedMainWindow = { isDestroyed: vi.fn(() => true) } as any
-    const settingsWindow = { isDestroyed: vi.fn(() => false) } as any
-    windowManagerMock.getAllWindows.mockReturnValue([
-      { type: 'main', window: mainWindow },
-      { type: 'main', window: destroyedMainWindow },
-      { type: 'settings', window: settingsWindow }
-    ])
+    windowManagerMock.getWindowsByType.mockReturnValue([mainWindow])
 
     service.execute('app.zoom.reset')
 
     expect(handleZoomFactorMock).toHaveBeenCalledWith([mainWindow], 0, true)
+  })
+
+  describe('native popup menu IPC', () => {
+    const getHandler = () => (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
+
+    it('registers the native popup menu channel and delegates to showNativePopupMenu', () => {
+      const handler = getHandler()
+      expect(handler).toBeTypeOf('function')
+
+      const event = { sender: {} } as any
+      const model = { location: 'topic.context', items: [] }
+      const anchor = { x: 1, y: 2 }
+      handler(event, model, anchor)
+
+      expect(showNativePopupMenuMock).toHaveBeenCalledWith(event, model, anchor, expect.any(Function))
+    })
+
+    it('executes executable commands in main through the gate callback', () => {
+      const window = { isDestroyed: vi.fn(() => false) } as any
+      getHandler()({ sender: {} }, {}, undefined)
+      const executeCommand = showNativePopupMenuMock.mock.calls.at(-1)?.[3] as (command: any, window?: any) => boolean
+
+      // app.window.show has a registered handler and no enablement gate → executable
+      const executed = executeCommand('app.window.show', window)
+
+      expect(executed).toBe(true)
+      expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not execute disabled commands and reports them as not handled', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+      getHandler()({ sender: {} }, {}, undefined)
+      const executeCommand = showNativePopupMenuMock.mock.calls.at(-1)?.[3] as (command: any, window?: any) => boolean
+
+      const executed = executeCommand('quick_assistant.toggle')
+
+      expect(executed).toBe(false)
+      expect(quickAssistantServiceMock.toggleQuickAssistant).not.toHaveBeenCalled()
+    })
   })
 })

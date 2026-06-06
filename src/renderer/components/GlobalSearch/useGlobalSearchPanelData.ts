@@ -102,7 +102,7 @@ export function useGlobalSearchPanelData({
     error: sessionMessageError,
     hasNext: hasNextSessionMessagePage,
     loadNext: loadNextSessionMessagePage
-  } = useInfiniteQuery('/sessions/messages/search', {
+  } = useInfiniteQuery('/agent-sessions/messages/search', {
     enabled: hasQuery && shouldSearchSessionMessages,
     query: messageSearchQuery,
     limit: messageSearchLimit

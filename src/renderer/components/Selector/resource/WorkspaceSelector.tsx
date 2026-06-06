@@ -2,7 +2,7 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +30,7 @@ export type WorkspaceSelectorProps = SharedProps & {
   onChange: (value: string | null) => void | Promise<void>
 }
 
-function workspaceMatchesSearch(workspace: WorkspaceEntity, searchValue: string) {
+function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: string) {
   const query = searchValue.trim().toLowerCase()
   if (!query) return true
 
@@ -55,9 +55,9 @@ export function WorkspaceSelector({
   const open = openProp ?? internalOpen
   const listboxId = useId()
 
-  const { data: workspaces, isLoading, refetch } = useQuery('/workspaces')
-  const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/workspaces', {
-    refresh: ['/workspaces']
+  const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
+  const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
+    refresh: ['/agent-workspaces']
   })
 
   const handleOpenChange = useCallback(
@@ -123,7 +123,7 @@ export function WorkspaceSelector({
     }
   }, [createWorkspace, handleOpenChange, onChange, refetch, t])
 
-  const renderWorkspaceRow = (workspace: WorkspaceEntity) => {
+  const renderWorkspaceRow = (workspace: AgentWorkspaceEntity) => {
     const selected = workspace.id === selectedId
 
     return (

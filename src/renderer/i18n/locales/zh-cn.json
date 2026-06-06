@@ -1370,7 +1370,7 @@
       "cancel_editing": "取消编辑",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
-        "label": "清空消息 {{Command}}",
+        "label": "清空消息",
         "title": "清空消息"
       },
       "collapse": "收起",
@@ -1393,7 +1393,7 @@
       "locate_editing_message": "定位原消息",
       "mcp_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
       "new": {
-        "context": "清除上下文 {{Command}}"
+        "context": "清除上下文"
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",
@@ -7602,22 +7602,6 @@
     "settings": "设置",
     "store": "资源",
     "translate": "翻译"
-  },
-  "trace": {
-    "backList": "返回列表",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "结束时间",
-    "inputs": "输入",
-    "label": "调用链",
-    "name": "节点名称",
-    "noTraceList": "没有找到Trace信息",
-    "outputs": "输出",
-    "parentId": "上级Id",
-    "spanDetail": "Span详情",
-    "spendTime": "消耗时间",
-    "startTime": "开始时间",
-    "tag": "标签",
-    "tokenUsage": "Token使用量"
   },
   "translate": {
     "alter_language": "备用语言",

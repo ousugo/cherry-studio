@@ -19,7 +19,6 @@ interface ClickableFilePathProps {
 
 // Workspace-relative paths can't be resolved without workspace context here,
 // so existence validation only runs for absolute paths.
-const isAbsoluteFilePath = (value: string): boolean => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)
 
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
@@ -60,13 +59,6 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       if (!openArtifactFile) return
       e.stopPropagation()
       const run = async () => {
-        if (isAbsoluteFilePath(normalizedPath)) {
-          const status = await window.api.file.getPathStatus({ path: normalizedPath, expectedKind: 'file' })
-          if (!status.ok) {
-            notifyError?.(t('chat.input.tools.file_not_found', { path: normalizedPath }))
-            return
-          }
-        }
         await openArtifactFile(normalizedPath)
       }
       run().catch(() => {

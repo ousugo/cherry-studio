@@ -156,7 +156,6 @@ export enum IpcChannel {
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
-  NativeCommandPopupMenu_ExecuteCommand = 'native-command-popup-menu:execute-command',
 
   // Tab
   Tab_Attach = 'tab:attach',
@@ -219,8 +218,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_GetPathStatus = 'file:getPathStatus',
-  File_GetFileSize = 'file:getFileSize',
+  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
@@ -365,16 +363,11 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
-  TRACE_GET_DATA = 'trace:getData',
   TRACE_SAVE_ENTITY = 'trace:saveEntity',
   TRACE_GET_ENTITY = 'trace:getEntity',
   TRACE_BIND_TOPIC = 'trace:bindTopic',
-  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
-  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
   TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
-  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
   // API Server
   ApiServer_Start = 'api-server:start',
