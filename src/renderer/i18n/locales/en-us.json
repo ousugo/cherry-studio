@@ -484,6 +484,10 @@
       "edit": {
         "title": "Edit task"
       },
+      "empty": {
+        "description": "Tasks will appear here after you start one.",
+        "title": "No tasks yet"
+      },
       "file_manager": {
         "file_explorer": "File Explorer",
         "files": "Files",
@@ -1712,6 +1716,10 @@
         "placeholder": "Enter new name",
         "title": "Edit Name",
         "title_tip": "Tips: Double-click the conversation name to rename it directly in place"
+      },
+      "empty": {
+        "description": "Create a chat and it will stay here so you can continue with its context later.",
+        "title": "No chats yet"
       },
       "export": {
         "failed": "Export failed",

@@ -484,6 +484,10 @@
       "edit": {
         "title": "编辑任务"
       },
+      "empty": {
+        "description": "开始任务后，任务记录会显示在这里。",
+        "title": "还没有任务"
+      },
       "file_manager": {
         "file_explorer": "资源管理器",
         "files": "Files",
@@ -1712,6 +1716,10 @@
         "placeholder": "输入新名称",
         "title": "编辑对话名",
         "title_tip": "提示: 双击对话名可以直接就地重命名"
+      },
+      "empty": {
+        "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
+        "title": "还没有对话"
       },
       "export": {
         "failed": "导出失败",

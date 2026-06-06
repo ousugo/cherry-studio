@@ -1376,10 +1376,10 @@ const Sessions = ({
         <ResourceList.HeaderItem
           type="button"
           command="topic.create"
-          aria-label={t('chat.conversation.new')}
+          aria-label={t('agent.session.add.title')}
           disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
           icon={<SquarePen />}
-          label={t('chat.conversation.new')}
+          label={t('agent.session.add.title')}
           onClick={handleHeaderCreateSession}
           actions={
             <SessionListOptionsMenu
@@ -1505,6 +1505,15 @@ function SessionListBody({
             </Button>
           </div>
         </ResourceList.ErrorState>
+      }
+      emptyFallback={
+        <ResourceList.EmptyState
+          compact
+          preset="no-session"
+          className="min-h-60 px-5 py-10"
+          title={t('agent.session.empty.title')}
+          description={t('agent.session.empty.description')}
+        />
       }
       renderItem={renderItem}
     />

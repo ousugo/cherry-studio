@@ -243,6 +243,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.unpin') return 'Unpin Conversation'
       if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
       if (key === 'chat.topics.edit.title') return 'Edit conversation name'
+      if (key === 'chat.topics.empty.description')
+        return 'Create a chat and it will stay here so you can continue with its context later.'
+      if (key === 'chat.topics.empty.title') return 'No chats yet'
       if (key === 'assistants.edit.title') return 'Edit Assistant'
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
@@ -703,6 +706,29 @@ describe('Topics', () => {
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 200 }))
     await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows the empty chat state without a creation action', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic } = renderTopicList()
+
+    expect(screen.getByText('No chats yet')).toBeInTheDocument()
+    expect(
+      screen.getByText('Create a chat and it will stay here so you can continue with its context later.')
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(1)
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {

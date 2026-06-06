@@ -413,6 +413,8 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Project',
+        'agent.session.empty.description': 'Tasks will appear here after you start one.',
+        'agent.session.empty.title': 'No tasks yet',
         'agent.edit.title': 'Edit Agent',
         'agent.session.edit.title': 'Edit task',
         'agent.session.file_manager.file_explorer': 'File Explorer',
@@ -753,7 +755,7 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the header new conversation action enabled without agents and starts a missing-agent draft', () => {
+  it('keeps the header new task action enabled without agents and starts a missing-agent draft', () => {
     const onStartTemporarySession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()
     setupSessions({ sessions: [] })
@@ -771,12 +773,24 @@ describe('Sessions', () => {
       />
     )
 
-    const newConversationButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    const newConversationButton = screen.getByRole('button', { name: 'Add task' })
     expect(newConversationButton).not.toBeDisabled()
 
     fireEvent.click(newConversationButton)
 
     expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
+    expect(onStartTemporarySession).not.toHaveBeenCalled()
+  })
+
+  it('shows the empty task state without a creation action', () => {
+    const onStartTemporarySession = vi.fn()
+    setupSessions({ sessions: [] })
+
+    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
+    expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add task' })).toHaveLength(1)
     expect(onStartTemporarySession).not.toHaveBeenCalled()
   })
 
@@ -1256,7 +1270,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled', workspaceId: 'ws-b' })
