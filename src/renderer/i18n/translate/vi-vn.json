@@ -515,6 +515,9 @@
       "list": {
         "title": "[to be translated]:Sessions"
       },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Không thể sắp xếp lại các phiên"
@@ -522,6 +525,9 @@
       },
       "search": {
         "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
@@ -1040,7 +1046,7 @@
     "abbr": "Trợ lý",
     "clear": {
       "content": "Xóa chủ đề sẽ xóa tất cả các chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn tiếp tục?",
-      "menu_title": "[to be translated]:Delete all assistant chats",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Temas claros"
     },
     "copy": {

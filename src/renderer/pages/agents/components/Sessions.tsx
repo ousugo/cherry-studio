@@ -563,7 +563,7 @@ const Sessions = ({
       }
 
       if (displayMode === 'workdir' && isSystemWorkspaceSession(session)) {
-        return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.conversation') }
+        return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.no_workdir') }
       }
 
       return {

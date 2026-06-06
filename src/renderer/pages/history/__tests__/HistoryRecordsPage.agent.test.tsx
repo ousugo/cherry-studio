@@ -278,13 +278,13 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Project',
         'agent.session.group.no_workdir': 'No project',
-        'agent.session.delete.content': 'Delete this session?',
-        'agent.session.delete.title': 'Delete session',
-        'agent.session.edit.title': 'Edit session',
-        'agent.session.update.error.failed': 'Failed to update session',
+        'agent.session.delete.content': 'Delete this task?',
+        'agent.session.delete.title': 'Delete task',
+        'agent.session.edit.title': 'Edit task',
+        'agent.session.pin.title': 'Pin task',
+        'agent.session.update.error.failed': 'Failed to update task',
+        'agent.session.unpin.title': 'Unpin task',
         'agent.edit.title': 'Edit Agent',
-        'chat.topics.pin': 'Pin',
-        'chat.topics.unpin': 'Unpin',
         'common.agent': 'Agent',
         'common.all': 'All',
         'common.back': 'Back',
@@ -299,23 +299,23 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
-        'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected session(s)?',
-        'history.records.bulkDeleteSessions.title': 'Delete selected sessions',
-        'history.records.agentSubtitle': '{{count}} sessions',
+        'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
+        'history.records.bulkDeleteSessions.title': 'Delete selected tasks',
+        'history.records.agentSubtitle': '{{count}} tasks',
         'history.records.agentTitle': 'Agent history',
-        'history.records.empty.sessionsDescription': 'No sessions for the current filters.',
-        'history.records.empty.sessionsTitle': 'No sessions',
-        'history.records.loading.sessionsDescription': 'Loading sessions.',
-        'history.records.loading.sessionsTitle': 'Loading sessions',
+        'history.records.empty.sessionsDescription': 'No tasks for the current filters.',
+        'history.records.empty.sessionsTitle': 'No tasks',
+        'history.records.loading.sessionsDescription': 'Loading task list.',
+        'history.records.loading.sessionsTitle': 'Loading tasks',
         'history.records.resultCount': '{{count}} results',
-        'history.records.searchSession': 'Search sessions...',
+        'history.records.searchSession': 'Search tasks...',
         'history.records.shortTitle': 'History',
         'history.records.sidebar.status': 'Status',
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
         'history.records.table.actions': 'Actions',
-        'history.records.table.session': 'Session',
+        'history.records.table.session': 'Task',
         'history.records.table.time': 'Time',
         'selector.common.pin': 'Pin',
         'selector.common.unpin': 'Unpin',
@@ -500,7 +500,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByText('History')).toBeInTheDocument()
-    expect(screen.getByText('2 sessions')).toBeInTheDocument()
+    expect(screen.getByText('2 tasks')).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
@@ -616,12 +616,12 @@ describe('HistoryRecordsPage agent mode', () => {
   it('searches locally by session name, description, and agent name', () => {
     setupAgentHistory()
 
-    fireEvent.change(screen.getByPlaceholderText('Search sessions...'), { target: { value: 'runbook' } })
+    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search sessions...'), { target: { value: 'alpha agent' } })
+    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'alpha agent' } })
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
@@ -690,8 +690,8 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected sessions')
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected session(s)?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected tasks')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected task(s)?')
     expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -706,8 +706,8 @@ describe('HistoryRecordsPage agent mode', () => {
   it('renders an empty state when there are no sessions', () => {
     setupAgentHistory({ sessions: [] })
 
-    expect(screen.getByText('No sessions')).toBeInTheDocument()
-    expect(screen.getByText('No sessions for the current filters.')).toBeInTheDocument()
+    expect(screen.getByText('No tasks')).toBeInTheDocument()
+    expect(screen.getByText('No tasks for the current filters.')).toBeInTheDocument()
   })
 
   it('renders the external session context menu for history rows', () => {
@@ -720,7 +720,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Rename',
-      'Pin',
+      'Pin task',
       '',
       'Delete'
     ])
@@ -742,7 +742,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Edit session')
+    expect(dialog).toHaveTextContent('Edit task')
     const input = within(dialog).getByLabelText('Name')
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
@@ -762,7 +762,7 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin' }))
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin task' }))
       await flushAnimationFrame()
     })
 
@@ -778,7 +778,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete session')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task')
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -801,7 +801,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete session' }))
+    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]

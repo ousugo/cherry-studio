@@ -292,15 +292,15 @@ vi.mock('react-i18next', () => ({
     t: (key: string, fallbackOrOptions?: string | Record<string, unknown>, maybeOptions?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'chat.default.name': 'Default assistant',
-        'chat.default.topic.name': 'New topic',
+        'chat.default.topic.name': 'New conversation',
         'chat.save.topic.knowledge.menu_title': 'Save to knowledge base',
-        'chat.topics.auto_rename': 'Generate topic name',
+        'chat.topics.auto_rename': 'Generate conversation name',
         'chat.topics.clear.title': 'Clear messages',
         'chat.topics.copy.image': 'Copy as Image',
         'chat.topics.copy.md': 'Copy as Markdown',
         'chat.topics.copy.plain_text': 'Copy as Plain Text',
         'chat.topics.copy.title': 'Copy',
-        'chat.topics.edit.title': 'Edit topic name',
+        'chat.topics.edit.title': 'Edit conversation name',
         'chat.topics.export.image': 'Export as Image',
         'chat.topics.export.joplin': 'Export to Joplin',
         'chat.topics.export.md.label': 'Export as Markdown',
@@ -311,10 +311,10 @@ vi.mock('react-i18next', () => ({
         'chat.topics.export.title': 'Export',
         'chat.topics.export.word': 'Export as Word',
         'chat.topics.export.yuque': 'Export to Yuque',
-        'chat.topics.manage.delete.confirm.content': 'Delete {{count}} topic(s)?',
-        'chat.topics.manage.delete.confirm.title': 'Delete Topics',
-        'chat.topics.pin': 'Pin Topic',
-        'chat.topics.unpin': 'Unpin Topic',
+        'chat.topics.manage.delete.confirm.content': 'Delete {{count}} conversation(s)?',
+        'chat.topics.manage.delete.confirm.title': 'Delete Conversations',
+        'chat.topics.pin': 'Pin Conversation',
+        'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
@@ -328,22 +328,23 @@ vi.mock('react-i18next', () => ({
         'common.select': 'Select',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
-        'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected topic(s)?',
-        'history.records.bulkDeleteTopics.title': 'Delete selected topics',
+        'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
+        'history.records.bulkDeleteTopics.title': 'Delete selected conversations',
         'history.records.bulkMove': 'Batch Move',
         'history.records.bulkMoveTopics.confirm': 'Move',
-        'history.records.bulkMoveTopics.description': 'Move {{count}} selected topic(s) to the target assistant.',
+        'history.records.bulkMoveTopics.description':
+          'Move {{count}} selected conversation(s) to the target assistant.',
         'history.records.bulkMoveTopics.empty': 'No assistants available',
-        'history.records.bulkMoveTopics.error': 'Failed to move topics',
+        'history.records.bulkMoveTopics.error': 'Failed to move conversations',
         'history.records.bulkMoveTopics.placeholder': 'Select assistant',
-        'history.records.bulkMoveTopics.success': 'Moved {{count}} topic(s)',
+        'history.records.bulkMoveTopics.success': 'Moved {{count}} conversation(s)',
         'history.records.bulkMoveTopics.target': 'Target assistant',
-        'history.records.bulkMoveTopics.title': 'Move selected topics',
-        'history.records.assistantSubtitle': '{{count}} topics',
-        'history.records.empty.description': 'No topics for the current filters.',
-        'history.records.empty.title': 'No topics',
+        'history.records.bulkMoveTopics.title': 'Move selected conversations',
+        'history.records.assistantSubtitle': '{{count}} conversations',
+        'history.records.empty.description': 'No conversations for the current filters.',
+        'history.records.empty.title': 'No conversations',
         'history.records.resultCount': '{{count}} results',
-        'history.records.searchTopic': 'Search topics...',
+        'history.records.searchTopic': 'Search conversations...',
         'history.records.shortTitle': 'History',
         'history.records.sidebar.searchAssistant': 'Search assistants...',
         'history.records.sidebar.unknownAssistant': 'Unlinked assistant',
@@ -351,7 +352,7 @@ vi.mock('react-i18next', () => ({
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
         'history.records.table.title': 'Title',
-        'history.records.title': 'Topic history',
+        'history.records.title': 'Conversation history',
         'notes.save': 'Save to notes',
         'selector.common.pinned_title': 'Pinned'
       }
@@ -482,13 +483,13 @@ describe('HistoryRecordsPage assistant mode', () => {
     render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     expect(screen.getByText('History')).toBeInTheDocument()
-    expect(screen.getByText('1 topics')).toBeInTheDocument()
+    expect(screen.getByText('1 conversations')).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getByTestId('history-pin-button')
-    expect(pinButton).toHaveAccessibleName('Unpin Topic')
+    expect(pinButton).toHaveAccessibleName('Unpin Conversation')
     fireEvent.click(pinButton)
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
@@ -568,8 +569,8 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected topics')
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected topic(s)?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected conversations')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected conversation(s)?')
     expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -607,8 +608,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Batch Move' }))
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Move selected topics')
-    expect(dialog).toHaveTextContent('Move 2 selected topic(s) to the target assistant.')
+    expect(dialog).toHaveTextContent('Move selected conversations')
+    expect(dialog).toHaveTextContent('Move 2 selected conversation(s) to the target assistant.')
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /Beta assistant/ }))
@@ -619,7 +620,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.updateTopic).toHaveBeenCalledTimes(2)
     expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(1, 'topic-alpha', { assistantId: 'assistant-beta' })
     expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(2, 'topic-beta', { assistantId: 'assistant-beta' })
-    expect(window.toast.success).toHaveBeenCalledWith('Moved 2 topic(s)')
+    expect(window.toast.success).toHaveBeenCalledWith('Moved 2 conversation(s)')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -696,7 +697,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(screen.queryByText('Alpha A')).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha B')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta topic')).not.toBeInTheDocument()
-    expect(screen.getByText('No topics')).toBeInTheDocument()
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {
@@ -763,9 +764,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate topic name',
-      'Edit topic name',
-      'Pin Topic',
+      'Generate conversation name',
+      'Edit conversation name',
+      'Pin Conversation',
       'Clear messages',
       '',
       'Save to notes',
@@ -787,7 +788,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin Topic' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin Conversation' }))
     await act(async () => {
       await flushAnimationFrame()
     })
@@ -813,7 +814,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Conversations')
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -836,7 +837,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     await act(async () => {
       await flushAnimationFrame()
     })
@@ -847,7 +848,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Edit topic name')
+    expect(dialog).toHaveTextContent('Edit conversation name')
     const input = within(dialog).getByLabelText('Name')
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
@@ -869,7 +870,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     await act(async () => {
       await flushAnimationFrame()
     })
@@ -886,7 +887,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(nextMenuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    fireEvent.click(within(nextMenuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     await act(async () => {
       await flushAnimationFrame()
     })
@@ -915,7 +916,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
+    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]

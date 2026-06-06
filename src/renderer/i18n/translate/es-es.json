@@ -515,6 +515,9 @@
       "list": {
         "title": "[to be translated]:Sessions"
       },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Error al reordenar las sesiones"
@@ -522,6 +525,9 @@
       },
       "search": {
         "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
@@ -1040,7 +1046,7 @@
     "abbr": "Asistente",
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
-      "menu_title": "[to be translated]:Delete all assistant chats",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Vaciar Tema"
     },
     "copy": {
