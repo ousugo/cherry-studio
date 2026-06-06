@@ -18,7 +18,8 @@ vi.mock('@cherrystudio/ui', async () => {
       open ? <div role="dialog">{title}</div> : null,
     Tooltip: ({
       children,
-      isOpen
+      isOpen,
+      onOpenChange
     }: {
       children?: ReactNode
       content?: ReactNode
@@ -27,7 +28,21 @@ vi.mock('@cherrystudio/ui', async () => {
       onOpenChange?: (open: boolean) => void
     }) => {
       tooltipOpenValues.push(isOpen)
-      return <>{children}</>
+      return (
+        <div data-testid="mock-tooltip">
+          {children}
+          {onOpenChange && (
+            <button
+              type="button"
+              data-testid="mock-tooltip-trigger"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenChange(true)
+              }}
+            />
+          )}
+        </div>
+      )
     }
   }
 })
@@ -105,7 +120,11 @@ import {
   resolveMessageMenuBarToolbarActions,
   resolveMessageMenuBarTranslationItems
 } from '../messageMenuBarActions'
-import { renderModelPickerToolbarAction, renderMoreMenuToolbarAction } from '../MessageMenuBarToolbarRenderers'
+import {
+  renderModelPickerToolbarAction,
+  renderMoreMenuToolbarAction,
+  renderTranslateToolbarAction
+} from '../MessageMenuBarToolbarRenderers'
 
 const t = ((key: string) => key) as any
 
@@ -352,13 +371,62 @@ describe('messageMenuBarActions', () => {
       })
     )
 
+    // Simulate opening the tooltip
+    fireEvent.click(screen.getByTestId('mock-tooltip-trigger'))
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
+
+    // Click to open the more menu
     fireEvent.click(screen.getByRole('button', { name: 'chat.message.more' }))
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
+    // The tooltip must be immediately hidden when the menu opens
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(executeAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'copy' }))
+    expect(tooltipOpenValues).not.toContain(undefined)
+  })
+
+  it('keeps the translate tooltip controlled while opening the language menu with one click', () => {
+    tooltipOpenValues.length = 0
+
+    const context = createContext({
+      actions: {
+        translateMessage: vi.fn()
+      } as unknown as MessageListActions,
+      translateLanguages: [{ langCode: 'fr', label: 'French' } as any]
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
+    const onSelect = vi.fn()
+
+    expect(action).toBeTruthy()
+
+    render(
+      renderTranslateToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems: [{ key: 'fr', label: 'French', onSelect }]
+      })
+    )
+
+    // Simulate opening the tooltip
+    fireEvent.click(screen.getByTestId('mock-tooltip-trigger'))
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
+
+    // Click to open the translate menu by its accessible name
+    fireEvent.click(screen.getByRole('button', { name: 'chat.translate' }))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    // The tooltip must be immediately hidden when the menu opens
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'French' }))
+
+    expect(onSelect).toHaveBeenCalled()
     expect(tooltipOpenValues).not.toContain(undefined)
   })
 
