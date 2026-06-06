@@ -2,6 +2,7 @@ import { useCommandHandler } from '@renderer/commands'
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -40,6 +41,8 @@ const homeMocks = vi.hoisted(() => ({
     | undefined,
   cacheSetPersist: vi.fn(),
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
+  defaultAssistant: undefined as { id: string } | undefined,
+  defaultAssistantLoading: false,
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
@@ -138,6 +141,13 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
+  useDefaultAssistant: () => ({
+    assistant: homeMocks.defaultAssistant,
+    isLoading: homeMocks.defaultAssistantLoading,
+    error: undefined,
+    refetch: vi.fn(),
+    mutate: vi.fn()
+  }),
   useAssistantApiById: (id?: string) => ({
     assistant: id ? { id } : undefined,
     isLoading: false,
@@ -306,6 +316,8 @@ describe('HomePage', () => {
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
+    homeMocks.defaultAssistant = { id: DEFAULT_ASSISTANT_ID }
+    homeMocks.defaultAssistantLoading = false
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
@@ -611,7 +623,7 @@ describe('HomePage', () => {
       activeTopicId: 'topic-message'
     })
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
     })
   })
 
@@ -705,10 +717,10 @@ describe('HomePage', () => {
     })
   })
 
-  it('starts the first-launch temporary topic without assistant when no remembered assistant exists', async () => {
+  it('seeds the first-launch temporary topic from the default assistant when no remembered assistant exists', async () => {
     homeMocks.locationState = undefined
     homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: undefined,
+      assistantId: DEFAULT_ASSISTANT_ID,
       id: 'temp-topic',
       topicId: 'temp-topic',
       type: 'assistant'
@@ -717,7 +729,25 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
+    })
+  })
+
+  it('waits for the default assistant before leasing the first-launch temporary topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.defaultAssistant = undefined
+    homeMocks.defaultAssistantLoading = true
+
+    const { rerender } = render(<HomePage />)
+
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+
+    homeMocks.defaultAssistant = { id: DEFAULT_ASSISTANT_ID }
+    homeMocks.defaultAssistantLoading = false
+    rerender(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
     })
   })
 
