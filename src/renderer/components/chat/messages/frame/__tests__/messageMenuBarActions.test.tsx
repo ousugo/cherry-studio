@@ -1,8 +1,87 @@
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { TopicType } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
+
+vi.mock('@cherrystudio/ui', async () => {
+  return {
+    Button: ({ children, type = 'button', ...props }: ComponentProps<'button'>) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    ),
+    ConfirmDialog: ({ open, title }: { open?: boolean; title?: ReactNode }) =>
+      open ? <div role="dialog">{title}</div> : null,
+    Tooltip: ({
+      children,
+      isOpen
+    }: {
+      children?: ReactNode
+      content?: ReactNode
+      delay?: number
+      isOpen?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      tooltipOpenValues.push(isOpen)
+      return <>{children}</>
+    }
+  }
+})
+
+vi.mock('@renderer/commands', async () => {
+  const React = await import('react')
+
+  return {
+    CommandPopupMenu: ({
+      children,
+      extraItems = [],
+      onOpenChange
+    }: {
+      children: ReactNode
+      extraItems?: Array<{ id: string; label: ReactNode; onSelect?: () => void }>
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [open, setOpen] = React.useState(false)
+      const child = React.isValidElement<{ onClick?: (event: MouseEvent) => void }>(children) ? children : null
+      const trigger = child
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
+          React.cloneElement(child as ReactElement<{ onClick?: (event: MouseEvent) => void }>, {
+            onClick: (event: MouseEvent) => {
+              child.props.onClick?.(event)
+              setOpen(true)
+              onOpenChange?.(true)
+            }
+          })
+        : children
+
+      return (
+        <>
+          {trigger}
+          {open && (
+            <div role="menu">
+              {extraItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    onOpenChange?.(false)
+                    item.onSelect?.()
+                  }}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )
+    }
+  }
+})
 
 vi.mock('@renderer/services/MessagesService', () => ({
   getMessageTitle: vi.fn()
@@ -26,7 +105,7 @@ import {
   resolveMessageMenuBarToolbarActions,
   resolveMessageMenuBarTranslationItems
 } from '../messageMenuBarActions'
-import { renderModelPickerToolbarAction } from '../MessageMenuBarToolbarRenderers'
+import { renderModelPickerToolbarAction, renderMoreMenuToolbarAction } from '../MessageMenuBarToolbarRenderers'
 
 const t = ((key: string) => key) as any
 
@@ -242,6 +321,45 @@ describe('messageMenuBarActions', () => {
     )
     expect(screen.getByTestId('model-picker')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'message.mention.title' })).toHaveClass('message-action-button')
+  })
+
+  it('keeps the more menu tooltip controlled while opening the menu with one click', () => {
+    tooltipOpenValues.length = 0
+
+    const context = createContext()
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'more-menu')
+    const executeAction = vi.fn()
+
+    expect(action).toBeTruthy()
+
+    render(
+      renderMoreMenuToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction,
+        menuActions: [
+          {
+            id: 'copy',
+            label: 'Copy',
+            icon: null,
+            danger: false,
+            availability: { visible: true, enabled: true },
+            children: []
+          }
+        ],
+        softHoverBg: false,
+        translationItems: []
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.more' }))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(executeAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'copy' }))
+    expect(tooltipOpenValues).not.toContain(undefined)
   })
 
   it('keeps session scope capability-driven for toolbar actions', () => {

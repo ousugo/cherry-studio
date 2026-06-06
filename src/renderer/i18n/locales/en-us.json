@@ -1510,6 +1510,7 @@
         },
         "title": "Branch Management"
       },
+      "more": "More actions",
       "new": {
         "branch": {
           "created": "New Branch Created",

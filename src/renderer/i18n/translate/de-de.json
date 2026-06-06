@@ -484,6 +484,10 @@
       "edit": {
         "title": "Sitzung bearbeiten"
       },
+      "empty": {
+        "description": "[to be translated]:Tasks will appear here after you start one.",
+        "title": "[to be translated]:No tasks yet"
+      },
       "file_manager": {
         "file_explorer": "[to be translated]:File Explorer",
         "files": "[to be translated]:Files",
@@ -1506,6 +1510,7 @@
         },
         "title": "[to be translated]:Branch Management"
       },
+      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
@@ -1712,6 +1717,10 @@
         "placeholder": "Neuen Namen eingeben",
         "title": "Themenname bearbeiten",
         "title_tip": "Tipp: Doppelklicken Sie auf den Themennamen, um ihn direkt umzubenennen"
+      },
+      "empty": {
+        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
+        "title": "[to be translated]:No chats yet"
       },
       "export": {
         "failed": "Export fehlgeschlagen",

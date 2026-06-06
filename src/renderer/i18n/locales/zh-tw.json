@@ -1510,6 +1510,7 @@
         },
         "title": "[to be translated]:Branch Management"
       },
+      "more": "更多操作",
       "new": {
         "branch": {
           "created": "新分支已建立",

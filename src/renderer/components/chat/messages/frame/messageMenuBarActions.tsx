@@ -405,7 +405,7 @@ registerToolbarAction({
 registerToolbarAction({
   id: 'more-menu',
   renderToolbar: renderMoreMenuToolbarAction,
-  label: 'More',
+  label: ({ t }) => t('chat.message.more'),
   icon: <Menu size={19} />,
   availability: toolbarAvailability('more-menu', ({ isUserMessage }) => !isUserMessage)
 })
