@@ -21,8 +21,6 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
   preferences: {
-    'chat.input.paste_long_text_as_file': true,
-    'chat.input.paste_long_text_threshold': 2000,
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
   editorPresetOptions: undefined as any,
@@ -260,8 +258,6 @@ describe('ComposerSurface', () => {
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
     mocks.preferences = {
-      'chat.input.paste_long_text_as_file': true,
-      'chat.input.paste_long_text_threshold': 2000,
       'chat.input.send_message_shortcut': 'Enter'
     }
     mocks.editorPresetOptions = undefined
@@ -434,6 +430,27 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('truncates external text updates at the maximum text length', async () => {
+    const onTextChange = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onTextChange={onTextChange}
+        onActionsChange={(actions) => {
+          mocks.actions = actions
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.actions?.onTextChange('a'.repeat(40001))
+    })
+
+    expect(onTextChange).toHaveBeenCalledWith('a'.repeat(40000))
+  })
+
   it('exposes a focus action for external composer targeting', async () => {
     render(<Harness />)
 
@@ -546,7 +563,7 @@ describe('ComposerSurface', () => {
   })
 
   it('blocks typed input after the composer reaches the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -555,8 +572,29 @@ describe('ComposerSurface', () => {
     ).toBe(true)
   })
 
+  it('truncates typed input to the remaining maximum text length', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const transaction = {
+      insertText: vi.fn(() => transaction)
+    }
+    const view = {
+      state: {
+        doc: { textBetween: vi.fn(() => '') },
+        tr: transaction
+      },
+      dispatch: vi.fn()
+    }
+
+    expect(mocks.editorOptions.editorProps.handleTextInput(view, 1, 1, 'bc')).toBe(true)
+    expect(transaction.insertText).toHaveBeenCalledWith('b', 1, 1)
+    expect(view.dispatch).toHaveBeenCalledWith(transaction)
+  })
+
   it('allows typed replacement when the composer stays within the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -1247,7 +1285,7 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('delegates text longer than the configured threshold to the long-text file handler', async () => {
+  it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
     render(<ComposerSurface {...baseProps} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -1266,36 +1304,15 @@ describe('ComposerSurface', () => {
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
   })
 
-  it('does not delegate long text paste when paste-as-file is disabled', async () => {
-    mocks.preferences['chat.input.paste_long_text_as_file'] = false
-
-    render(<ComposerSurface {...baseProps} />)
+  it('truncates pasted text to the remaining maximum text length', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     const event = {
       preventDefault: vi.fn(),
       clipboardData: {
-        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : ''))
-      }
-    }
-
-    const handled = mocks.editorOptions.handlePaste(null, event)
-
-    expect(handled).toBe(true)
-    expect(mocks.pasteHandler).not.toHaveBeenCalled()
-    expect(mocks.insertContent).toHaveBeenCalled()
-  })
-
-  it('blocks pasted text when it would exceed the composer maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
-
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
-
-    const event = {
-      preventDefault: vi.fn(),
-      clipboardData: {
-        getData: vi.fn((type: string) => (type === 'text/plain' ? 'b' : ''))
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'bb' : ''))
       }
     }
 
@@ -1303,7 +1320,7 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'b' }])
     expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 

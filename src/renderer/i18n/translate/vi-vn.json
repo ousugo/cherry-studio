@@ -3251,11 +3251,11 @@
     },
     "title": "Thư viện",
     "toolbar": {
-"add_tag_placeholder": "Tên thẻ...",
-"all_tags": "[to be translated]:All tags",
-"new_resource": "Tài nguyên mới",
-"search_placeholder": "Tìm kiếm tài nguyên...",
-"tag_button": "Thẻ"
+      "add_tag_placeholder": "Tên thẻ...",
+      "all_tags": "[to be translated]:All tags",
+      "new_resource": "Tài nguyên mới",
+      "search_placeholder": "Tìm kiếm tài nguyên...",
+      "tag_button": "Thẻ"
     },
     "type": {
       "agent": "Đặc vụ",
@@ -6474,8 +6474,6 @@
       "input": {
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
-        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
-        "paste_long_text_threshold": "I’m ready—please provide the long text you’d like translated.",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"

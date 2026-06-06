@@ -3251,11 +3251,11 @@
     },
     "title": "Bibliothek",
     "toolbar": {
-"add_tag_placeholder": "Tag-Name...",
-"all_tags": "[to be translated]:All tags",
-"new_resource": "Neue Ressource",
-"search_placeholder": "Ressourcen durchsuchen...",
-"tag_button": "Tag"
+      "add_tag_placeholder": "Tag-Name...",
+      "all_tags": "[to be translated]:All tags",
+      "new_resource": "Neue Ressource",
+      "search_placeholder": "Ressourcen durchsuchen...",
+      "tag_button": "Tag"
     },
     "type": {
       "agent": "Agent",
@@ -6474,8 +6474,6 @@
       "input": {
         "confirm_delete_message": "Vor Löschen von Nachrichten bestätigen",
         "confirm_regenerate_message": "Nachrichten vor Neugenerierung bestätigen",
-        "paste_long_text_as_file": "Langen Text als Datei einfügen",
-        "paste_long_text_threshold": "Länge langer Text",
         "send_shortcuts": "Senden-Shortcut",
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"

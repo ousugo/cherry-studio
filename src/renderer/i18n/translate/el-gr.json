@@ -3251,11 +3251,11 @@
     },
     "title": "Βιβλιοθήκη",
     "toolbar": {
-"add_tag_placeholder": "Όνομα ετικέτας...",
-"all_tags": "[to be translated]:All tags",
-"new_resource": "Νέος πόρος",
-"search_placeholder": "Αναζήτηση πόρων...",
-"tag_button": "Ετικέτα"
+      "add_tag_placeholder": "Όνομα ετικέτας...",
+      "all_tags": "[to be translated]:All tags",
+      "new_resource": "Νέος πόρος",
+      "search_placeholder": "Αναζήτηση πόρων...",
+      "tag_button": "Ετικέτα"
     },
     "type": {
       "agent": "Πράκτορας",
@@ -6474,8 +6474,6 @@
       "input": {
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"

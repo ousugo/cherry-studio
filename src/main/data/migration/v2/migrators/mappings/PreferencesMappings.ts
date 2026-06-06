@@ -159,14 +159,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'assistant.icon_type'
     },
     {
-      originalKey: 'pasteLongTextAsFile',
-      targetKey: 'chat.input.paste_long_text_as_file'
-    },
-    {
-      originalKey: 'pasteLongTextThreshold',
-      targetKey: 'chat.input.paste_long_text_threshold'
-    },
-    {
       originalKey: 'renderInputMessageAsMarkdown',
       targetKey: 'chat.message.render_as_markdown'
     },
@@ -803,11 +795,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 177
+ * - Redux Store项: 175
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 182
+ * - 总配置项: 180
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

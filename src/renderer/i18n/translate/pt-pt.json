@@ -3251,11 +3251,11 @@
     },
     "title": "Biblioteca",
     "toolbar": {
-"add_tag_placeholder": "Nome da etiqueta...",
-"all_tags": "[to be translated]:All tags",
-"new_resource": "Novo recurso",
-"search_placeholder": "Pesquisar recursos...",
-"tag_button": "Etiqueta"
+      "add_tag_placeholder": "Nome da etiqueta...",
+      "all_tags": "[to be translated]:All tags",
+      "new_resource": "Novo recurso",
+      "search_placeholder": "Pesquisar recursos...",
+      "tag_button": "Etiqueta"
     },
     "type": {
       "agent": "Agente",
@@ -6474,8 +6474,6 @@
       "input": {
         "confirm_delete_message": "confirmar antes de excluir a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
-        "paste_long_text_as_file": "Colar texto longo como arquivo",
-        "paste_long_text_threshold": "Limite de texto longo",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"

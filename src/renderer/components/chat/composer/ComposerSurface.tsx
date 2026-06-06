@@ -5,6 +5,7 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
+import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
@@ -50,7 +51,7 @@ import {
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher } from './toolLauncher'
 
-const COMPOSER_INPUT_MAX_LENGTH = 50000
+const COMPOSER_INPUT_MAX_LENGTH = 40000
 type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
 
 export interface ComposerSurfaceActions {
@@ -225,16 +226,18 @@ const getManagedTokenSignature = (
     .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(
-  text: string,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number
-) {
-  return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
+function shouldDelegateLongTextPasteToFileHandler(text: string) {
+  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
 }
 
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
   return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
+}
+
+function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = '') {
+  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
+  if (remainingLength <= 0) return ''
+  return nextText.slice(0, remainingLength)
 }
 
 function getComposerReplacementText(view: ComposerTextInputView | null, from: number, to: number) {
@@ -355,8 +358,6 @@ export default function ComposerSurface({
   renderLeftControls,
   renderBelowControls
 }: ComposerSurfaceProps) {
-  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
-  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -407,11 +408,11 @@ export default function ComposerSurface({
 
   const applyComposerText = useCallback(
     (nextText: string) => {
-      if (nextText.length > COMPOSER_INPUT_MAX_LENGTH) return
-      textRef.current = nextText
-      pendingLocalTextEchoRef.current = nextText
-      onTextChange(nextText)
-      editorRef.current?.commands.setContent(createPromptVariableContent(nextText), { emitUpdate: false })
+      const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
+      textRef.current = limitedText
+      pendingLocalTextEchoRef.current = limitedText
+      onTextChange(limitedText)
+      editorRef.current?.commands.setContent(createPromptVariableContent(limitedText), { emitUpdate: false })
     },
     [onTextChange]
   )
@@ -427,8 +428,6 @@ export default function ComposerSurface({
   const { handlePaste } = usePasteHandler(text, setText, {
     supportedExts,
     setFiles,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
     onResize: () => undefined,
     t
   })
@@ -804,7 +803,13 @@ export default function ComposerSurface({
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
         if (!selectedPromptVariable) {
           const replacedText = getComposerReplacementText(view, from, to)
-          return exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)
+          if (!exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)) return false
+
+          const limitedInsertedText = getComposerInputTextWithinLimit(textRef.current, insertedText, replacedText)
+          if (limitedInsertedText && view) {
+            view.dispatch(view.state.tr.insertText(limitedInsertedText, from, to))
+          }
+          return true
         }
 
         const composingToken = promptVariableCompositionRef.current
@@ -823,12 +828,13 @@ export default function ComposerSurface({
         const shouldAppend = editState?.tokenId === selectedPromptVariable.token.id && editState.started
         const baseText = shouldAppend ? (selectedPromptVariable.token.promptText ?? '') : ''
         const nextPromptText = `${baseText}${insertedText}`
-        if (
-          exceedsComposerInputMaxLength(textRef.current, nextPromptText, selectedPromptVariable.token.promptText ?? '')
-        ) {
-          return true
-        }
-        updateSelectedPromptVariableToken(editor, nextPromptText)
+        const limitedPromptText = getComposerInputTextWithinLimit(
+          textRef.current,
+          nextPromptText,
+          selectedPromptVariable.token.promptText ?? ''
+        )
+        if (!limitedPromptText) return true
+        updateSelectedPromptVariableToken(editor, limitedPromptText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       },
@@ -866,15 +872,16 @@ export default function ComposerSurface({
           const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
           const nextValue = data || composingToken.text
           if (!nextValue) return true
-          if (
-            exceedsComposerInputMaxLength(textRef.current, nextValue, selectedPromptVariable.token.promptText ?? '')
-          ) {
-            return true
-          }
+          const limitedNextValue = getComposerInputTextWithinLimit(
+            textRef.current,
+            nextValue,
+            selectedPromptVariable.token.promptText ?? ''
+          )
+          if (!limitedNextValue) return true
 
-          updateSelectedPromptVariableToken(editor, nextValue)
+          updateSelectedPromptVariableToken(editor, limitedNextValue)
           promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
-          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: nextValue }
+          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: limitedNextValue }
           return true
         }
       }
@@ -885,32 +892,34 @@ export default function ComposerSurface({
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
-        if (exceedsComposerInputMaxLength(textRef.current, pastedText, selectedPromptVariable.token.promptText ?? '')) {
-          return true
-        }
-        updateSelectedPromptVariableToken(editor, pastedText)
+        const limitedPastedText = getComposerInputTextWithinLimit(
+          textRef.current,
+          pastedText,
+          selectedPromptVariable.token.promptText ?? ''
+        )
+        if (!limitedPastedText) return true
+        updateSelectedPromptVariableToken(editor, limitedPastedText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       }
 
-      if (shouldDelegateLongTextPasteToFileHandler(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
+      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
         event.preventDefault()
         void handlePaste(event)
         return true
       }
 
-      if (
-        editor &&
-        pastedText &&
-        exceedsComposerInputMaxLength(textRef.current, pastedText, getComposerSelectedText(editor))
-      ) {
-        event.preventDefault()
-        return true
+      let textToInsert = pastedText
+      if (editor && pastedText) {
+        const selectedText = getComposerSelectedText(editor)
+        textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
+        if (!textToInsert) {
+          event.preventDefault()
+          return true
+        }
       }
 
-      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
-        pasteLongTextAsFile,
-        pasteLongTextThreshold,
+      const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker
