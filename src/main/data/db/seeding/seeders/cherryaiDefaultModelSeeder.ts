@@ -1,4 +1,6 @@
 import {
+  CHAT_DEFAULT_MODEL_PREFERENCE_KEY,
+  CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE,
   createCherryAIDefaultModelRow,
   createCherryAIProviderRow,
   ensureCherryAIDefaultModelSetupTx
@@ -18,8 +20,8 @@ export class CherryAIDefaultModelSeeder implements ISeeder {
       provider: createCherryAIProviderRow(),
       model: createCherryAIDefaultModelRow(),
       preference: {
-        scope: 'default',
-        key: 'chat.default_model_id',
+        scope: CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE,
+        key: CHAT_DEFAULT_MODEL_PREFERENCE_KEY,
         value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       }
     })

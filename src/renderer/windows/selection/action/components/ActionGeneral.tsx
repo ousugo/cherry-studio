@@ -41,9 +41,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const platformActions = useMessagePlatformActions()
 
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
+  const chosenAssistantId = chosenAssistant?.id
+  const waitingForConfiguredAssistant = Boolean(action.assistantId) && !chosenAssistantId
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: chosenAssistant?.id })
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
+    enabled: !waitingForConfiguredAssistant,
+    assistantId: chosenAssistantId
+  })
 
   const promptContent = useMemo(() => {
     let userContent = ''
@@ -122,9 +127,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           status: isPending ? 'pending' : 'success'
         }
       },
-      { assistantId: chosenAssistant?.id, topicId: temporaryTopicId ?? '' }
+      { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [chosenAssistant?.id, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -135,14 +140,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const error = completionError
 
   const fetchResult = useCallback(() => {
-    if (!ready || !temporaryTopicId) return
-    logger.debug('Before process message', { assistant: chosenAssistant })
+    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
+    logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.
     void sendMessage({ text: promptContent })
-  }, [chosenAssistant, ready, temporaryTopicId, promptContent, sendMessage])
+  }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
 
   useEffect(() => {
     fetchResult()

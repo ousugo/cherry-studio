@@ -92,5 +92,15 @@ describe('LlmModelTransforms', () => {
         'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     })
+
+    it('trims legacy CherryAI provider ids before remapping', () => {
+      const result = transformLlmModelIds({
+        defaultModel: { id: 'old-default', provider: ' cherryai ' },
+        topicNamingModel: { id: 'old-topic', provider: '\tcherryai\n' }
+      })
+
+      expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    })
   })
 })

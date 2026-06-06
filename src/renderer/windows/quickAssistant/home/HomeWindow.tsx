@@ -416,11 +416,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'explanation':
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {route === 'chat' && currentAssistant && (
+          {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
                 text={userInputText}
-                assistant={currentAssistant}
                 model={currentModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
@@ -463,10 +462,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     default:
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {currentAssistant && (
+          {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}
-              assistant={currentAssistant}
               model={currentModel}
               referenceText={referenceText}
               placeholder={inputPlaceholder}

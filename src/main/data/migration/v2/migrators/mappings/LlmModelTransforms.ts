@@ -5,7 +5,8 @@ import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/Mode
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 function legacyChatModelToUniqueId(model: LegacyModelRef | null | undefined): UniqueModelId | null {
-  if (model?.provider === CHERRYAI_PROVIDER_ID) {
+  const providerId = typeof model?.provider === 'string' ? model.provider.trim() : null
+  if (providerId === CHERRYAI_PROVIDER_ID) {
     return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
   }
 

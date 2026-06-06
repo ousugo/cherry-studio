@@ -15,8 +15,6 @@ interface Props {
 }
 
 const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
-  if (!assistant) return null
-
   return (
     <Main className="bubble">
       <Messages
