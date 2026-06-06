@@ -25,7 +25,7 @@ import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -515,7 +515,6 @@ const ChatComposerInner = ({
     isModelMissing,
     setModel
   } = useAssistant(topic.assistantId)
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { providers } = useProviders()
@@ -544,10 +543,10 @@ const ChatComposerInner = ({
   const selectedKnowledgeBasesRef = useRef(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
-  const displayAssistant = assistant ?? (!topic.assistantId && !isAssistantLoading ? defaultAssistant : undefined)
+  const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!topic.assistantId && !isAssistantLoading && !assistant
-  const runtimeModel = displayAssistant ? model : undefined
-  const runtimeModelPending = isAssistantLoading || (!!displayAssistant && isModelPending)
+  const runtimeModel = assistant || !topic.assistantId ? model : undefined
+  const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
   const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined

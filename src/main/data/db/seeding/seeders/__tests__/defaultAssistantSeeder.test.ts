@@ -1,0 +1,122 @@
+import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { messageTable } from '@data/db/schemas/message'
+import { preferenceTable } from '@data/db/schemas/preference'
+import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  DEFAULT_ASSISTANT_EMOJI,
+  DEFAULT_ASSISTANT_NAME,
+  DEFAULT_ASSISTANT_PROMPT,
+  DEFAULT_ASSISTANT_SEED
+} from '@shared/data/presets/default-assistant'
+import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { setupTestDatabase } from '@test-helpers/db'
+import { and, eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
+describe('DefaultAssistantSeeder', () => {
+  const dbh = setupTestDatabase()
+
+  it('seeds the default assistant only for a fresh database', async () => {
+    await new DefaultAssistantSeeder().run(dbh.db)
+
+    const [assistant] = await dbh.db
+      .select()
+      .from(assistantTable)
+      .where(eq(assistantTable.id, DEFAULT_ASSISTANT_SEED.id))
+      .limit(1)
+    const [provider] = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
+      .limit(1)
+    const [model] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
+      .limit(1)
+    const [preference] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
+      .limit(1)
+
+    expect(assistant).toMatchObject({
+      id: DEFAULT_ASSISTANT_SEED.id,
+      source: ASSISTANT_SOURCE_USER,
+      name: DEFAULT_ASSISTANT_NAME,
+      emoji: DEFAULT_ASSISTANT_EMOJI,
+      prompt: DEFAULT_ASSISTANT_PROMPT,
+      modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+      settings: DEFAULT_ASSISTANT_SETTINGS
+    })
+    expect(provider?.providerId).toBe(CHERRYAI_PROVIDER_ID)
+    expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+  })
+
+  it('does not seed the default assistant when any seed journal already exists', async () => {
+    await dbh.db.insert(appStateTable).values({
+      key: 'seed:preference',
+      value: { version: 'already-applied' }
+    })
+
+    await new DefaultAssistantSeeder().run(dbh.db)
+
+    const rows = await dbh.db.select().from(assistantTable)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('does not seed the default assistant when an active assistant already exists', async () => {
+    await dbh.db.insert(assistantTable).values({
+      id: '11111111-1111-4111-8111-111111111111',
+      source: ASSISTANT_SOURCE_USER,
+      name: 'Existing Assistant',
+      emoji: '🌟',
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await new DefaultAssistantSeeder().run(dbh.db)
+
+    const rows = await dbh.db.select().from(assistantTable)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).not.toBe(DEFAULT_ASSISTANT_SEED.id)
+  })
+
+  it('does not seed the default assistant when an active topic already exists', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: '22222222-2222-4222-8222-222222222222',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await new DefaultAssistantSeeder().run(dbh.db)
+
+    const rows = await dbh.db.select().from(assistantTable)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('does not seed the default assistant when an active message already exists', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: '33333333-3333-4333-8333-333333333333',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    await dbh.db.insert(messageTable).values({
+      id: '44444444-4444-4444-8444-444444444444',
+      topicId: '33333333-3333-4333-8333-333333333333',
+      role: 'user',
+      data: { parts: [] },
+      status: 'success'
+    })
+
+    await new DefaultAssistantSeeder().run(dbh.db)
+
+    const rows = await dbh.db.select().from(assistantTable)
+    expect(rows).toHaveLength(0)
+  })
+})

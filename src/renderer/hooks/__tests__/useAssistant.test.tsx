@@ -1,4 +1,4 @@
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
+import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
@@ -23,36 +23,48 @@ describe('useDefaultAssistant', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
-  it('returns an assistant with the sentinel default id', () => {
+  it('queries the seeded default assistant id', () => {
+    mockUseQuery.mockReturnValue(queryResult())
+
     const { result } = renderHook(() => useDefaultAssistant())
-    expect(result.current.assistant.id).toBe(DEFAULT_ASSISTANT_ID)
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
+      params: { id: DEFAULT_ASSISTANT_ID },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+    expect(result.current.assistant).toBeUndefined()
   })
 
-  it('reflects the chat.default_model_id preference in assistant.modelId', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+  it('returns the seeded default assistant row when it exists', () => {
+    mockUseQuery.mockImplementation((path, options) => {
+      const params = options?.params as { id?: string } | undefined
+      if (path === '/assistants/:id' && params?.id === DEFAULT_ASSISTANT_ID) {
+        return queryResult({
+          id: DEFAULT_ASSISTANT_ID,
+          source: ASSISTANT_SOURCE_USER,
+          name: 'Default Assistant',
+          emoji: '😀',
+          prompt: '',
+          description: '',
+          modelId: 'cherryai::qwen',
+          modelName: null,
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: '',
+          mcpServerIds: [],
+          knowledgeBaseIds: [],
+          tags: [],
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString()
+        })
+      }
+      return queryResult()
+    })
 
     const { result } = renderHook(() => useDefaultAssistant())
 
-    expect(result.current.assistant.modelId).toBe('openai::gpt-4o')
-  })
-
-  it('returns null modelId when preference is unset', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)
-
-    const { result } = renderHook(() => useDefaultAssistant())
-
-    expect(result.current.assistant.modelId).toBeNull()
-  })
-
-  it('always returns a defined assistant — no loading state', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)
-
-    const { result } = renderHook(() => useDefaultAssistant())
-
-    expect(result.current.assistant).toBeDefined()
-    expect(result.current.assistant.settings).toBeDefined()
-    expect(result.current.assistant.mcpServerIds).toEqual([])
-    expect(result.current.assistant.knowledgeBaseIds).toEqual([])
+    expect(result.current.assistant?.id).toBe(DEFAULT_ASSISTANT_ID)
+    expect(result.current.assistant?.modelId).toBe('cherryai::qwen')
   })
 })
 

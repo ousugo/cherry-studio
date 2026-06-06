@@ -137,6 +137,16 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistantApiById: (id?: string) => ({
+    assistant: id ? { id } : undefined,
+    isLoading: false,
+    error: undefined,
+    refetch: vi.fn(),
+    mutate: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
 
@@ -692,6 +702,22 @@ describe('HomePage', () => {
 
     await waitFor(() => {
       expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+    })
+  })
+
+  it('starts the first-launch temporary topic without assistant when no remembered assistant exists', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: undefined,
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
     })
   })
 
