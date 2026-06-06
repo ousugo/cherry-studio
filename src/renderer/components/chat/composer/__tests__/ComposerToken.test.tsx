@@ -6,9 +6,9 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { type ReactNode, useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { composerInputTokenComponentByKind, ComposerToken } from '../../tokens'
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
-import { composerInputTokenComponentByKind, ComposerToken } from '../ComposerToken'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 import { createPromptVariableContent, selectPromptVariableToken } from '../promptVariables'
 import { PromptVariableToken } from '../PromptVariableToken'
@@ -18,22 +18,37 @@ import {
   type PromptVariableComposerInputToken
 } from '../tokens'
 
-vi.mock('@cherrystudio/ui', () => ({
-  NormalTooltip: ({
-    children,
-    content,
-    contentProps
-  }: {
-    children: ReactNode
-    content: ReactNode
-    contentProps?: { className?: string }
-  }) => (
-    <span data-content-class-name={contentProps?.className} data-testid="composer-token-tooltip">
-      {children}
-      <span data-testid="composer-token-tooltip-content">{content}</span>
-    </span>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+
+  return {
+    NormalTooltip: ({
+      children,
+      content,
+      contentProps,
+      showArrow
+    }: {
+      children: ReactNode
+      content: ReactNode
+      contentProps?: { className?: string }
+      showArrow?: boolean
+    }) => {
+      const trigger = React.isValidElement(children)
+        ? React.cloneElement(children, { 'data-tooltip-trigger': 'true' } as Record<string, unknown>)
+        : children
+
+      return (
+        <span
+          data-content-class-name={contentProps?.className}
+          data-show-arrow={String(showArrow)}
+          data-testid="composer-token-tooltip">
+          {trigger}
+          <span data-testid="composer-token-tooltip-content">{content}</span>
+        </span>
+      )
+    }
+  }
+})
 
 const promptVariableToken: PromptVariableComposerInputToken = {
   id: 'prompt-variable:0:city',
@@ -101,9 +116,22 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-tooltip')).toBeInTheDocument()
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('notes.md')
 
-    expect(token).toHaveClass('h-6', 'items-center', 'rounded-md', 'border', 'bg-background', 'leading-[inherit]')
+    expect(token).toHaveClass(
+      'h-6',
+      'items-center',
+      'rounded-md',
+      'border',
+      'border-border',
+      'bg-background',
+      'hover:bg-accent',
+      'leading-[inherit]'
+    )
     expect(token).not.toHaveClass('bg-muted')
     expect(token).not.toHaveClass('py-0.5', 'leading-5')
+
+    const icon = token?.querySelector('[data-file-token-icon="fallback"]')
+    expect(icon).toHaveClass('size-4.5', 'rounded-[5px]', 'border-0', 'bg-accent', 'text-muted-foreground')
+    expect(icon).not.toHaveClass('border', 'border-border', 'bg-background')
   })
 
   it('renders image file tokens with image variant metadata and preview', () => {
@@ -128,7 +156,14 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'image')
-    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass('text-success')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-success-bg)]',
+      'text-success'
+    )
+    expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
@@ -156,7 +191,17 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'document')
-    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass('text-destructive')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-error-bg)]',
+      'text-destructive'
+    )
+    expect(token?.querySelector('[data-file-token-icon="document"]')).not.toHaveClass(
+      'border-destructive',
+      'bg-background'
+    )
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('PDF')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
   })
@@ -182,9 +227,23 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass('text-info')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-info-bg)]',
+      'text-info'
+    )
+    expect(token?.querySelector('[data-file-token-icon="text"]')).not.toHaveClass('border-info', 'bg-background')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
+  })
+
+  it('keeps selected file tokens highlighted with primary border and ring', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-ring')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -207,6 +266,45 @@ describe('ComposerToken', () => {
     const tooltipBody = screen.getByTestId('composer-token-tooltip-content').firstElementChild as HTMLElement
     expect(tooltipBody).toHaveClass('whitespace-pre-wrap', 'text-left', 'overflow-hidden')
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
+  })
+
+  it('disables tooltip arrows for file tokens', () => {
+    render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+
+    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+  })
+
+  it('disables tooltip arrows for quote tokens', () => {
+    render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'quoted text'
+        }}
+      />
+    )
+
+    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+  })
+
+  it('preserves tooltip trigger props for quote tokens', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'quoted text'
+        }}
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="quote"]')).toHaveAttribute(
+      'data-tooltip-trigger',
+      'true'
+    )
   })
 
   it('unwraps prompt text before showing a quote tooltip fallback', () => {

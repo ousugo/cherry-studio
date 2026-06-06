@@ -1,10 +1,7 @@
-import { Flex, NormalTooltip } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
-import {
-  getQuoteTooltipContent,
-  QUOTE_TOOLTIP_BODY_CLASS_NAME,
-  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
-} from '@renderer/components/chat/utils/quoteToken'
+import type { ChatInputTokenKind } from '@renderer/components/chat/tokens'
+import { ComposerToken } from '@renderer/components/chat/tokens'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
@@ -13,7 +10,7 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { Boxes, ChevronDown, Code2, FileText, Globe2, TextQuote, Zap } from 'lucide-react'
+import { ChevronDown, Code2, Globe2 } from 'lucide-react'
 import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
@@ -33,24 +30,31 @@ interface Props {
   composer?: ComposerMessageSnapshot
 }
 
-const composerTokenIcon = {
+const composerTokenIcon: Partial<
+  Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
+> = {
   command: Code2,
-  file: FileText,
-  knowledge: Boxes,
-  quote: TextQuote,
-  reference: Globe2,
-  skill: Zap
-} satisfies Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
+  reference: Globe2
+}
+
+type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
+
+const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>(['file', 'knowledge', 'quote', 'skill'])
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
 
-function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
-  const Icon = composerTokenIcon[token.kind]
-  const title = token.kind === 'quote' ? undefined : (token.description ?? token.label)
+function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
+  return COMPOSER_TOKEN_BACKED_KINDS.has(token.kind)
+}
 
-  const chip = (
+function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
+  const Icon = composerTokenIcon[token.kind]
+  if (!Icon) return null
+  const title = token.description ?? token.label
+
+  return (
     <span
       className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-primary leading-[inherit]"
       data-composer-token-kind={token.kind}
@@ -59,21 +63,14 @@ function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
       <span className="whitespace-nowrap! min-w-0 truncate break-normal">{token.label}</span>
     </span>
   )
-  const quoteTooltipContent =
-    token.kind === 'quote' ? getQuoteTooltipContent(token.description, token.promptText) : undefined
+}
 
-  if (!quoteTooltipContent) return chip
+function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
+  if (isComposerTokenBackedMessageToken(token)) {
+    return <ComposerToken token={token} />
+  }
 
-  return (
-    <NormalTooltip
-      content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{quoteTooltipContent}</div>}
-      side="top"
-      sideOffset={6}
-      delayDuration={300}
-      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
-      {chip}
-    </NormalTooltip>
-  )
+  return <LegacyComposerMessageTokenChip token={token} />
 }
 
 function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {

@@ -2,8 +2,8 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
 import { cn } from '@renderer/utils'
 import { formatRelativeTime } from '@renderer/utils/time'
+import type { AgentSessionSearchMessageResult } from '@shared/data/api/schemas/agentSessions'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
-import type { SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import {
   ArrowRight,
   Bot,
@@ -58,7 +58,7 @@ const RESULT_TYPE_LABEL_KEYS: Record<GlobalSearchItem['type'], string> = {
   'knowledge-base': 'common.knowledge_base'
 }
 
-const MESSAGE_ROLE_LABEL_KEYS: Record<NonNullable<SessionSearchMessageResult['role']>, string> = {
+const MESSAGE_ROLE_LABEL_KEYS: Record<NonNullable<AgentSessionSearchMessageResult['role']>, string> = {
   assistant: 'globalSearch.messageSearch.roles.assistant',
   system: 'globalSearch.messageSearch.roles.system',
   tool: 'globalSearch.messageSearch.roles.tool',
@@ -73,7 +73,7 @@ function getResultTypeLabelKey(type: GlobalSearchItem['type']) {
   return RESULT_TYPE_LABEL_KEYS[type]
 }
 
-function getMessageRoleLabelKey(role: NonNullable<SessionSearchMessageResult['role']>) {
+function getMessageRoleLabelKey(role: NonNullable<AgentSessionSearchMessageResult['role']>) {
   return MESSAGE_ROLE_LABEL_KEYS[role]
 }
 

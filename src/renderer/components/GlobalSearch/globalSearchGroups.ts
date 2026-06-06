@@ -1,6 +1,6 @@
+import type { AgentSessionEntity, AgentSessionSearchMessageResult } from '@shared/data/api/schemas/agentSessions'
 import type { GlobalSearchItem, GlobalSearchResponse, GlobalSearchType } from '@shared/data/api/schemas/globalSearch'
 import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
-import type { AgentSessionEntity, SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { Topic } from '@types'
 import dayjs from 'dayjs'
@@ -14,7 +14,7 @@ export const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
 export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
 export type GlobalTopicMessageSearchResult = SearchMessageResult & { sourceType: 'topic' }
-export type GlobalSessionMessageSearchResult = SessionSearchMessageResult & { sourceType: 'session' }
+export type GlobalSessionMessageSearchResult = AgentSessionSearchMessageResult & { sourceType: 'session' }
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 

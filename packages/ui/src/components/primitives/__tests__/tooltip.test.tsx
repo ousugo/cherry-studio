@@ -2,9 +2,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { Tooltip } from '../tooltip'
+import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -17,6 +18,23 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
 })
+
+function getTooltipContentElement(text: string) {
+  const element = screen.getAllByText(text).find((node) => node.getAttribute('data-slot') === 'tooltip-content')
+  expect(element).toBeInTheDocument()
+  return element as HTMLElement
+}
+
+function renderOpenTooltipContent(content: ReactNode, props?: ComponentProps<typeof TooltipContent>) {
+  render(
+    <TooltipRoot open>
+      <TooltipTrigger asChild>
+        <button type="button">Trigger</button>
+      </TooltipTrigger>
+      <TooltipContent {...props}>{content}</TooltipContent>
+    </TooltipRoot>
+  )
+}
 
 describe('Tooltip', () => {
   describe('fallback rendering (no tooltip wrapper)', () => {
@@ -167,6 +185,30 @@ describe('Tooltip', () => {
         </Tooltip>
       )
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('arrow rendering', () => {
+    it('renders an arrow by default for TooltipContent', () => {
+      renderOpenTooltipContent('compound tip')
+
+      expect(getTooltipContentElement('compound tip').querySelector('svg')).toBeInTheDocument()
+    })
+
+    it('passes showArrow through NormalTooltip', () => {
+      render(
+        <NormalTooltip content="normal tip" open showArrow={false}>
+          <button type="button">Normal trigger</button>
+        </NormalTooltip>
+      )
+
+      expect(getTooltipContentElement('normal tip').querySelector('svg')).not.toBeInTheDocument()
+    })
+
+    it('omits the arrow when TooltipContent disables it', () => {
+      renderOpenTooltipContent('compound tip', { showArrow: false })
+
+      expect(getTooltipContentElement('compound tip').querySelector('svg')).not.toBeInTheDocument()
     })
   })
 })

@@ -5,17 +5,18 @@ export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'
+export * from './primitives/dropdown-menu'
 export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
 export { default as IndicatorLight } from './primitives/indicator-light'
+export { type PortalContainer, PortalContainerProvider, usePortalContainer } from './primitives/portal-container'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export {
   NormalTooltip,
   Tooltip,
   TooltipContent,
-  TooltipPortalContainerProvider,
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,

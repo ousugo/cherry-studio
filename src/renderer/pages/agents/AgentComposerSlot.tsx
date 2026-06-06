@@ -2,7 +2,7 @@ import type { ComposerContextValue } from '@renderer/components/chat/composer/Co
 import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
 import type { ConversationComposerPlacement } from '@renderer/components/chat/composer/ConversationComposerStage'
 import AgentComposer from '@renderer/components/chat/composer/variants/AgentComposer'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ReactNode } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'

@@ -793,6 +793,7 @@ describe('ResourceList', () => {
       </Provider>
     )
 
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Alpha Rename inline' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
     await flushAnimationFrame()
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
@@ -842,6 +843,7 @@ describe('ResourceList', () => {
         </Provider>
       )
 
+      fireEvent.contextMenu(screen.getByRole('option', { name: 'Alpha' }))
       fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
       expect(onAction).not.toHaveBeenCalled()
 

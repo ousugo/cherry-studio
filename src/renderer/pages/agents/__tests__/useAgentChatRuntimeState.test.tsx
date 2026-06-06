@@ -1,4 +1,4 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -134,8 +134,6 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
-import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -144,7 +142,6 @@ import type {
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
-  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   FilePath,
   FileURLString,
@@ -713,15 +710,6 @@ export class FileManager extends BaseService implements IFileManager {
         (path) => this.getMetadataByPath(path)
       )
     })
-    this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
-    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
-      searchListDirectory(dirPath, options)
-    )
-    // `File_TreeCreate` / `File_TreeDispose` are owned by `DirectoryTreeManager`
-    // itself — that service registers them in its own `onInit` so the
-    // handler lifetime tracks the service that holds the underlying
-    // chokidar watchers and IPC subscriptions.
-
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';

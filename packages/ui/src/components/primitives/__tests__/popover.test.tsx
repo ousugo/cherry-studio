@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Popover, PopoverContent, PopoverTrigger } from '../popover'
+import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -102,5 +103,25 @@ describe('PopoverContent', () => {
 
     expect(portalContainer).toContainElement(screen.getByTestId('content'))
     portalContainer.remove()
+  })
+
+  it('uses the provider portal container by default', () => {
+    const portalContainer = document.createElement('div')
+    document.body.appendChild(portalContainer)
+
+    try {
+      render(
+        <PortalContainerProvider container={portalContainer}>
+          <Popover open>
+            <PopoverTrigger>Open</PopoverTrigger>
+            <PopoverContent data-testid="content">Content</PopoverContent>
+          </Popover>
+        </PortalContainerProvider>
+      )
+
+      expect(portalContainer).toContainElement(screen.getByTestId('content'))
+    } finally {
+      portalContainer.remove()
+    }
   })
 })

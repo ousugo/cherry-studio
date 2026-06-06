@@ -81,7 +81,7 @@ describe('composer draft serialization', () => {
     expect(draft).toEqual({ text: 'Browser 电脑 chat.ts', tokens: [] })
   })
 
-  it('creates a display-only composer snapshot without token payload objects', () => {
+  it('creates a display-only composer snapshot with safe file payload metadata', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
       content: [
@@ -94,7 +94,16 @@ describe('composer draft serialization', () => {
               kind: 'file',
               label: 'chat.ts',
               promptText: 'src/chat.ts',
-              payload: { path: 'src/chat.ts' }
+              payload: {
+                id: 'file-1',
+                path: 'src/chat.ts',
+                type: 'text',
+                ext: '.ts',
+                name: 'chat.ts',
+                origin_name: 'chat.ts',
+                size: 1234,
+                extra: 'ignored'
+              }
             })
           ]
         }
@@ -110,10 +119,78 @@ describe('composer draft serialization', () => {
           label: 'chat.ts',
           index: 0,
           textOffset: 5,
-          promptText: 'src/chat.ts'
+          promptText: 'src/chat.ts',
+          payload: {
+            type: 'text',
+            ext: '.ts',
+            name: 'chat.ts',
+            origin_name: 'chat.ts',
+            size: 1234
+          }
         }
       ]
     })
+  })
+
+  it('persists document file payload metadata for sent-message token rendering', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Read ' },
+            tokenNode({
+              id: 'file-pdf',
+              kind: 'file',
+              label: 'test.pdf',
+              promptText: 'test.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'test.pdf',
+                origin_name: 'test.pdf',
+                size: 2048
+              }
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(createComposerMessageSnapshot(draft)?.tokens[0]).toMatchObject({
+      id: 'file-pdf',
+      kind: 'file',
+      label: 'test.pdf',
+      payload: {
+        type: 'document',
+        ext: '.pdf',
+        name: 'test.pdf',
+        origin_name: 'test.pdf',
+        size: 2048
+      }
+    })
+  })
+
+  it('does not persist non-file composer token payload objects', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({ id: 'skill-1', kind: 'skill', label: 'Browser', payload: { filename: 'browser.md' } }),
+            { type: 'text', text: ' and ' },
+            tokenNode({ id: 'kb-1', kind: 'knowledge', label: 'Docs', payload: { id: 'kb-1' } })
+          ]
+        }
+      ]
+    })
+
+    expect(createComposerMessageSnapshot(draft)?.tokens).toEqual([
+      { id: 'skill-1', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
+      { id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 5 }
+    ])
   })
 
   it('serializes quote tokens as blockquote prompt text and persists quote metadata', () => {

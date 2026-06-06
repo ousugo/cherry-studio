@@ -1,4 +1,4 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'

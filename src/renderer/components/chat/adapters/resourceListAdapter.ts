@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Assistant } from '@shared/data/types/assistant'
 
 export type ChatResourceKind = 'topic' | 'session' | 'assistant'

@@ -1,6 +1,6 @@
 import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it, vi } from 'vitest'
 

@@ -78,7 +78,7 @@ describe('useAgentSessionParts', () => {
     renderHook(() => useAgentSessionParts('session-1', { enabled: true, fetchOnMount: false }))
 
     expect(dataApiMocks.useInfiniteQuery).toHaveBeenCalledWith(
-      '/sessions/:sessionId/messages',
+      '/agent-sessions/:sessionId/messages',
       expect.objectContaining({
         params: { sessionId: 'session-1' },
         swrOptions: expect.objectContaining({

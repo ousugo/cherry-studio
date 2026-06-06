@@ -48,6 +48,7 @@ const _p1_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -57,6 +58,7 @@ const _p1_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -86,6 +88,7 @@ const _n2_new: HandlersFor<TopicSchemas> = {
   // @ts-expect-error - DELETE missing on '/topics/:id'
   '/topics/:id': { GET: ok, PATCH: ok },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -96,6 +99,7 @@ const _n2_old: OldTopicHandlers = {
   // @ts-expect-error - DELETE missing on '/topics/:id'
   '/topics/:id': { GET: ok, PATCH: ok },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -110,6 +114,7 @@ const _n3_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler,
@@ -121,6 +126,7 @@ const _n3_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler,
@@ -138,6 +144,7 @@ const _n4_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler,
@@ -149,6 +156,7 @@ const _n4_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler,
@@ -172,6 +180,7 @@ const _n5_new: HandlersFor<TopicSchemas> = {
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -187,6 +196,7 @@ const _n5_old: OldTopicHandlers = {
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -209,6 +219,7 @@ const _n6_new: HandlersFor<TopicSchemas> = {
     DELETE: async () => undefined
   },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -226,6 +237,7 @@ const _n6_old: OldTopicHandlers = {
     DELETE: async () => undefined
   },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -249,6 +261,7 @@ const _n7_new: HandlersFor<TopicSchemas> = {
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler
@@ -266,6 +279,7 @@ const _n7_old: OldTopicHandlers = {
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/branch-copies': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...assistantTopicsDeleteHandler

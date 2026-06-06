@@ -14,7 +14,7 @@ import type {
   TopicMenuPreset
 } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { cn } from '@renderer/utils'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'

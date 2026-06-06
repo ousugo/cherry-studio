@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type { SearchAgentSessionMessagesResponse } from '@shared/data/api/schemas/agentSessions'
 import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
 import type { SearchMessagesResponse } from '@shared/data/api/schemas/messages'
-import type { SearchSessionMessagesResponse } from '@shared/data/api/schemas/sessions'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   useInfiniteQuery: vi.fn(),
   queryResult: undefined as GlobalSearchResponse | undefined,
   messageQueryResult: undefined as SearchMessagesResponse | undefined,
-  sessionMessageQueryResult: undefined as SearchSessionMessagesResponse | undefined,
+  sessionMessageQueryResult: undefined as SearchAgentSessionMessagesResponse | undefined,
   messageLoadNext: vi.fn(),
   sessionMessageLoadNext: vi.fn(),
   recentItems: [] as GlobalSearchRecentEntry[],
@@ -491,7 +491,7 @@ describe('GlobalSearchPanel', () => {
       data:
         path === '/messages/search'
           ? mocks.messageQueryResult
-          : path === '/sessions/messages/search'
+          : path === '/agent-sessions/messages/search'
             ? mocks.sessionMessageQueryResult
             : mocks.queryResult,
       isLoading: false,
@@ -501,7 +501,7 @@ describe('GlobalSearchPanel', () => {
       const page =
         path === '/messages/search'
           ? mocks.messageQueryResult
-          : path === '/sessions/messages/search'
+          : path === '/agent-sessions/messages/search'
             ? mocks.sessionMessageQueryResult
             : undefined
 
@@ -928,7 +928,7 @@ describe('GlobalSearchPanel', () => {
         })
       )
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/sessions/messages/search',
+        '/agent-sessions/messages/search',
         expect.objectContaining({
           enabled: true,
           limit: 50,
@@ -998,7 +998,7 @@ describe('GlobalSearchPanel', () => {
         })
       )
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/sessions/messages/search',
+        '/agent-sessions/messages/search',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -1056,7 +1056,7 @@ describe('GlobalSearchPanel', () => {
         })
       )
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/sessions/messages/search',
+        '/agent-sessions/messages/search',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -1093,7 +1093,7 @@ describe('GlobalSearchPanel', () => {
         })
       )
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/sessions/messages/search',
+        '/agent-sessions/messages/search',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -1370,11 +1370,11 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
     await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/sessions/session-1')
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
       expect(mocks.invalidateCache).toHaveBeenCalledWith([
-        '/sessions',
-        '/sessions/session-1',
-        '/sessions/session-1/messages'
+        '/agent-sessions',
+        '/agent-sessions/session-1',
+        '/agent-sessions/session-1/messages'
       ])
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
         forceNew: true,
@@ -1417,11 +1417,11 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/sessions/session-1')
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
       expect(mocks.invalidateCache).toHaveBeenCalledWith([
-        '/sessions',
-        '/sessions/session-1',
-        '/sessions/session-1/messages'
+        '/agent-sessions',
+        '/agent-sessions/session-1',
+        '/agent-sessions/session-1/messages'
       ])
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
         forceNew: true,

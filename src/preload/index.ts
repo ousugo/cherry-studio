@@ -1,6 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
@@ -393,14 +393,7 @@ const api = {
       model: NativePopupMenuModel<CommandId>,
       anchor?: MenuAnchor
     ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
-      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor),
-    onExecuteFromNativeMenu: (callback: (command: CommandId) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, command: CommandId) => callback(command)
-      ipcRenderer.on(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      }
-    }
+      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)
@@ -722,21 +715,12 @@ const api = {
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    getData: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName),
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
-    tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
     cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
-    cleanTopic: (topicId: string, traceId?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
-    addEndMessage: (spanId: string, modelName: string, context: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),
-    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
-    addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
+    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   codeCli: {
     run: (

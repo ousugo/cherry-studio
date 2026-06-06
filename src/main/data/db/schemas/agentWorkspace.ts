@@ -3,15 +3,15 @@ import { check, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
-export type WorkspaceType = 'user' | 'system'
+export type AgentWorkspaceType = 'user' | 'system'
 
-export const workspaceTable = sqliteTable(
+export const agentWorkspaceTable = sqliteTable(
   'agent_workspace',
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
     path: text().notNull(),
-    type: text().$type<WorkspaceType>().notNull().default('user'),
+    type: text().$type<AgentWorkspaceType>().notNull().default('user'),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },
@@ -22,5 +22,5 @@ export const workspaceTable = sqliteTable(
   ]
 )
 
-export type WorkspaceRow = typeof workspaceTable.$inferSelect
-export type InsertWorkspaceRow = typeof workspaceTable.$inferInsert
+export type AgentWorkspaceRow = typeof agentWorkspaceTable.$inferSelect
+export type InsertAgentWorkspaceRow = typeof agentWorkspaceTable.$inferInsert

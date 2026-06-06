@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentSessionEntitySchema, CreateSessionSchema, UpdateSessionSchema } from '../sessions'
+import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionSchema } from '../agentSessions'
+import { AgentWorkspaceEntitySchema, UpdateAgentWorkspaceSchema } from '../agentWorkspaces'
 import { CreateTemporarySessionSchema } from '../temporaryChats'
-import { UpdateWorkspaceSchema, WorkspaceEntitySchema } from '../workspaces'
 
-describe('WorkspaceEntitySchema', () => {
+describe('AgentWorkspaceEntitySchema', () => {
   const workspace = {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'workspace',
@@ -16,12 +16,12 @@ describe('WorkspaceEntitySchema', () => {
   }
 
   it('describes normalized workspace rows', () => {
-    expect(WorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
+    expect(AgentWorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
   })
 
   it('accepts workspace display-name updates only', () => {
-    expect(UpdateWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
-    expect(UpdateWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
+    expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
+    expect(UpdateAgentWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {
@@ -59,17 +59,49 @@ describe('WorkspaceEntitySchema', () => {
 
   it('allows workspace selection on session create only', () => {
     expect(
-      CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
+      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
     ).toBe(workspace.id)
-    expect(UpdateSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
   })
 
   it('allows explicit system workspace mode on session create', () => {
-    expect(CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' })).toMatchObject({
+    expect(
+      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' })
+    ).toMatchObject({
       workspaceMode: 'system'
     })
     expect(
-      CreateSessionSchema.safeParse({
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: 'Session',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates temporary session no-project mode with the same workspace constraints', () => {
+    expect(CreateTemporarySessionSchema.parse({ agentId: 'agent-1', workspaceMode: 'system' })).toMatchObject({
+      workspaceMode: 'system'
+    })
+    expect(
+      CreateTemporarySessionSchema.safeParse({
+        agentId: 'agent-1',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      }).success
+    ).toBe(false)
+    expect(CreateTemporarySessionSchema.safeParse({ agentId: 'agent-1', workspaceMode: 'invalid' }).success).toBe(false)
+  })
+
+  it('allows explicit system workspace mode on session create', () => {
+    expect(
+      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' })
+    ).toMatchObject({
+      workspaceMode: 'system'
+    })
+    expect(
+      CreateAgentSessionSchema.safeParse({
         agentId: 'agent-1',
         name: 'Session',
         workspaceId: workspace.id,

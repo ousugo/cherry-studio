@@ -77,7 +77,9 @@ export class SubWindowService extends BaseService {
       // determined via WindowManager's own type index (not the service's private
       // map) so this branch does not depend on tabIdToWindowId staying in sync.
       const senderId = wm.getWindowIdByWebContents(event.sender)
-      const isSubWindow = senderId ? wm.getWindowsByType(WindowType.SubWindow).some((w) => w.id === senderId) : false
+      const isSubWindow = senderId
+        ? wm.getWindowInfosByType(WindowType.SubWindow).some((w) => w.id === senderId)
+        : false
       if (senderId && isSubWindow) {
         try {
           wm.close(senderId)

@@ -362,6 +362,7 @@ export function CommandContextMenu({
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
+  const [, setInternalOpen] = useState(false)
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
@@ -472,6 +473,7 @@ export function CommandContextMenu({
 
   const handleCherryOpenChange = useCallback(
     (open: boolean) => {
+      setInternalOpen(open)
       onOpenChange?.(open)
       if (!open && getExtraItems) {
         extraItemsRequestIdRef.current += 1
@@ -534,7 +536,7 @@ export function CommandContextMenu({
             return
           }
 
-          return window.api.command.showNativePopupMenu(nativeModel, anchor).then((result) => {
+          return window.api.command.showNativePopupMenu(nativeModel as never, anchor).then((result) => {
             if (extraItemsRequestIdRef.current !== requestId) {
               return
             }
@@ -782,7 +784,7 @@ export function CommandPopupMenu({
       if (!nativeItems.length) return
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       try {
-        const result = await window.api.command.showNativePopupMenu(model, anchor)
+        const result = await window.api.command.showNativePopupMenu(model as never, anchor)
         if (result?.type === 'command') {
           runtime.execute(result.command)
         } else if (result?.type === 'custom') {

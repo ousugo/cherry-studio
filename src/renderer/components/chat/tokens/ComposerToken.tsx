@@ -12,12 +12,13 @@ import { toSafeFileUrl } from '@shared/file/urlUtil'
 import { Boxes, Braces, File, FileCode2, FileImage, FileText, TextQuote, Zap } from 'lucide-react'
 import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
 
-import type { ActiveComposerInputToken, ActiveComposerInputTokenKind } from './tokens'
+import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
+const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 
-const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
+const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
@@ -26,7 +27,7 @@ const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
 }
 
 export interface ComposerTokenProps {
-  token: ActiveComposerInputToken
+  token: ChatTokenView
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -50,7 +51,7 @@ interface FileTokenPresentation {
   previewUrl?: string
 }
 
-function ActiveComposerToken({
+function renderActiveComposerTokenElement({
   token,
   selected = false,
   className,
@@ -82,6 +83,10 @@ function ActiveComposerToken({
   )
 }
 
+function ActiveComposerToken(props: ActiveComposerTokenProps) {
+  return renderActiveComposerTokenElement(props)
+}
+
 export function SkillComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.skill} />
 }
@@ -107,8 +112,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'image',
       icon: <FileImage className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-success bg-[var(--color-success-bg)] hover:bg-[var(--color-success-bg-hover)]',
-      iconClassName: 'border-success bg-background text-success',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-success-bg)] text-success',
       typeLabel: 'IMAGE',
       previewUrl: getFilePreviewUrl(file)
     }
@@ -118,8 +123,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'document',
       icon: <FileText className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-destructive bg-[var(--color-error-bg)] hover:bg-[var(--color-error-bg-hover)]',
-      iconClassName: 'border-destructive bg-background text-destructive',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-error-bg)] text-destructive',
       typeLabel: extensionLabel || 'DOCUMENT'
     }
   }
@@ -128,8 +133,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'text',
       icon: <FileCode2 className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-info bg-[var(--color-info-bg)] hover:bg-[var(--color-info-bg-hover)]',
-      iconClassName: 'border-info bg-background text-info',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-info-bg)] text-info',
       typeLabel: extensionLabel || 'TEXT'
     }
   }
@@ -137,8 +142,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
   return {
     variant: 'fallback',
     icon: <File className={fileTokenIconClassName} aria-hidden />,
-    containerClassName: 'border-border bg-background hover:bg-accent',
-    iconClassName: 'border-border bg-background text-muted-foreground',
+    containerClassName: fileTokenContainerClassName,
+    iconClassName: 'bg-accent text-muted-foreground',
     typeLabel: extensionLabel || 'FILE'
   }
 }
@@ -197,7 +202,7 @@ export function FileComposerToken(props: ComposerTokenProps) {
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
-          'inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border leading-none',
+          'inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 leading-none',
           presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>
@@ -213,9 +218,10 @@ export function FileComposerToken(props: ComposerTokenProps) {
       side="top"
       sideOffset={8}
       delayDuration={300}
+      showArrow={false}
       contentProps={{
         className:
-          'w-fit max-w-64 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg dark:bg-popover dark:text-popover-foreground [&_svg]:fill-popover dark:[&_svg]:fill-popover'
+          'w-fit max-w-64 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg dark:bg-popover dark:text-popover-foreground'
       }}>
       {tokenElement}
     </NormalTooltip>
@@ -228,7 +234,7 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
 
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const tokenElement = <ActiveComposerToken {...props} icon={tokenIconByKind.quote} />
+  const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
 
   if (!quoteTooltipContent) return tokenElement
 
@@ -238,6 +244,7 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       side="top"
       sideOffset={6}
       delayDuration={300}
+      showArrow={false}
       contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
       {tokenElement}
     </NormalTooltip>
@@ -254,7 +261,7 @@ export const composerInputTokenComponentByKind = {
   knowledge: KnowledgeComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken
-} satisfies Record<ActiveComposerInputTokenKind, ComponentType<ComposerTokenProps>>
+} satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {
   const TokenComponent = composerInputTokenComponentByKind[props.token.kind]

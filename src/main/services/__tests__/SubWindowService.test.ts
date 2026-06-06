@@ -12,7 +12,8 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
     ),
     close: vi.fn<(id: string) => boolean>(() => true),
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
-    getWindowsByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
+    getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
+    getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
     behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
@@ -133,6 +134,7 @@ describe('SubWindowService', () => {
     windowManagerMock.close.mockReset().mockReturnValue(true)
     windowManagerMock.getWindow.mockReset().mockReturnValue(undefined)
     windowManagerMock.getWindowsByType.mockReset().mockReturnValue([])
+    windowManagerMock.getWindowInfosByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
     windowManagerMock.behavior.setAlwaysOnTop.mockReset()
@@ -347,7 +349,10 @@ describe('SubWindowService', () => {
     it('closes sender when it is tracked as SubWindow by WindowManager', async () => {
       const handler = getIpcHandleHandler(svc, 'tab:attach')
       windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : type === 'subWindow' ? [{ id: 'sub-1' } as any] : []
+        type === 'main' ? [{ id: 'main-1' } as any] : []
+      )
+      windowManagerMock.getWindowInfosByType.mockImplementation((type) =>
+        type === 'subWindow' ? [{ id: 'sub-1' }] : []
       )
       windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-1')
 
@@ -361,7 +366,7 @@ describe('SubWindowService', () => {
     it('does not close sender when sender is the Main window', async () => {
       const handler = getIpcHandleHandler(svc, 'tab:attach')
       windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : type === 'subWindow' ? [] : []
+        type === 'main' ? [{ id: 'main-1' } as any] : []
       )
       windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-1')
 

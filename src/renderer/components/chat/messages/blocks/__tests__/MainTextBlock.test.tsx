@@ -51,6 +51,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({
     t: (key: string) => mockTranslations[key as keyof typeof mockTranslations] ?? key
   })
@@ -210,6 +214,30 @@ describe('MainTextBlock', () => {
       expect(markdown).toHaveTextContent('Reply')
       expect(markdown).not.toHaveTextContent('> quoted line')
       expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+    })
+
+    it('should keep quote token tooltip content in markdown-rendered user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: '<blockquote>\n\nSelected message text\n</blockquote>\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              index: 0,
+              textOffset: 0,
+              promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByTestId('composer-message-token-tooltip-content')).toHaveTextContent('Selected message text')
+      expect(screen.getByTestId('composer-message-token-tooltip-content')).not.toHaveTextContent('<blockquote>')
     })
 
     it('should render stale quote composer metadata as plain text in markdown mode', () => {
@@ -424,8 +452,24 @@ describe('MainTextBlock', () => {
       expect(textElement).not.toHaveTextContent('src/chat.ts')
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
-      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
-      expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
+      expect(token).toHaveClass(
+        'h-6',
+        'max-w-52',
+        'items-center',
+        'rounded-md',
+        'border',
+        'border-border',
+        'bg-background',
+        'hover:bg-accent',
+        'leading-[inherit]'
+      )
+      expect(token).not.toHaveClass('text-primary')
+      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toHaveClass(
+        'size-4.5',
+        'rounded-[5px]',
+        'bg-accent',
+        'text-muted-foreground'
+      )
     })
 
     it('should keep long composer token labels on one truncated line in sent messages', () => {
@@ -451,9 +495,9 @@ describe('MainTextBlock', () => {
       })
 
       const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
-      const label = screen.getByText(longLabel)
-      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
-      expect(label).toHaveClass('min-w-0', 'truncate', 'whitespace-nowrap!', 'break-normal')
+      const label = chip?.querySelector('span.truncate')
+      expect(chip).toHaveClass('max-w-52')
+      expect(label).toHaveClass('min-w-0', 'truncate')
     })
 
     it('should render skill composer tokens with their own visual treatment', () => {
@@ -481,7 +525,8 @@ describe('MainTextBlock', () => {
       expect(token).toBeInTheDocument()
       expect(token).toHaveClass('text-primary', 'leading-[inherit]')
       expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5')
-      expect(token?.querySelector('svg')).toHaveClass('translate-y-[0.08em]', 'text-current', 'opacity-80')
+      expect(token?.querySelector('svg')).toHaveClass('text-current', 'opacity-80')
+      expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {
@@ -513,6 +558,114 @@ describe('MainTextBlock', () => {
       expect(markdown).toHaveTextContent('Markdown: find-skills **hello**')
       expect(markdown).not.toHaveTextContent('Use the find-skills skill.')
       expect(markdown.querySelector('[data-composer-token-kind="skill"]')).toBeInTheDocument()
+    })
+
+    it('should render file composer tokens through ComposerToken in markdown mode', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: 'Open src/chat.ts **now**',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-1',
+              kind: 'file',
+              label: 'chat.ts',
+              index: 0,
+              textOffset: 5,
+              promptText: 'src/chat.ts'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toBeInTheDocument()
+      expect(markdown).toHaveAttribute(
+        'data-content',
+        'Open <span data-composer-token-index="0" data-composer-token-block="test-block-1"></span> **now**'
+      )
+      expect(markdown).toHaveTextContent('Markdown: Open chat.ts **now**')
+      expect(markdown).not.toHaveTextContent('src/chat.ts')
+      const token = markdown.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toHaveClass('h-6', 'rounded-md', 'border', 'border-border', 'bg-background')
+      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toBeInTheDocument()
+    })
+
+    it('should render document file composer tokens with the same document icon style as the composer', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Read test.pdf now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-pdf',
+              kind: 'file',
+              label: 'test.pdf',
+              index: 0,
+              textOffset: 5,
+              promptText: 'test.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'test.pdf',
+                origin_name: 'test.pdf',
+                size: 2048
+              }
+            }
+          ]
+        }
+      })
+
+      const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toHaveAttribute('data-file-token-variant', 'document')
+      expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
+        'bg-[var(--color-error-bg)]',
+        'text-destructive'
+      )
+    })
+
+    it('should keep command and reference composer tokens on the legacy message chip renderer', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Run docs',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'command:web-search',
+              kind: 'command',
+              label: 'web-search',
+              index: 0,
+              textOffset: 0,
+              promptText: 'Run'
+            },
+            {
+              id: 'reference:docs',
+              kind: 'reference',
+              label: 'Docs',
+              index: 1,
+              textOffset: 4,
+              promptText: 'docs'
+            }
+          ]
+        }
+      })
+
+      const textElement = getRenderedPlainText()!
+      expect(textElement).toHaveTextContent('web-search Docs')
+      expect(textElement.querySelector('[data-composer-token-kind="command"]')).toHaveClass(
+        'text-primary',
+        'overflow-hidden'
+      )
+      expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toHaveClass(
+        'text-primary',
+        'overflow-hidden'
+      )
     })
 
     it('should ignore unsupported raw composer metadata tokens in user messages', () => {

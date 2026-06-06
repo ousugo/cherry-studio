@@ -6,12 +6,26 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const routerMocks = vi.hoisted(() => ({
+  portalContainer: {
+    current: null as HTMLElement | null
+  },
   navigate: vi.fn(),
   subscribe: vi.fn(() => vi.fn())
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  TooltipPortalContainerProvider: ({ children }: { children: ReactNode }) => <>{children}</>
+  PortalContainerProvider: ({ children, container }: { children: ReactNode; container: HTMLElement | null }) => {
+    routerMocks.portalContainer.current = container
+    return (
+      <div
+        data-has-portal-container={String(container instanceof HTMLElement)}
+        data-portal-container-is-body={String(container === document.body)}
+        data-testid="portal-container-provider">
+        {children}
+      </div>
+    )
+  },
+  usePortalContainer: () => routerMocks.portalContainer.current
 }))
 
 vi.mock('@renderer/routeTree.gen', () => ({
@@ -19,9 +33,7 @@ vi.mock('@renderer/routeTree.gen', () => ({
 }))
 
 vi.mock('@tanstack/react-router', async () => {
-  const { useSelectorPortalContainer } = await import(
-    '@renderer/components/Selector/shell/SelectorPortalContainerContext'
-  )
+  const { usePortalContainer } = await import('@cherrystudio/ui')
 
   return {
     createMemoryHistory: vi.fn((options: { initialEntries: string[] }) => options),
@@ -35,13 +47,13 @@ vi.mock('@tanstack/react-router', async () => {
       }
     })),
     RouterProvider: () => {
-      const container = useSelectorPortalContainer()
+      const container = usePortalContainer()
 
       return (
         <div
           data-testid="router-provider"
-          data-has-selector-container={String(container instanceof HTMLElement)}
-          data-selector-container-is-body={String(container === document.body)}
+          data-has-portal-container={String(container instanceof HTMLElement)}
+          data-portal-container-is-body={String(container === document.body)}
         />
       )
     }
@@ -52,12 +64,13 @@ import { TabRouter } from '../TabRouter'
 
 describe('TabRouter', () => {
   beforeEach(() => {
+    routerMocks.portalContainer.current = null
     routerMocks.navigate.mockClear()
     routerMocks.subscribe.mockClear()
     vi.mocked(createMemoryHistory).mockClear()
   })
 
-  it('provides the tab root as the selector portal container', async () => {
+  it('provides the tab root as scoped portal containers', async () => {
     render(
       <TabRouter
         tab={{
@@ -74,9 +87,11 @@ describe('TabRouter', () => {
     )
 
     await waitFor(() =>
-      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-selector-container', 'true')
+      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
     )
-    expect(screen.getByTestId('router-provider')).toHaveAttribute('data-selector-container-is-body', 'false')
+    expect(screen.getByTestId('router-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
+    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-has-portal-container', 'true')
+    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
   })
 
   it('uses the tab entry URL even when instance metadata points to another key', () => {

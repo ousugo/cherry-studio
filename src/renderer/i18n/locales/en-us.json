@@ -1370,15 +1370,17 @@
     },
     "input": {
       "auto_resize": "Auto resize height",
+      "cancel_editing": "Cancel editing",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
       "context_count": {
         "tip": "Context / Max Context"
       },
+      "editing_message": "Editing sent message",
       "estimated_tokens": {
         "tip": "Estimated tokens"
       },
@@ -1391,9 +1393,10 @@
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "locate_editing_message": "Locate original message",
       "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
@@ -1487,6 +1490,7 @@
       }
     },
     "message": {
+      "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",
         "copy_topic": {
@@ -6466,6 +6470,8 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
+        "paste_long_text_as_file": "Paste long text as file",
+        "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -7599,22 +7605,6 @@
     "settings": "Settings",
     "store": "Resources",
     "translate": "Translate"
-  },
-  "trace": {
-    "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "End Time",
-    "inputs": "Inputs",
-    "label": "Call Chain",
-    "name": "Node Name",
-    "noTraceList": "No trace information found",
-    "outputs": "Outputs",
-    "parentId": "Parent Id",
-    "spanDetail": "Span Details",
-    "spendTime": "Spend Time",
-    "startTime": "Start Time",
-    "tag": "Tag",
-    "tokenUsage": "Token Usage"
   },
   "translate": {
     "alter_language": "Alternative Language",

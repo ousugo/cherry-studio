@@ -1,6 +1,6 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import Sessions from './components/Sessions'
 

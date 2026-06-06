@@ -32,7 +32,7 @@ import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/ho
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'

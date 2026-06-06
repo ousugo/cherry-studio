@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/agentSessions'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -197,7 +197,9 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
       const trimmed = initialName?.trim()
       if (trimmed) {
         try {
-          session = await dataApiService.patch(`/sessions/${session.id}`, { body: { name: trimmed.slice(0, 30) } })
+          session = await dataApiService.patch(`/agent-sessions/${session.id}`, {
+            body: { name: trimmed.slice(0, 30) }
+          })
         } catch (err) {
           logger.warn('Failed to seed placeholder session name', err as Error)
         }

@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../context-menu'
+import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -181,6 +182,34 @@ describe('ContextMenu primitive', () => {
       fireEvent.click(screen.getByText('Delete'))
 
       expect(handleSelect).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('portal container', () => {
+    it('renders content inside the provider portal container', () => {
+      const portalContainer = document.createElement('div')
+      document.body.appendChild(portalContainer)
+
+      try {
+        render(
+          <PortalContainerProvider container={portalContainer}>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <button type="button">Trigger</button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem>Delete</ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          </PortalContainerProvider>
+        )
+
+        openMenu(screen.getByText('Trigger'))
+
+        expect(portalContainer).toContainElement(screen.getByText('Delete'))
+      } finally {
+        portalContainer.remove()
+      }
     })
   })
 })

@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/context/MessageEditingContext'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -8,6 +9,7 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import type { ComposerSerializedToken } from '../../tokens'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -23,8 +25,10 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
+  getDraft: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   eventListeners: new Map<string, (payload: unknown) => void>(),
+  eventEmit: vi.fn(),
   eventOn: vi.fn(),
   mentionedModels: undefined as Model[] | undefined,
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
@@ -39,7 +43,9 @@ const mocks = vi.hoisted(() => ({
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
-  ipcOn: vi.fn()
+  ipcOn: vi.fn(),
+  chatWrite: undefined as any,
+  files: undefined as any[] | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -104,7 +110,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
         },
         toggleExpanded: vi.fn(),
         removeToken: vi.fn(),
-        insertToken: mocks.insertToken
+        insertToken: mocks.insertToken,
+        getDraft: mocks.getDraft
       })
     }, [props])
 
@@ -125,9 +132,11 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
+    LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     SEND_MESSAGE: 'SEND_MESSAGE'
   },
   EventEmitter: {
+    emit: mocks.eventEmit,
     on: mocks.eventOn
   }
 }))
@@ -164,7 +173,7 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   useComposerToolState: () => ({
-    files: [],
+    files: mocks.files ?? [],
     mentionedModels: mocks.mentionedModels ?? [],
     selectedKnowledgeBases: mocks.selectedKnowledgeBases ?? [],
     isExpanded: false,
@@ -340,7 +349,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/ChatWriteContext', () => ({
-  useChatWrite: () => ({ pause: vi.fn() })
+  useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn() }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -437,6 +446,17 @@ const missingAssistantTopic = {
   type: 'chat'
 } as any
 
+const StartEditingOnMount = ({ enabled = true, message, parts }: { enabled?: boolean; message: any; parts: any }) => {
+  const { startEditing } = useMessageEditing()
+
+  useEffect(() => {
+    if (!enabled) return
+    startEditing(message, parts)
+  }, [enabled, message, parts, startEditing])
+
+  return null
+}
+
 describe('ChatComposer', () => {
   beforeEach(() => {
     resizeObserverMockInstances.length = 0
@@ -464,6 +484,9 @@ describe('ChatComposer', () => {
     mocks.setModel.mockReset()
     mocks.setDefaultModel.mockReset()
     mocks.setFiles.mockReset()
+    mocks.setFiles.mockImplementation((value) => {
+      mocks.files = typeof value === 'function' ? value(mocks.files ?? []) : value
+    })
     mocks.setMentionedModels.mockReset()
     mocks.setMentionedModels.mockImplementation((nextModels: Model[] | ((previous: Model[]) => Model[])) => {
       mocks.mentionedModels = typeof nextModels === 'function' ? nextModels(mocks.mentionedModels ?? []) : nextModels
@@ -480,8 +503,11 @@ describe('ChatComposer', () => {
     mocks.toastError.mockReset()
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
+    mocks.getDraft.mockReset()
+    mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
     mocks.commandHandlers.clear()
     mocks.eventListeners.clear()
+    mocks.eventEmit.mockReset()
     mocks.eventOn.mockReset()
     mocks.eventOn.mockImplementation((eventName: string, listener: (payload: unknown) => void) => {
       mocks.eventListeners.set(eventName, listener)
@@ -489,6 +515,7 @@ describe('ChatComposer', () => {
     })
     mocks.mentionedModels = undefined
     mocks.selectedKnowledgeBases = undefined
+    mocks.files = undefined
     mocks.knowledgeBases = []
     mocks.assistant = {
       id: 'assistant-1',
@@ -508,6 +535,7 @@ describe('ChatComposer', () => {
     mocks.derivedToolState = undefined
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
+    mocks.chatWrite = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -886,6 +914,29 @@ describe('ChatComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('keeps the current draft when sending a new message fails', async () => {
+    const onSend = vi.fn().mockRejectedValue(new Error('open failed'))
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('draft message')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'draft message',
+      expect.objectContaining({
+        userMessageParts: [expect.objectContaining({ type: 'text', text: 'draft message' })]
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('draft message')
+  })
+
   it('routes new topic shortcuts through the explicit parent action', () => {
     const onNewTopic = vi.fn()
     render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
@@ -1036,6 +1087,625 @@ describe('ChatComposer', () => {
         userMessageParts: [{ type: 'text', text: 'hello' }]
       })
     )
+  })
+
+  it('hydrates Composer from an edited message and restores the previous draft on cancel', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [
+      {
+        type: 'text',
+        text: '<blockquote>\n\nSelected text\n</blockquote>\n\nFollow up',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'quote-1',
+                  kind: 'quote',
+                  label: 'Quote',
+                  description: 'Selected text',
+                  index: 0,
+                  textOffset: 0,
+                  promptText: '<blockquote>\n\nSelected text\n</blockquote>'
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        url: 'file:///tmp/default-topic.png',
+        mediaType: '.png',
+        filename: 'default-topic.png'
+      },
+      {
+        type: 'file',
+        url: 'file:///tmp/report.pdf',
+        mediaType: '.pdf',
+        filename: 'report.pdf'
+      }
+    ] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('<blockquote>\n\nSelected text\n</blockquote>\n\nFollow up')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      expect.objectContaining({
+        id: 'quote-1',
+        kind: 'quote',
+        label: 'Quote',
+        textOffset: 0
+      })
+    ])
+    expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        label: 'default-topic.png',
+        payload: expect.objectContaining({
+          type: 'image',
+          ext: '.png',
+          name: 'default-topic.png',
+          origin_name: 'default-topic.png'
+        })
+      }),
+      expect.objectContaining({
+        kind: 'file',
+        label: 'report.pdf',
+        payload: expect.objectContaining({
+          type: 'document',
+          ext: '.pdf',
+          name: 'report.pdf',
+          origin_name: 'report.pdf'
+        })
+      })
+    ])
+    expect(mocks.surfaceProps?.tokens).not.toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        label: 'default-topic.png',
+        payload: expect.objectContaining({
+          type: 'document'
+        })
+      }),
+      expect.objectContaining({
+        kind: 'file',
+        label: 'report.pdf'
+      })
+    ])
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('original draft')
+  })
+
+  it('locates the edited message from the Composer editing state', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onLocate?.()
+    })
+
+    expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:message-1', true)
+  })
+
+  it('exits edit mode and restores the saved draft when the topic changes', async () => {
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const nextTopic = { ...topic, id: 'topic-2' }
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('old')
+
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingOnMount enabled={false} message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={nextTopic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('original draft')
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'topic 2 draft', tokens: [] })
+    })
+
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(onSend).toHaveBeenCalledWith(
+      'topic 2 draft',
+      expect.objectContaining({
+        userMessageParts: [{ type: 'text', text: 'topic 2 draft' }]
+      })
+    )
+  })
+
+  it('preserves Cherry file metadata when resending an edited message with an existing attachment', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const filePart = {
+      type: 'file',
+      url: 'file:///tmp/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'file-entry-1'
+        }
+      }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old text' }, filePart] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    const fileToken = mocks.surfaceProps?.tokens.find((token) => token.kind === 'file')
+    expect(fileToken).toBeDefined()
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'new text',
+        tokens: [serializeComposerToken(fileToken!)]
+      })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, unknown>>
+    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('keeps edited message file tokens at their persisted text offsets', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const filePart = {
+      type: 'file',
+      url: 'file:///tmp/test.pdf',
+      mediaType: 'application/pdf',
+      filename: 'test.pdf',
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'file-entry-1'
+        }
+      }
+    }
+    const fileToken: ComposerSerializedToken = {
+      id: 'file:file-entry-1',
+      kind: 'file',
+      label: 'test.pdf',
+      index: 0,
+      textOffset: 0,
+      promptText: 'test.pdf',
+      payload: {
+        type: 'document',
+        ext: '.pdf',
+        name: 'test.pdf',
+        origin_name: 'test.pdf'
+      }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'test.pdf 你好',
+                providerMetadata: {
+                  cherry: {
+                    composer: {
+                      version: 1,
+                      tokens: [fileToken]
+                    }
+                  }
+                }
+              },
+              filePart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining(fileToken)])
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: fileToken.id, kind: 'file' })])
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'test.pdf 你好',
+        tokens: [fileToken]
+      })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    expect(editedParts[0]).toMatchObject({
+      type: 'text',
+      text: 'test.pdf 你好',
+      providerMetadata: {
+        cherry: {
+          composer: {
+            tokens: [expect.objectContaining({ id: fileToken.id, kind: 'file', textOffset: 0 })]
+          }
+        }
+      }
+    })
+    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('re-links multiple edited file tokens to their original parts by source id regardless of order', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const pdfPart = {
+      type: 'file',
+      url: 'file:///tmp/a.pdf',
+      mediaType: 'application/pdf',
+      filename: 'a.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'entry-pdf' } }
+    }
+    const pngPart = {
+      type: 'file',
+      url: 'file:///tmp/b.png',
+      mediaType: '.png',
+      filename: 'b.png',
+      providerMetadata: { cherry: { fileEntryId: 'entry-png' } }
+    }
+    const pdfToken: ComposerSerializedToken = {
+      id: 'file:entry-pdf',
+      kind: 'file',
+      label: 'a.pdf',
+      index: 1,
+      textOffset: 0,
+      promptText: 'a.pdf',
+      payload: { type: 'document', ext: '.pdf', name: 'a.pdf', origin_name: 'a.pdf' }
+    }
+    const pngToken: ComposerSerializedToken = {
+      id: 'file:entry-png',
+      kind: 'file',
+      label: 'b.png',
+      index: 0,
+      textOffset: 6,
+      promptText: 'b.png',
+      payload: { type: 'image', ext: '.png', name: 'b.png', origin_name: 'b.png' }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'a.pdf b.png',
+                // Stored token order is intentionally reversed relative to text offset to prove
+                // matching is by source id, not document position.
+                providerMetadata: { cherry: { composer: { version: 1, tokens: [pngToken, pdfToken] } } }
+              },
+              pngPart,
+              pdfPart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'a.pdf b.png', tokens: [pdfToken, pngToken] })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const fileParts = editedParts.filter((part) => part.type === 'file')
+    // Both originals are reused verbatim (no re-attachment as new files), each linked to the
+    // correct part by fileEntryId despite the reversed token order.
+    expect(fileParts).toEqual([pngPart, pdfPart])
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the sole remaining file token when no source id matches', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    // Neither the part's fileEntryId nor its url equals the token source id, so only the
+    // single-unused-token fallback can keep the attachment linked.
+    const filePart = {
+      type: 'file',
+      url: 'file:///tmp/x.pdf',
+      mediaType: 'application/pdf',
+      filename: 'x.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'real-1' } }
+    }
+    const ghostToken: ComposerSerializedToken = {
+      id: 'file:ghost',
+      kind: 'file',
+      label: 'x.pdf',
+      index: 0,
+      textOffset: 0,
+      promptText: 'x.pdf',
+      payload: { type: 'document', ext: '.pdf', name: 'x.pdf', origin_name: 'x.pdf' }
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'x.pdf 你好',
+                providerMetadata: { cherry: { composer: { version: 1, tokens: [ghostToken] } } }
+              },
+              filePart
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'x.pdf 你好', tokens: [ghostToken] })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    // The attachment is preserved (reused verbatim), not dropped, via the unambiguous fallback.
+    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('keeps editable knowledge tokens when forking and resending an edited message', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const knowledgeBase = {
+      id: 'kb-1',
+      name: 'Knowledge One',
+      documentCount: 1
+    } as KnowledgeBase
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    mocks.assistant = {
+      ...mocks.assistant,
+      knowledgeBaseIds: ['kb-1']
+    }
+    mocks.knowledgeBases = [knowledgeBase]
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount
+          message={message as any}
+          parts={
+            [
+              {
+                type: 'text',
+                text: 'question with knowledge',
+                providerMetadata: {
+                  cherry: {
+                    composer: {
+                      version: 1,
+                      tokens: [
+                        {
+                          id: 'knowledge:kb-1',
+                          kind: 'knowledge',
+                          label: 'Knowledge One',
+                          index: 0,
+                          textOffset: 0
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ] as any
+          }
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await waitFor(() =>
+      expect(mocks.surfaceProps?.tokens).toEqual([
+        expect.objectContaining({
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'Knowledge One'
+        })
+      ])
+    )
+
+    const [knowledgeToken] = mocks.surfaceProps?.tokens ?? []
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'edited question with knowledge',
+        tokens: [serializeComposerToken(knowledgeToken)]
+      })
+    })
+
+    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
+    expect(editedParts[0]).toMatchObject({
+      type: 'text',
+      text: 'edited question with knowledge',
+      providerMetadata: {
+        cherry: {
+          composer: {
+            tokens: [
+              expect.objectContaining({
+                id: 'knowledge:kb-1',
+                kind: 'knowledge',
+                label: 'Knowledge One'
+              })
+            ]
+          }
+        }
+      }
+    })
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('forks and resends the edited message when Composer sends in edit mode', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('keeps editing when the edited message fork and resend fails', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockRejectedValue(new Error('stream open failed'))
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await expect(mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })).resolves.toBeUndefined()
+
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+    expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('does not auto-enable assistant knowledge bases and keeps manual deletion', async () => {

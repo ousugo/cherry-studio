@@ -12,7 +12,7 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { GetAgentResponse } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'

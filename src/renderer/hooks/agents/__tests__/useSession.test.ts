@@ -1,4 +1,4 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -65,7 +65,7 @@ describe('useActiveSession', () => {
   const setActiveSessionId = vi.fn()
 
   it('ignores query data that does not match the active session id', () => {
-    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
       data: createSession({ id: 'session-1' }),
       isLoading: false
     })
@@ -79,7 +79,7 @@ describe('useActiveSession', () => {
 
   it('uses a matching pending session while the query catches up', () => {
     const pendingSession = createSession({ id: 'temp-session-1' })
-    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
       data: undefined,
       isLoading: true
     })
@@ -96,7 +96,7 @@ describe('useActiveSession', () => {
   it('prefers matching query data over a pending session', () => {
     const querySession = createSession({ id: 'session-1' })
     const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
-    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
       data: querySession,
       isLoading: false
     })
@@ -273,7 +273,7 @@ describe('useUpdateSession', () => {
       updatedAt: '2024-01-01T00:00:00Z'
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession())
     const updated = await act(async () =>
@@ -298,7 +298,7 @@ describe('useUpdateSession', () => {
       updatedAt: '2024-01-01T00:00:00Z'
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession())
     const updated = await act(async () => result.current.updateSession({ id: 'session-1', name: 'New name' }))
@@ -321,7 +321,7 @@ describe('useUpdateSession', () => {
       updatedAt: ''
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession())
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
@@ -331,7 +331,7 @@ describe('useUpdateSession', () => {
 
   it('shows error toast and returns undefined on failure', async () => {
     const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession())
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))

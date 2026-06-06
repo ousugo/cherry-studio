@@ -180,7 +180,7 @@ export function GlobalSearchMessagePreviewPanel({
     error: sessionError,
     hasNext: hasNextSessionPage,
     loadNext: loadNextSessionPage
-  } = useInfiniteQuery('/sessions/:sessionId/messages', {
+  } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,

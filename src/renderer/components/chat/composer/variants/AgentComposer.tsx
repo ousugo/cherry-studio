@@ -39,7 +39,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
@@ -233,7 +233,8 @@ const emptyActions: ProviderActionHandlers = {
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
-  insertToken: () => undefined
+  insertToken: () => undefined,
+  getDraft: () => ({ text: '', tokens: [] })
 }
 
 const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
@@ -606,6 +607,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
+  const workspaceWarning: string | undefined = undefined
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))

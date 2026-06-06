@@ -28,8 +28,8 @@ const {
   reorderBatchMock: vi.fn()
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listByCursor: listByCursorMock,
     createSession: createSessionMock,
     getById: getByIdMock,
@@ -50,19 +50,19 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-import { sessionHandlers } from '../sessions'
+import { agentSessionHandlers } from '../agentSessions'
 
-describe('sessionHandlers', () => {
+describe('agentSessionHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('/sessions', () => {
-    it('forwards trimmed search to sessionService.listByCursor', async () => {
+  describe('/agent-sessions', () => {
+    it('forwards trimmed search to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/sessions'].GET({
+      const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
           search: '  deploy  ',
           limit: '10'
@@ -78,7 +78,7 @@ describe('sessionHandlers', () => {
 
     it('rejects blank search before calling the service', async () => {
       await expect(
-        sessionHandlers['/sessions'].GET({
+        agentSessionHandlers['/agent-sessions'].GET({
           query: {
             search: '   '
           }
@@ -89,12 +89,12 @@ describe('sessionHandlers', () => {
     })
   })
 
-  describe('/sessions/messages/search', () => {
+  describe('/agent-sessions/messages/search', () => {
     it('forwards normalized session message search query', async () => {
       const response = { items: [], nextCursor: undefined }
       searchSessionMessagesMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/sessions/messages/search'].GET({
+      const result = await agentSessionHandlers['/agent-sessions/messages/search'].GET({
         query: {
           q: '  needle  ',
           sessionId: 'session-1',
@@ -114,11 +114,11 @@ describe('sessionHandlers', () => {
   })
 
   describe('/agents/:agentId/sessions', () => {
-    it('delegates agent-scoped session delete to SessionService', async () => {
+    it('delegates agent-scoped session delete to AgentSessionService', async () => {
       const response = { deletedIds: ['session-a'], deletedCount: 1 }
       deleteByAgentIdMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/agents/:agentId/sessions'].DELETE({
+      const result = await agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
         params: { agentId: 'agent-1' }
       } as never)
 
@@ -128,12 +128,12 @@ describe('sessionHandlers', () => {
     })
   })
 
-  describe('/sessions', () => {
-    it('delegates selected session delete to SessionService', async () => {
+  describe('/agent-sessions', () => {
+    it('delegates selected session delete to AgentSessionService', async () => {
       const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
       deleteByIdsMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/sessions'].DELETE({
+      const result = await agentSessionHandlers['/agent-sessions'].DELETE({
         body: { ids: ['session-a', 'session-b'] }
       } as never)
 

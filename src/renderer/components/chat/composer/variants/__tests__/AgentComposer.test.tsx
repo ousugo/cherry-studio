@@ -103,7 +103,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
         },
         toggleExpanded: vi.fn(),
         removeToken: vi.fn(),
-        insertToken: mocks.insertToken
+        insertToken: mocks.insertToken,
+        getDraft: () => ({ text: props.text, tokens: [...(props.draftTokens ?? [])] })
       })
     }, [props])
 
@@ -966,7 +967,16 @@ describe('AgentComposer', () => {
                 cherry: {
                   composer: {
                     version: 1,
-                    tokens: [{ id: 'file:file-1', kind: 'file', label: 'notes.md', index: 0, textOffset: 5 }]
+                    tokens: [
+                      {
+                        id: 'file:file-1',
+                        kind: 'file',
+                        label: 'notes.md',
+                        index: 0,
+                        textOffset: 5,
+                        payload: { name: 'notes.md', origin_name: 'notes.md' }
+                      }
+                    ]
                   }
                 }
               }

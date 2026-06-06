@@ -4,10 +4,10 @@ import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
-  ListSessionsQuerySchema,
-  SearchSessionMessagesQuerySchema,
-  UpdateSessionSchema
-} from '../sessions'
+  ListAgentSessionsQuerySchema,
+  SearchAgentSessionMessagesQuerySchema,
+  UpdateAgentSessionSchema
+} from '../agentSessions'
 
 describe('AgentSessionMessage schemas', () => {
   const baseMessage = {
@@ -51,10 +51,10 @@ describe('AgentSessionMessage schemas', () => {
   })
 })
 
-describe('ListSessionsQuerySchema', () => {
+describe('ListAgentSessionsQuerySchema', () => {
   it('trims search while preserving existing cursor pagination fields', () => {
     expect(
-      ListSessionsQuerySchema.parse({
+      ListAgentSessionsQuerySchema.parse({
         agentId: 'agent-1',
         cursor: 'cursor-1',
         limit: '10',
@@ -69,20 +69,20 @@ describe('ListSessionsQuerySchema', () => {
   })
 
   it('rejects blank search', () => {
-    expect(() => ListSessionsQuerySchema.parse({ search: '   ' })).toThrow()
+    expect(() => ListAgentSessionsQuerySchema.parse({ search: '   ' })).toThrow()
   })
 })
 
 describe('SearchSessionMessagesQuerySchema', () => {
   it('normalizes session message search queries', () => {
-    expect(SearchSessionMessagesQuerySchema.parse({ q: '  deploy  ' })).toEqual({
+    expect(SearchAgentSessionMessagesQuerySchema.parse({ q: '  deploy  ' })).toEqual({
       q: 'deploy'
     })
   })
 
   it('accepts session filter and pagination', () => {
     expect(
-      SearchSessionMessagesQuerySchema.parse({
+      SearchAgentSessionMessagesQuerySchema.parse({
         q: 'plan',
         sessionId: 'session-1',
         limit: '20',
@@ -97,14 +97,14 @@ describe('SearchSessionMessagesQuerySchema', () => {
   })
 
   it('rejects invalid createdAtFrom', () => {
-    expect(() => SearchSessionMessagesQuerySchema.parse({ q: 'plan', createdAtFrom: 'today' })).toThrow()
+    expect(() => SearchAgentSessionMessagesQuerySchema.parse({ q: 'plan', createdAtFrom: 'today' })).toThrow()
   })
 })
 
 describe('AgentSession schemas', () => {
   it('rejects workspace updates because workspace binding is insert-only', () => {
     expect(
-      UpdateSessionSchema.safeParse({
+      UpdateAgentSessionSchema.safeParse({
         workspaceId: 'workspace-1'
       }).success
     ).toBe(false)

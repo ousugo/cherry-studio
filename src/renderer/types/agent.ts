@@ -7,7 +7,7 @@
  */
 import type { Tool } from '@shared/ai/tool'
 import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'

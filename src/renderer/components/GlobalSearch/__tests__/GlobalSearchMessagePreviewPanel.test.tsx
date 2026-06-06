@@ -241,7 +241,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(screen.getByText('Work messages')).toBeInTheDocument()
     await waitFor(() => expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1))
     expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-      '/sessions/:sessionId/messages',
+      '/agent-sessions/:sessionId/messages',
       expect.objectContaining({
         params: { sessionId: 'session-1' },
         query: { messageId: 'session-message-1' },

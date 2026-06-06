@@ -22,7 +22,7 @@ import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -57,8 +57,8 @@ const AgentPage = () => {
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
-  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
+  const [windowSidebarOpen, setWindowSidebarOpen] = useState(false)
+  const effectiveShowSidebar = !isMessageOnlyView && (isWindowFrame ? windowSidebarOpen : showSidebar)
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -175,12 +175,26 @@ const AgentPage = () => {
     instanceKey: tabInstanceSessionId ?? null
   })
 
+  const setResourceListOpen = useCallback(
+    (open: boolean) => {
+      if (isWindowFrame) {
+        setWindowSidebarOpen(open)
+        return
+      }
+
+      void setShowSidebar(open)
+    },
+    [isWindowFrame, setShowSidebar]
+  )
+  const toggleResourceListOpen = useCallback(() => {
+    setResourceListOpen(!effectiveShowSidebar)
+  }, [effectiveShowSidebar, setResourceListOpen])
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
       if (isMessageOnlyView) return
 
-      toggleShowSidebar()
+      toggleResourceListOpen()
     },
     { enabled: isActiveTab }
   )
@@ -240,7 +254,7 @@ const AgentPage = () => {
     (sessionId: string | null, messageId?: string) => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
-      void setShowSidebar(true)
+      setResourceListOpen(true)
       void discardTemporaryConversation()
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
@@ -256,7 +270,7 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [conversationNav, currentTabId, discardTemporaryConversation, setShowSidebar]
+    [conversationNav, currentTabId, discardTemporaryConversation, setResourceListOpen]
   )
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
@@ -428,9 +442,11 @@ const AgentPage = () => {
           setLastUsedWorkspaceId(persisted.session.workspaceId)
         }
         setActiveSessionId(persisted.sessionId)
-        void invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`]).catch((err) => {
-          logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
-        })
+        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${persisted.sessionId}`]).catch(
+          (err) => {
+            logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
+          }
+        )
         return persisted
       }
       return null
@@ -546,8 +562,10 @@ const AgentPage = () => {
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
-          onPaneCollapse={() => void setShowSidebar(false)}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+          onPaneCollapse={() => setResourceListOpen(false)}
+          showResourceListControls={!isMessageOnlyView}
+          sidebarOpen={effectiveShowSidebar}
+          onSidebarToggle={toggleResourceListOpen}
           temporaryConversation={isMessageOnlyView ? null : visibleTemporaryAgentConversation}
           missingAgentDraft={
             !isMessageOnlyView &&

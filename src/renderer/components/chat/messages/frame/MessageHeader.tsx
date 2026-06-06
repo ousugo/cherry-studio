@@ -107,7 +107,8 @@ const MessageHeader: FC<Props> = memo(
         ) : (
           <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
         )}
-        <div className={hasBodySlot ? 'message-body-column flex min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
+        <div
+          className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
           <div className="flex w-full min-w-0 items-center gap-1.5">
             <span
               className="truncate font-semibold text-sm leading-5"
@@ -138,8 +139,10 @@ const MessageHeader: FC<Props> = memo(
               </div>
             )}
           </div>
-          {contentSlot && <div className="message-body-content mt-2 min-w-0 max-w-full">{contentSlot}</div>}
-          {footerSlot}
+          {contentSlot && (
+            <div className="message-body-content mt-2 min-h-0 min-w-0 max-w-full flex-1">{contentSlot}</div>
+          )}
+          {footerSlot && <div className="message-footer-slot mt-auto min-w-0 shrink-0">{footerSlot}</div>}
         </div>
         {isMultiSelectMode && (
           <Checkbox

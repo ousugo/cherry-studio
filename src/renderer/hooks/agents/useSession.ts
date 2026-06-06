@@ -16,15 +16,14 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
-import { getErrorMessage } from '@renderer/utils/error'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  CreateSessionDto,
-  DeleteSessionsResult,
-  UpdateSessionDto
-} from '@shared/data/api/schemas/sessions'
+  CreateAgentSessionDto,
+  DeleteAgentSessionsResult,
+  UpdateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,8 +34,8 @@ type UseSessionsOptions = {
   loadAll?: boolean
 }
 
-export type CreateSessionForm = Omit<CreateSessionDto, 'agentId'>
-export type UpdateSessionForm = UpdateSessionDto & { id: string }
+export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
+export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -49,7 +48,7 @@ export const useSession = (sessionId: string | null) => {
     error,
     isLoading,
     mutate
-  } = useQuery('/sessions/:sessionId', {
+  } = useQuery('/agent-sessions/:sessionId', {
     params: { sessionId: sessionId! },
     enabled: !!sessionId,
     swrOptions: { keepPreviousData: false }
@@ -99,14 +98,14 @@ export const useSessions = (
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
 
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/sessions', {
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
     limit: pageSize
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/sessions')
+  const { applyReorderedList } = useReorder('/agent-sessions')
 
-  // SessionService returns the persisted session order (`orderKey`, `id`).
+  // AgentSessionService returns the persisted session order (`orderKey`, `id`).
   // The `/pins` map is composed in the renderer for row indicators, toggle
   // handling, and display grouping/sorting that promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
@@ -135,7 +134,9 @@ export const useSessions = (
     }
   }, [hasMore, isLoadingMore, loadNext])
 
-  const { trigger: createTrigger } = useMutation('POST', '/sessions', { refresh: ['/sessions', '/workspaces'] })
+  const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces']
+  })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) {
@@ -153,9 +154,11 @@ export const useSessions = (
     [agentId, createTrigger, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/sessions/:sessionId', { refresh: ['/sessions'] })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/sessions', {
-    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
+    refresh: ['/agent-sessions']
+  })
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
@@ -171,7 +174,7 @@ export const useSessions = (
   )
 
   const deleteSessions = useCallback(
-    async (ids: string[]): Promise<DeleteSessionsResult | null> => {
+    async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
         return await deleteManyTrigger({ body: { ids } })
       } catch (error) {
@@ -193,7 +196,9 @@ export const useSessions = (
     [applyReorderedList, t]
   )
 
-  const { trigger: reorderTrigger } = useMutation('PATCH', '/sessions/:id/order', { refresh: ['/sessions'] })
+  const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
+    refresh: ['/agent-sessions']
+  })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
       try {
@@ -208,11 +213,11 @@ export const useSessions = (
   )
 
   // Server returns pinned-first via the two-section cursor in
-  // `SessionService.listByCursor`, so pin-state changes affect `/sessions`
+  // `AgentSessionService.listByCursor`, so pin-state changes affect `/agent-sessions`
   // page ordering, not just `/pins` membership. Refresh both keys so the
   // row visibly relocates after pin/unpin.
-  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/sessions'] })
-  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/sessions'] })
+  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/agent-sessions'] })
+  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
   const togglePin = useCallback(
     async (sessionId: string) => {
       const pinId = pinIdBySessionId.get(sessionId)
@@ -259,12 +264,12 @@ export const useSessions = (
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
-  const { trigger: updateTrigger } = useMutation('PATCH', '/sessions/:sessionId', {
+  const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
-    // '/sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/sessions', `/sessions/${args!.params.sessionId}`]
+    // '/agent-sessions/undefined' (which would miss every cache entry).
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
 
   const updateSession = useCallback(
@@ -298,7 +303,7 @@ export function useAgentSessionAutoRenameSync() {
     const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
     if (!onAutoRenamed) return
     const unsubscribe = onAutoRenamed(({ sessionId }) => {
-      void invalidate(['/sessions', `/sessions/${sessionId}`])
+      void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
     })
     return () => {
       unsubscribe()
