@@ -559,6 +559,29 @@ describe('AgentToolRenderer', () => {
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
     })
+
+    it('shows tool_invoke input params flat without nesting a second tool card', async () => {
+      const toolResponse = createToolResponse({
+        id: 'meta-tool-invoke',
+        tool: { id: 'tool_invoke', name: 'tool_invoke', description: 'Invoke a tool', type: 'provider' },
+        status: 'error',
+        arguments: { name: 'mcp__CherryPython__pythonExecute', params: { code: 'print(1)' } },
+        response: { isError: true, content: [{ type: 'text', text: 'boom' }] }
+      })
+
+      render(<MessageTool toolResponse={toolResponse} />)
+
+      // Outer header names the inner tool (raw mcp__ form).
+      expect(screen.getByText('tool_invoke · mcp__CherryPython__pythonExecute')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button'))
+
+      // Input params are visible flat — no second expand needed.
+      expect(await screen.findByText('code')).toBeInTheDocument()
+      expect(screen.getByText('print(1)')).toBeInTheDocument()
+      // No nested inner tool card (its header would format the name as `Server:tool`).
+      expect(screen.queryByText(/CherryPython:pythonExecute/)).toBeNull()
+    })
   })
 
   describe('agent tool flow action', () => {

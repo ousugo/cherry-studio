@@ -5,6 +5,7 @@ import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMe
 import { getToolName, isToolUIPart } from 'ai'
 
 import { AgentToolsType } from './agent/types'
+import { isMetaToolName } from './meta/metaToolNames'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
@@ -138,6 +139,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 }
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
+  if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'

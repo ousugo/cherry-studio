@@ -2,23 +2,18 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types'
-import { Check, CornerDownRight, Wrench } from 'lucide-react'
+import { Check, Wrench } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { getEffectiveStatus, ToolStatusIndicator } from '../agent/GenericTools'
-import { chooseTool } from '../chooseTool'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import type { MetaToolName } from './metaToolNames'
 
-export const META_TOOL_NAMES = ['tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'] as const
-export type MetaToolName = (typeof META_TOOL_NAMES)[number]
-
-export function isMetaToolName(name: string): name is MetaToolName {
-  return (META_TOOL_NAMES as readonly string[]).includes(name)
-}
+export { isMetaToolName, META_TOOL_NAMES, type MetaToolName } from './metaToolNames'
 
 interface Props {
   toolResponse: NormalToolResponse
@@ -201,16 +196,16 @@ const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolRespons
 // ── tool_invoke ────────────────────────────────────────────────────
 
 /**
- * Synthesise a NormalToolResponse for the inner tool the model called via
- * `tool_invoke`, then dispatch through `chooseTool` so the inner call gets
- * its proper card (MCP / kb / web / agent / generic-fallback). When the
- * inner tool has no registered card, fall back to a json args+response
- * block instead of leaving the row blank.
+ * `tool_invoke` wraps an inner tool call (`{ name, params }`). The outer card
+ * header already names the inner tool (`tool_invoke · <name>`), so the body
+ * shows the call's input + output flat — not a second nested collapsible card,
+ * which duplicated the name/status and buried the params an extra expand deep.
  */
 const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const innerName = typeof args?.name === 'string' ? args.name : undefined
   const innerParams = isRecord(args?.params) ? args.params : undefined
+  const response = toolResponse.response
 
   if (!innerName) {
     return (
@@ -220,38 +215,15 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
     )
   }
 
-  const inner: NormalToolResponse = {
-    ...toolResponse,
-    id: `${toolResponse.id}::inner`,
-    tool: { ...toolResponse.tool, name: innerName },
-    arguments: innerParams,
-    response: toolResponse.response
-  }
-
-  const innerRendered = chooseTool(inner)
-
   return (
     <BodyContainer>
-      <InnerHint>
-        <CornerDownRight size={12} /> via <code>tool_invoke</code>
-      </InnerHint>
-      {innerRendered ?? <GenericInner toolResponse={inner} />}
-    </BodyContainer>
-  )
-}
-
-const GenericInner: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
-  const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
-  const response = toolResponse.response
-  return (
-    <>
-      <ArgsBlock args={args} />
+      <ArgsBlock args={innerParams} />
       {response !== undefined && response !== null && (
         <ResponseBlock title="Response">
           <CodeBlock>{stringifyResponse(response)}</CodeBlock>
         </ResponseBlock>
       )}
-    </>
+    </BodyContainer>
   )
 }
 
@@ -476,18 +448,6 @@ const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
   <div
     className={[
       '[&_pre]:max-h-[300px] [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted! [&_pre]:p-2 [&_pre]:text-xs',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
-const InnerHint = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={[
-      'flex items-center gap-1 text-[11px] text-foreground-muted [&_code]:font-(--font-family-mono,monospace)',
       className
     ]
       .filter(Boolean)
