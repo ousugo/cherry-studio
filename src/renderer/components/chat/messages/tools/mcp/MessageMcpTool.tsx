@@ -21,7 +21,6 @@ import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
-import ToolApprovalActionsComponent from '../ToolApprovalActions'
 
 interface Props {
   toolResponse: McpToolResponse
@@ -44,9 +43,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
   const actions = useOptionalMessageListActions()
-  const abortTool = actions?.abortTool
   const copyText = actions?.copyText
-  const notifySuccess = actions?.notifySuccess
   const notifyError = actions?.notifyError
   const subscribeToolProgress = actions?.subscribeToolProgress
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
@@ -99,22 +96,6 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
   const handleCollapseChange = (keys: string | string[]) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
-  }
-
-  const handleAbortTool = async () => {
-    if (toolResponse?.id && abortTool) {
-      try {
-        const success = await abortTool(toolResponse.id)
-        if (success) {
-          notifySuccess?.(t('message.tools.aborted'))
-        } else {
-          notifyError?.(t('message.tools.abort_failed'))
-        }
-      } catch (error) {
-        logger.error('Failed to abort tool:', error as Error)
-        notifyError?.(t('message.tools.abort_failed'))
-      }
-    }
   }
 
   // Format tool responses for collapse items
@@ -188,28 +169,13 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
   return (
     <ToolContainer>
-      <ToolContentWrapper className={isPending || approval.isWaiting ? 'pending' : status}>
-        <CollapseContainer
-          variant="light"
-          activeKey={activeKeys}
-          onActiveKeyChange={handleCollapseChange}
-          className="message-tools-container"
-          items={getDisclosureItems()}
-        />
-        {(isPending || approval.isWaiting || approval.isExecuting) && (
-          <ActionsBar>
-            <ActionLabel>
-              {willAwaitApproval ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
-            </ActionLabel>
-
-            <ToolApprovalActionsComponent
-              {...approval}
-              showAbort={approval.isExecuting && !!toolResponse?.id && !!abortTool}
-              onAbort={handleAbortTool}
-            />
-          </ActionsBar>
-        )}
-      </ToolContentWrapper>
+      <CollapseContainer
+        variant="light"
+        activeKey={activeKeys}
+        onActiveKeyChange={handleCollapseChange}
+        className="message-tools-container"
+        items={getDisclosureItems()}
+      />
     </ToolContainer>
   )
 }
@@ -467,26 +433,6 @@ const ExpandedToolResponseContent: FC<{
     </div>
   )
 }
-
-const ToolContentWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['overflow-hidden rounded-lg p-0 [&.pending]:bg-muted', className].filter(Boolean).join(' ')}
-    {...props}
-  />
-)
-
-const ActionsBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex flex-row items-center justify-between p-2', className].filter(Boolean).join(' ')} {...props} />
-)
-
-const ActionLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground-secondary text-sm', className]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
 
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
