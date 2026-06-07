@@ -234,6 +234,7 @@ const ChatContentInner: FC<InnerProps> = ({
                         onTemporaryAssistantChange={onTemporaryAssistantChange}
                         onNewTopic={onNewTopic}
                         sendDisabled={isHistoryLoading}
+                        composerContext={runtime.composerContext}
                       />
                     )
                     const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

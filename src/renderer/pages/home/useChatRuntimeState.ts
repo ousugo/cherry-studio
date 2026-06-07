@@ -1,5 +1,7 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
+import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
 import {
   buildTopicMessageFlowLiveState,
@@ -12,6 +14,7 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
+import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -201,6 +204,20 @@ export function useChatRuntimeState({
 
   const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
 
+  // Tool-approval card surface. Awaiting-approval tools render `null` inline
+  // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
+  // the only approve/deny UI. The bridge just delivers the decision to main;
+  // the card hides optimistically and the live stream pushes the continuation.
+  const respondToolApproval = useToolApprovalBridge(topic.id)
+  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    partsByMessageId,
+    onRespond: respondToolApproval
+  })
+  const composerContext = useMemo<ComposerContextValue>(
+    () => ({ overrides: toolApprovalComposerOverrides }),
+    [toolApprovalComposerOverrides]
+  )
+
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[]) => {
@@ -368,6 +385,7 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,
+    composerContext,
     translationOverlay,
     setTranslationOverlay
   }
