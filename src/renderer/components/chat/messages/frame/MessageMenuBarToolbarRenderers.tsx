@@ -225,7 +225,7 @@ const TranslateMenuPopover = ({
   )
 }
 
-const useMenuTooltipState = () => {
+const useMenuTooltipState = (onOpenChange?: (open: boolean) => void) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTooltipOpen, setIsTooltipOpen] = useState(false)
 
@@ -234,6 +234,7 @@ const useMenuTooltipState = () => {
     if (open) {
       setIsTooltipOpen(false)
     }
+    onOpenChange?.(open)
   }
 
   const handleTooltipOpenChange = (open: boolean) => {
@@ -254,7 +255,8 @@ export function renderDefaultToolbarAction({ action, executeAction, softHoverBg 
 export function renderModelPickerToolbarAction({
   action,
   actionContext,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   const label = typeof action.label === 'string' ? action.label : undefined
 
@@ -267,7 +269,8 @@ export function renderModelPickerToolbarAction({
           <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
             {action.icon}
           </MessageActionButton>
-        )
+        ),
+        onOpenChange: onMenuOpenChange
       }) ?? null}
     </Tooltip>
   )
@@ -278,7 +281,8 @@ export function renderTranslateToolbarAction({
   actionContext,
   executeAction,
   softHoverBg,
-  translationItems
+  translationItems,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   if (actionContext.isTranslating) {
     const label = actionContext.t('translate.stop')
@@ -300,19 +304,28 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
-  return <TranslateToolbarAction action={action} translationItems={translationItems} softHoverBg={softHoverBg} />
+  return (
+    <TranslateToolbarAction
+      action={action}
+      translationItems={translationItems}
+      softHoverBg={softHoverBg}
+      onMenuOpenChange={onMenuOpenChange}
+    />
+  )
 }
 
 const TranslateToolbarAction = ({
   action,
   translationItems,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: {
   action: MessageMenuBarResolvedAction
   translationItems: MessageMenuBarTranslationItem[]
   softHoverBg: boolean
+  onMenuOpenChange?: (open: boolean) => void
 }) => {
-  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState()
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
@@ -334,7 +347,8 @@ export function renderMoreMenuToolbarAction({
   action,
   executeAction,
   menuActions,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   if (menuActions.length === 0) return null
 
@@ -344,6 +358,7 @@ export function renderMoreMenuToolbarAction({
       executeAction={executeAction}
       menuActions={menuActions}
       softHoverBg={softHoverBg}
+      onMenuOpenChange={onMenuOpenChange}
     />
   )
 }
@@ -352,14 +367,16 @@ const MoreMenuToolbarAction = ({
   action,
   executeAction,
   menuActions,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: {
   action: MessageMenuBarResolvedAction
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
   menuActions: MessageMenuBarResolvedAction[]
   softHoverBg: boolean
+  onMenuOpenChange?: (open: boolean) => void
 }) => {
-  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState()
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (

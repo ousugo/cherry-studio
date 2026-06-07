@@ -82,6 +82,7 @@ export interface MessageMenuBarToolbarRenderContext {
   actionContext: MessageMenuBarActionContext
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
   menuActions: MessageMenuBarResolvedAction[]
+  onMenuOpenChange?: (open: boolean) => void
   softHoverBg: boolean
   translationItems: MessageMenuBarTranslationItem[]
 }

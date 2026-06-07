@@ -34,10 +34,12 @@ interface Props {
   topic: Topic
   isGrouped?: boolean
   isLastMessage: boolean
+  forceVisible?: boolean
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
+  onMenuOpenChange?: (open: boolean) => void
   onUpdateUseful?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
@@ -47,11 +49,13 @@ const MessageMenuBar: FC<Props> = (props) => {
     message,
     isGrouped,
     isLastMessage,
+    forceVisible = false,
     isAssistantMessage,
     isProcessing,
     topic,
     messageContainerRef,
     onStartEditing,
+    onMenuOpenChange,
     onUpdateUseful,
     variant = 'footer'
   } = props
@@ -169,7 +173,7 @@ const MessageMenuBar: FC<Props> = (props) => {
         className={classNames(
           'menubar flex flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
-          isLastMessage && 'show'
+          (isLastMessage || forceVisible) && 'show'
         )}>
         {toolbarActions.map((action) => (
           <MessageMenuBarToolbarAction
@@ -178,6 +182,7 @@ const MessageMenuBar: FC<Props> = (props) => {
             actionContext={actionContext}
             executeAction={executeAction}
             menuActions={menuActions}
+            onMenuOpenChange={onMenuOpenChange}
             softHoverBg={softHoverBg}
             translationItems={translationItems}
           />

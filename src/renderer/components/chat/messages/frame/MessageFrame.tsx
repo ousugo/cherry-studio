@@ -8,7 +8,7 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -80,6 +80,7 @@ const MessageItem: FC<Props> = ({
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const messageParts = useMessageParts(message.id)
+  const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
   const { editingMessageId, startEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
@@ -112,7 +113,8 @@ const MessageItem: FC<Props> = ({
   const enterMotionAttributes = getMessageEnterMotionAttributes(enterMotionVariant)
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
-  const assistantFooterVisibilityClass = isLatestAssistantMessage
+  const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
+  const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
     : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
 
@@ -230,11 +232,13 @@ const MessageItem: FC<Props> = ({
           message={message}
           topic={topic}
           isLastMessage={isLatestAssistantMessage}
+          forceVisible={isMessageMenuOpen}
           isAssistantMessage={isAssistantMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
+          onMenuOpenChange={setIsMessageMenuOpen}
           onUpdateUseful={onUpdateUseful}
         />
       </HorizontalScrollContainer>
