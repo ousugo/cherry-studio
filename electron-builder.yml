@@ -142,7 +142,7 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.10 - Model, Agent, and Artifact Fixes
+    Cherry Studio 1.9.11 - Model, Agent, and Artifact Fixes
 
     🐛 Bug Fixes
     - [Agent] Fix task completion status not updating in agent task lists.
@@ -161,7 +161,7 @@ releaseInfo:
     - [Models] Remove retired MiniMax models from the built-in model list.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.10 - 模型、智能体问题修复
+    Cherry Studio 1.9.11 - 模型、智能体问题修复
 
     🐛 问题修复
     - [知识库] 修复部分 OpenAI 兼容提供商的知识库向量化失败问题。
