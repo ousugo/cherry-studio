@@ -50,7 +50,7 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.toggle-pin',
   commandId: 'session.toggle-pin',
-  label: ({ pinned, t }) => (pinned ? t('chat.topics.unpin') : t('chat.topics.pin')),
+  label: ({ pinned, t }) => (pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')),
   icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 20,
   surface: 'menu'

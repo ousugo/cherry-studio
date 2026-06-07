@@ -126,10 +126,6 @@ export interface PreferenceSchemas {
     'chat.code.wrappable': boolean
     // target-key-definitions/complex/complex
     'chat.default_model_id': string | null
-    // redux/settings/pasteLongTextAsFile
-    'chat.input.paste_long_text_as_file': boolean
-    // redux/settings/pasteLongTextThreshold
-    'chat.input.paste_long_text_threshold': number
     // redux/settings/sendMessageShortcut
     'chat.input.send_message_shortcut': PreferenceTypes.SendMessageShortcut
     // redux/settings/showInputEstimatedTokens
@@ -589,8 +585,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.code.viewer.theme_light': 'auto',
     'chat.code.wrappable': false,
     'chat.default_model_id': null,
-    'chat.input.paste_long_text_as_file': true,
-    'chat.input.paste_long_text_threshold': 2000,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.input.show_estimated_tokens': false,
     'chat.input.translate.auto_translate_with_space': false,
@@ -833,10 +827,10 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 243
- * - 总配置项: 229
+ * - 总配置项: 241
+ * - 总配置项: 227
  * - electronStore项: 1
- * - redux项: 182
+ * - redux项: 180
  * - localStorage项: 0
  * - dexieSettings项: 4
  */

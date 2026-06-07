@@ -88,8 +88,8 @@ vi.mock('react-i18next', () => ({
         'globalSearch.error': 'Search failed',
         'globalSearch.messageSearch.roles.assistant': 'Assistant',
         'globalSearch.messageSearch.roles.user': 'User',
-        'globalSearch.messageSearch.sources.session': 'Work messages',
-        'globalSearch.messageSearch.sources.topic': 'Topic messages'
+        'globalSearch.messageSearch.sources.session': 'Task messages',
+        'globalSearch.messageSearch.sources.topic': 'Conversation messages'
       })[key] ?? key
   })
 }))
@@ -170,7 +170,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     )
 
     expect(screen.getByText('Topic A')).toBeInTheDocument()
-    expect(screen.getByText('Topic messages')).toBeInTheDocument()
+    expect(screen.getByText('Conversation messages')).toBeInTheDocument()
     expect(screen.getByText('message-content:topic-message-1')).toBeInTheDocument()
     expect(screen.getByText('message-content:topic-message-2')).toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByText('needle', { selector: 'mark' })).toHaveLength(2))
@@ -238,7 +238,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     )
 
     expect(screen.getByText('Session A')).toBeInTheDocument()
-    expect(screen.getByText('Work messages')).toBeInTheDocument()
+    expect(screen.getByText('Task messages')).toBeInTheDocument()
     await waitFor(() => expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1))
     expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
       '/agent-sessions/:sessionId/messages',

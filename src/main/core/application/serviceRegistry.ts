@@ -24,7 +24,6 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { CommandService } from '@main/services/CommandService'
-import { ExcelPreviewService } from '@main/services/excel/ExcelPreviewService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
@@ -49,7 +48,6 @@ import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
-import { WordPreviewService } from '@main/services/word/WordPreviewService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -88,8 +86,6 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
-  ExcelPreviewService,
-  WordPreviewService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

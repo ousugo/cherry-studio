@@ -484,6 +484,10 @@
       "edit": {
         "title": "Συνεδρία επεξεργασίας"
       },
+      "empty": {
+        "description": "[to be translated]:Tasks will appear here after you start one.",
+        "title": "[to be translated]:No tasks yet"
+      },
       "file_manager": {
         "file_explorer": "[to be translated]:File Explorer",
         "files": "[to be translated]:Files",
@@ -515,6 +519,9 @@
       "list": {
         "title": "[to be translated]:Sessions"
       },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Αποτυχία αναδιάταξης συνεδριών"
@@ -522,6 +529,9 @@
       },
       "search": {
         "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
@@ -1040,7 +1050,7 @@
     "abbr": "Βοηθός",
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
-      "menu_title": "[to be translated]:Delete all assistant chats",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -1500,6 +1510,7 @@
         },
         "title": "[to be translated]:Branch Management"
       },
+      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
@@ -1706,6 +1717,10 @@
         "placeholder": "Εισαγάγετε το νέο όνομα",
         "title": "Επεξεργασία ονόματος θέματος",
         "title_tip": "Συμβουλές: Διπλό κλικ στο όνομα του θέματος για να το μετονομάσετε απευθείας"
+      },
+      "empty": {
+        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
+        "title": "[to be translated]:No chats yet"
       },
       "export": {
         "failed": "Η εξαγωγή απέτυχε",
@@ -3246,6 +3261,7 @@
     "title": "Βιβλιοθήκη",
     "toolbar": {
       "add_tag_placeholder": "Όνομα ετικέτας...",
+      "all_tags": "[to be translated]:All tags",
       "new_resource": "Νέος πόρος",
       "search_placeholder": "Αναζήτηση πόρων...",
       "tag_button": "Ετικέτα"
@@ -6467,8 +6483,6 @@
       "input": {
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"

@@ -8,13 +8,15 @@ interface Props {
   isThinking: boolean
   thinkingTimeText: React.ReactNode
   expanded: boolean
+  /** Optional node rendered between the title text and the chevron (used for the copy button). */
+  trailing?: React.ReactNode
 }
 
-const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expanded }) => {
+const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expanded, trailing }) => {
   return (
     <div
       className={cn(
-        'pointer-events-none relative flex min-h-7 w-full select-none items-center gap-2 overflow-hidden rounded-lg py-0.5 text-[13px] text-foreground-secondary'
+        'pointer-events-none relative flex min-h-7 w-full select-none items-center gap-1 overflow-hidden rounded-lg py-0.5 text-[13px] text-foreground-secondary'
       )}>
       <div className="relative flex h-5 w-4 shrink-0 items-center justify-start text-foreground-muted">
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
@@ -22,9 +24,10 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expande
         </motion.div>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center">
-        <div className="shrink-0 font-normal text-[13px] text-foreground-secondary leading-5">{thinkingTimeText}</div>
+      <div className="flex min-w-0 items-center">
+        <div className="truncate font-normal text-[13px] text-foreground-secondary leading-5">{thinkingTimeText}</div>
       </div>
+      {trailing}
       <ChevronDown
         aria-hidden="true"
         size={16}

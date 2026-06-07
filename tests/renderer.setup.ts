@@ -726,8 +726,14 @@ vi.mock('@cherrystudio/ui', () => {
           onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
       }),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
-    EmptyState: ({ children, preset, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'empty-state', 'data-preset': preset }, children),
+    EmptyState: ({ children, title, description, preset, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'empty-state', 'data-preset': preset },
+        title ? React.createElement('div', {}, title) : null,
+        description ? React.createElement('div', {}, description) : null,
+        children
+      ),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>

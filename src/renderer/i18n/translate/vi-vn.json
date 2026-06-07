@@ -484,6 +484,10 @@
       "edit": {
         "title": "Séance d'édition"
       },
+      "empty": {
+        "description": "[to be translated]:Tasks will appear here after you start one.",
+        "title": "[to be translated]:No tasks yet"
+      },
       "file_manager": {
         "file_explorer": "[to be translated]:File Explorer",
         "files": "[to be translated]:Files",
@@ -515,6 +519,9 @@
       "list": {
         "title": "[to be translated]:Sessions"
       },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Không thể sắp xếp lại các phiên"
@@ -522,6 +529,9 @@
       },
       "search": {
         "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
@@ -1040,7 +1050,7 @@
     "abbr": "Trợ lý",
     "clear": {
       "content": "Xóa chủ đề sẽ xóa tất cả các chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn tiếp tục?",
-      "menu_title": "[to be translated]:Delete all assistant chats",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Temas claros"
     },
     "copy": {
@@ -1500,6 +1510,7 @@
         },
         "title": "[to be translated]:Branch Management"
       },
+      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Chi nhánh mới đã được tạo",
@@ -1706,6 +1717,10 @@
         "placeholder": "Masukkan nama baru",
         "title": "Chỉnh sửa Tên",
         "title_tip": "Astuces : Double-cliquez sur le nom du sujet pour le renommer directement sur place"
+      },
+      "empty": {
+        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
+        "title": "[to be translated]:No chats yet"
       },
       "export": {
         "failed": "Xuất khẩu thất bại",
@@ -3246,6 +3261,7 @@
     "title": "Thư viện",
     "toolbar": {
       "add_tag_placeholder": "Tên thẻ...",
+      "all_tags": "[to be translated]:All tags",
       "new_resource": "Tài nguyên mới",
       "search_placeholder": "Tìm kiếm tài nguyên...",
       "tag_button": "Thẻ"
@@ -6467,8 +6483,6 @@
       "input": {
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
-        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
-        "paste_long_text_threshold": "I’m ready—please provide the long text you’d like translated.",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"

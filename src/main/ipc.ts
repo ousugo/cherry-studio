@@ -406,6 +406,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
