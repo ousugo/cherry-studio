@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
@@ -197,7 +198,8 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  })
+  }),
+  useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
@@ -880,9 +882,8 @@ describe('AgentComposer', () => {
     await waitFor(() => {
       expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
     })
-    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
-    expect(typeof setFilesUpdater).toBe('function')
-    expect(setFilesUpdater([file])).toEqual([])
+    // File-token prune/dedup now lives in attachmentTool (see attachmentTool.test); this test
+    // only asserts the agent-owned skill reconcile keeps the skill when a file token is removed.
   })
 
   it('sends a draft that only contains a skill token', () => {

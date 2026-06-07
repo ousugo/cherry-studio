@@ -14,7 +14,9 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   ComposerToolDerivedStateProvider,
+  type ComposerToolDispatch,
   ComposerToolProvider,
+  type ComposerToolState,
   useComposerToolProviderDispatch,
   useComposerToolProviderLaunchers,
   useComposerToolProviderState
@@ -29,7 +31,7 @@ import type {
   ToolStateKey,
   ToolStateMap
 } from '@renderer/components/chat/composer/tools/types'
-import { getToolsForScope } from '@renderer/components/chat/composer/tools/types'
+import { getAllTools, getToolsForScope } from '@renderer/components/chat/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -40,6 +42,7 @@ import { Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
 interface ComposerToolRuntimeActions {
@@ -199,6 +202,78 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
 export { ComposerToolDerivedStateProvider }
+
+const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
+
+interface ReconcileContextInputs {
+  toolState: ComposerToolState
+  dispatch: ComposerToolDispatch
+  scope: ComposerToolScope
+  assistant?: Assistant
+  model?: Model
+  session?: ToolContext['session']
+  t: ReturnType<typeof useTranslation>['t']
+}
+
+/** Builds the (launcher-less) render context a tool's `tokens.reconcile` runs against. */
+const buildReconcileContext = (tool: AnyToolDefinition, inputs: ReconcileContextInputs): AnyToolRenderContext => {
+  const deps = tool.dependencies
+  const state: Record<string, unknown> = {}
+  for (const key of deps?.state ?? []) state[key] = inputs.toolState[key]
+  const actions: Record<string, unknown> = {}
+  for (const key of deps?.actions ?? []) {
+    const value = inputs.dispatch[key]
+    if (value) actions[key] = value
+  }
+
+  return {
+    scope: inputs.scope,
+    assistant: inputs.assistant,
+    model: inputs.model as Model,
+    session: inputs.session,
+    state,
+    actions,
+    launcher: NOOP_LAUNCHER,
+    t: inputs.t
+  } as AnyToolRenderContext
+}
+
+interface ComposerTokenReconcileInputs {
+  scope: ComposerToolScope
+  assistant?: Assistant
+  model?: Model
+  session?: ToolContext['session']
+}
+
+/**
+ * Returns a stable `reconcileTokens(draft)` callback that drives editor→state reconciliation
+ * through the tools that own each token kind (attachment→file, knowledgeBase→knowledge,
+ * skill→skill). Called by a variant from `ComposerSurface.onTokensChange`. Reads the latest
+ * provider state/dispatch + inputs via a ref, so the callback is stable yet never stale, and
+ * each tool's `reconcile` uses functional `setState` updates.
+ *
+ * Token tools are matched by `visibleInScopes` only (NOT `condition`) so reconciliation runs
+ * unconditionally, matching the variants' previous always-on `handleTokensChange`.
+ */
+export function useComposerTokenReconcile(
+  inputs: ComposerTokenReconcileInputs
+): (draftTokens: readonly ComposerSerializedToken[]) => void {
+  const { t } = useTranslation()
+  const toolState = useComposerToolProviderState()
+  const dispatch = useComposerToolProviderDispatch()
+  const latestRef = useRef<ReconcileContextInputs>({ toolState, dispatch, t, ...inputs })
+  latestRef.current = { toolState, dispatch, t, ...inputs }
+
+  return useCallback((draftTokens: readonly ComposerSerializedToken[]) => {
+    const current = latestRef.current
+    const tokenTools = getAllTools().filter(
+      (tool) => tool.composer?.tokens && (!tool.visibleInScopes || tool.visibleInScopes.includes(current.scope))
+    )
+    for (const tool of tokenTools) {
+      tool.composer?.tokens?.reconcile(draftTokens, buildReconcileContext(tool, current))
+    }
+  }, [])
+}
 
 const getSortedLaunchers = (
   triggers: ReturnType<typeof useComposerToolProviderLaunchers>,

@@ -22,6 +22,8 @@ export interface ComposerToolState {
   couldAddImageFile: boolean
   /** Supported file extensions (derived state) */
   extensions: string[]
+  /** Knowledge bases that are configured-and-available for the current scope (derived state) */
+  selectableKnowledgeBases: KnowledgeBase[]
 }
 
 /**
@@ -68,6 +70,7 @@ const ComposerToolStateContext = createContext<ComposerToolState | undefined>(un
 const ComposerToolDispatchContext = createContext<ComposerToolDispatch | undefined>(undefined)
 const ComposerToolLaunchersContext = createContext<ComposerToolLaunchersAPI | undefined>(undefined)
 const EMPTY_EXTENSIONS: string[] = []
+const EMPTY_KNOWLEDGE_BASES: KnowledgeBase[] = []
 
 /**
  * Get Composer tool state (read-only).
@@ -126,6 +129,7 @@ interface ComposerToolProviderProps {
     isExpanded: boolean
     couldAddImageFile: boolean
     extensions: string[]
+    selectableKnowledgeBases: KnowledgeBase[]
   }>
   actions: {
     addNewTopic: () => void
@@ -144,6 +148,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
 
   const couldAddImageFile = initialState?.couldAddImageFile ?? false
   const extensions = initialState?.extensions ?? EMPTY_EXTENSIONS
+  const selectableKnowledgeBases = initialState?.selectableKnowledgeBases ?? EMPTY_KNOWLEDGE_BASES
 
   // Composer launcher registry (stored in refs to avoid re-renders)
   const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
@@ -190,9 +195,18 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       selectedKnowledgeBases,
       isExpanded,
       couldAddImageFile,
-      extensions
+      extensions,
+      selectableKnowledgeBases
     }),
-    [files, mentionedModels, selectedKnowledgeBases, isExpanded, couldAddImageFile, extensions]
+    [
+      files,
+      mentionedModels,
+      selectedKnowledgeBases,
+      isExpanded,
+      couldAddImageFile,
+      extensions,
+      selectableKnowledgeBases
+    ]
   )
 
   // Tools Registry API (stable references for tool buttons)
@@ -254,21 +268,24 @@ interface ComposerToolDerivedStateProviderProps {
   children: React.ReactNode
   couldAddImageFile: boolean
   extensions: string[]
+  selectableKnowledgeBases?: KnowledgeBase[]
 }
 
 export const ComposerToolDerivedStateProvider: React.FC<ComposerToolDerivedStateProviderProps> = ({
   children,
   couldAddImageFile,
-  extensions
+  extensions,
+  selectableKnowledgeBases
 }) => {
   const state = useComposerToolProviderState()
   const stateValue = useMemo<ComposerToolState>(
     () => ({
       ...state,
       couldAddImageFile,
-      extensions
+      extensions,
+      selectableKnowledgeBases: selectableKnowledgeBases ?? state.selectableKnowledgeBases
     }),
-    [couldAddImageFile, extensions, state]
+    [couldAddImageFile, extensions, selectableKnowledgeBases, state]
   )
 
   return <ComposerToolStateContext value={stateValue}>{children}</ComposerToolStateContext>
