@@ -460,7 +460,7 @@ beforeEach(() => {
             {
               id: 'kb-1',
               name: 'Knowledge One',
-              documentCount: 3
+              itemCount: 3
             }
           ]
         },

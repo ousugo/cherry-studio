@@ -539,13 +539,13 @@ function AssistantKnowledgeFields({
         byId.get(id) ?? {
           id,
           name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          documentCount: 0
+          itemCount: 0
         }
     )
     const items: CatalogItem[] = bases.map((base) => ({
       id: base.id,
       name: base.name,
-      description: t('library.config.knowledge.doc_count', { count: base.documentCount ?? 0 }),
+      description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       icon: <KnowledgeBaseAvatar />
     }))
     return { catalog: items, linkedItems: linked }
@@ -588,7 +588,7 @@ function AssistantKnowledgeFields({
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-foreground text-sm">{kb.name}</div>
                       <div className="text-muted-foreground/80 text-xs">
-                        {t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
+                        {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
                       </div>
                     </div>
                     <Button
