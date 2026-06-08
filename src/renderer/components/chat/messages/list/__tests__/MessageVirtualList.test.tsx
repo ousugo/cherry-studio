@@ -1,19 +1,45 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageVirtualList } from '../MessageVirtualList'
 
 const runtimeMockState = vi.hoisted(() => ({
+  isScrollToBottomButtonVisible: false,
+  scrollToBottom: vi.fn(),
   shift: false
 }))
 
 vi.mock('@cherrystudio/ui', () => {
   return {
+    Button: ({ children, size, variant, ...props }: any) => {
+      void size
+      void variant
+      return (
+        <button type={props.type ?? 'button'} {...props}>
+          {children}
+        </button>
+      )
+    },
     Scrollbar: ({ ref, children, ...props }: any) => (
       <div ref={ref} {...props}>
         {children}
       </div>
-    )
+    ),
+    Tooltip: ({ children }: any) => <>{children}</>
+  }
+})
+
+vi.mock('lucide-react', () => {
+  return {
+    ArrowDown: () => <svg data-testid="scroll-arrow-icon" />
+  }
+})
+
+vi.mock('react-i18next', () => {
+  return {
+    useTranslation: () => ({
+      t: (key: string) => key
+    })
   }
 })
 
@@ -42,6 +68,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       },
       scrollerRef: { current: null },
       vlistHandleRef: { current: null },
+      isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
+      scrollToBottom: runtimeMockState.scrollToBottom,
       shift: runtimeMockState.shift,
       wrappedItems: items,
       wrappedRenderItem: (item: unknown, index: number) =>
@@ -52,6 +80,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
 
 describe('MessageVirtualList', () => {
   beforeEach(() => {
+    runtimeMockState.isScrollToBottomButtonVisible = false
+    runtimeMockState.scrollToBottom.mockClear()
     runtimeMockState.shift = false
   })
 
@@ -103,5 +133,30 @@ describe('MessageVirtualList', () => {
     } finally {
       addEventListenerSpy.mockRestore()
     }
+  })
+
+  it('renders a scroll-to-bottom button when the runtime is far from bottom', () => {
+    runtimeMockState.isScrollToBottomButtonVisible = true
+
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+        showScrollToBottomButton
+        scrollToBottomButtonBottomOffset={88}
+      />
+    )
+
+    const button = screen.getByTestId('message-scroll-to-bottom-button')
+    expect(button).toHaveAttribute('aria-label', 'chat.navigation.bottom')
+    expect(button).toHaveClass('h-9', 'w-9')
+    expect(screen.getByTestId('scroll-arrow-icon')).toBeInTheDocument()
+    expect(document.querySelector('[data-message-scroll-to-bottom-button-layer]')).toHaveClass('z-5')
+    expect(document.querySelector('[data-message-scroll-to-bottom-button-layer]')).toHaveStyle({ bottom: '88px' })
+
+    fireEvent.click(button)
+
+    expect(runtimeMockState.scrollToBottom).toHaveBeenCalledWith('smooth')
   })
 })

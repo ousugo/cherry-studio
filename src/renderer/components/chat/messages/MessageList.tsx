@@ -483,6 +483,8 @@ const MessageList = () => {
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
               preserveScrollAnchor={preserveScrollAnchor}
+              showScrollToBottomButton
+              scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
               topicId={topic.id}
               hasMoreTop={hasOlder}
               onScrollContainerReady={handleScrollContainerReady}

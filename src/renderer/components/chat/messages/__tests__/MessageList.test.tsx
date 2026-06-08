@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import { ImmersiveNarrowReportProvider, ImmersiveNavbarStateProvider } from '../../layout/ImmersiveNavbarContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
@@ -164,6 +165,8 @@ vi.mock('../list/MessageVirtualList', async () => {
       onScrollContainerReady,
       preserveScrollAnchor,
       renderItem,
+      scrollToBottomButtonBottomOffset,
+      showScrollToBottomButton,
       topPadding
     }: any) => {
       React.useImperativeHandle(
@@ -193,6 +196,8 @@ vi.mock('../list/MessageVirtualList', async () => {
         <div
           data-force-scroll-key={forceScrollToBottomKey ?? ''}
           data-preserve-scroll-anchor={String(Boolean(preserveScrollAnchor))}
+          data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
+          data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
           data-testid="virtual-list"
           data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
@@ -314,6 +319,26 @@ describe('MessageList', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
+  })
+
+  it('keeps the scroll-to-bottom button enabled after assistant response completes', () => {
+    renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'false')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
+  })
+
+  it('uses bottom overlay padding as the scroll-to-bottom button offset', () => {
+    render(
+      <ChatBottomOverlayInsetProvider value={{ contentBottomPadding: 128, scrollerBottomMargin: 12 }}>
+        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
+          <MessageList />
+        </MessageListProvider>
+      </ChatBottomOverlayInsetProvider>
+    )
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-bottom-offset', '128')
   })
 
   it('uses the immersive navbar inset as the virtual-list top padding', () => {
