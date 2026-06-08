@@ -72,16 +72,14 @@ import type {
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import type { StorageHealth } from '@shared/types/storageMonitor'
 import type {
+  ApiGatewayStatusResult,
   FileMetadata,
-  GetApiServerStatusResult,
   Notification,
   OcrProvider,
   OcrResult,
-  RestartApiServerStatusResult,
   S3Config,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -141,8 +139,6 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
-  getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
-    ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
@@ -782,6 +778,19 @@ const api = {
     getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
   },
 
+  // StorageMonitorService related APIs (main-process disk-space watcher)
+  storageMonitor: {
+    // Pull the current disk-space health to seed initial state on mount
+    getHealth: (): Promise<StorageHealth> => ipcRenderer.invoke(IpcChannel.StorageMonitor_GetHealth),
+
+    // Subscribe to health transitions (ok <-> low) pushed from Main
+    onHealthChange: (callback: (health: StorageHealth) => void) => {
+      const listener = (_: any, health: StorageHealth) => callback(health)
+      ipcRenderer.on(IpcChannel.StorageMonitor_HealthChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.StorageMonitor_HealthChanged, listener)
+    }
+  },
+
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
@@ -922,20 +931,10 @@ const api = {
       sourceLangCode?: string
     }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
-  apiServer: {
-    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
-    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
-    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
-    onReady: (callback: () => void): (() => void) => {
-      const listener = () => {
-        callback()
-      }
-      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
-      }
-    }
+  apiGateway: {
+    start: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
+    restart: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
+    stop: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
     list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>

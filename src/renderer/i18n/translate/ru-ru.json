@@ -954,7 +954,7 @@
       "server_not_running_description": "Для работы агентов необходимо, чтобы API-сервер был запущен. Вы можете запустить его напрямую или проверить настройки."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Копировать",
       "regenerate": "Перегенерировать",
@@ -3226,8 +3226,8 @@
       "title": "Настройка серверной части в процессе"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
-      "all_tags": "[to be translated]:All tags",
+      "all_resources": "Все ресурсы",
+      "all_tags": "Все теги",
       "no_tags": "Пока нет меток",
       "subtitle": "Управляйте своими ресурсами ИИ",
       "tags": "Теги",

@@ -261,6 +261,8 @@ export type SharedCacheSchema = {
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
+  // API gateway  runtime running state.
+  'feature.api_gateway.running': boolean
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -280,6 +282,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
+  'feature.api_gateway.running': false,
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
   // Template defaults are placeholders never consumed at runtime — concrete

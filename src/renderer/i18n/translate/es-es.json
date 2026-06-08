@@ -954,7 +954,7 @@
       "server_not_running_description": "El servidor de la API debe estar en ejecución para que los agentes funcionen. Puede iniciarlo directamente o comprobar los ajustes."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copiar",
       "regenerate": "Regenerar",
@@ -4484,9 +4484,9 @@
       "auto": "Auto",
       "cartoon_3d": "Caricatura 3D",
       "chinese_painting": "Pintura China",
-      "flat_illustration": "[to be translated]:Flat Illustration",
-      "natural": "[to be translated]:Natural",
-      "oil_painting": "[to be translated]:Oil Painting",
+      "flat_illustration": "Ilustración plana",
+      "natural": "Natural",
+      "oil_painting": "Pintura al óleo",
       "photography": "Fotografía",
       "portrait": "Retrato",
       "sketch": "Boceto",
