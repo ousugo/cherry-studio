@@ -70,9 +70,6 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
-/** Seeded default assistant ID. Legacy literal `'default'` is migration-only. */
-export const DEFAULT_ASSISTANT_ID = '00000000-0000-4000-8000-000000000001' as const
-
 /** Source marker for assistants created by users instead of bundled presets. */
 export const ASSISTANT_SOURCE_USER = 'user' as const
 

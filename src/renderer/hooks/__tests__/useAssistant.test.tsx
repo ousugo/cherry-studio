@@ -1,10 +1,9 @@
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistant, useDefaultAssistant } from '../useAssistant'
+import { useAssistant, useAssistants } from '../useAssistant'
 
 function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
   return {
@@ -17,60 +16,35 @@ function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
   } as never
 }
 
-describe('useDefaultAssistant', () => {
+function resetQueryMock() {
+  mockUseQuery.mockImplementation(() => queryResult())
+}
+
+describe('useAssistants', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetQueryMock()
     MockUsePreferenceUtils.resetMocks()
   })
 
-  it('queries the seeded default assistant id', () => {
-    mockUseQuery.mockReturnValue(queryResult())
+  it('queries the assistant list from DataApi', () => {
+    const assistant = { id: 'assistant-1', name: 'Assistant 1' }
+    mockUseQuery.mockReturnValue(queryResult({ items: [assistant], total: 1 }))
 
-    const { result } = renderHook(() => useDefaultAssistant())
+    const { result } = renderHook(() => useAssistants())
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
-      params: { id: DEFAULT_ASSISTANT_ID },
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants', {
       enabled: true,
-      swrOptions: { keepPreviousData: false }
+      query: { limit: 500 }
     })
-    expect(result.current.assistant).toBeUndefined()
-  })
-
-  it('returns the seeded default assistant row when it exists', () => {
-    mockUseQuery.mockImplementation((path, options) => {
-      const params = options?.params as { id?: string } | undefined
-      if (path === '/assistants/:id' && params?.id === DEFAULT_ASSISTANT_ID) {
-        return queryResult({
-          id: DEFAULT_ASSISTANT_ID,
-          source: ASSISTANT_SOURCE_USER,
-          name: 'Default Assistant',
-          emoji: '😀',
-          prompt: '',
-          description: '',
-          modelId: 'cherryai::qwen',
-          modelName: null,
-          settings: DEFAULT_ASSISTANT_SETTINGS,
-          orderKey: '',
-          mcpServerIds: [],
-          knowledgeBaseIds: [],
-          tags: [],
-          createdAt: new Date(0).toISOString(),
-          updatedAt: new Date(0).toISOString()
-        })
-      }
-      return queryResult()
-    })
-
-    const { result } = renderHook(() => useDefaultAssistant())
-
-    expect(result.current.assistant?.id).toBe(DEFAULT_ASSISTANT_ID)
-    expect(result.current.assistant?.modelId).toBe('cherryai::qwen')
+    expect(result.current.assistants).toEqual([assistant])
   })
 })
 
 describe('useAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetQueryMock()
     MockUsePreferenceUtils.resetMocks()
   })
 

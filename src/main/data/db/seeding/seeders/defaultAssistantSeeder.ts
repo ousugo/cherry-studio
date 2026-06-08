@@ -31,14 +31,6 @@ export class DefaultAssistantSeeder implements ISeeder {
 
       await ensureCherryAIDefaultModelSetupTx(tx)
 
-      const [existingDefaultAssistant] = await tx
-        .select({ id: assistantTable.id })
-        .from(assistantTable)
-        .where(eq(assistantTable.id, DEFAULT_ASSISTANT_SEED.id))
-        .limit(1)
-
-      if (existingDefaultAssistant) return
-
       await insertWithOrderKey(
         tx,
         assistantTable,

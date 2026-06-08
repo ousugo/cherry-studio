@@ -2,10 +2,10 @@ import i18n from '@renderer/i18n'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import {
   ASSISTANT_SOURCE_USER,
-  DEFAULT_ASSISTANT_ID,
   DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS
 } from '@shared/data/types/assistant'
 
+const LEGACY_DEFAULT_ASSISTANT_LITERAL = 'default'
 const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
 
 /**
@@ -14,7 +14,7 @@ const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
  */
 export function getDefaultAssistant(): Assistant {
   return {
-    id: DEFAULT_ASSISTANT_ID,
+    id: LEGACY_DEFAULT_ASSISTANT_LITERAL,
     source: ASSISTANT_SOURCE_USER,
     name: i18n.t('chat.default.name'),
     emoji: '😀',

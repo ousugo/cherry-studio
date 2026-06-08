@@ -3,7 +3,7 @@
  *
  *  1. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useAssistantsApi` / `useAssistantApiById` / `useAssistantMutations`).
- *  2. Composed hooks — `useAssistants` / `useDefaultAssistant` / `useAssistant`.
+ *  2. Composed hooks — `useAssistants` / `useAssistant`.
  *
  * Returns the canonical {@link Assistant} entity straight from SQLite via
  * `/assistants`. No v1 shape adaptation — consumers use the v2 shape
@@ -24,7 +24,6 @@ import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useRef } from 'react'
@@ -146,11 +145,6 @@ export function useAssistants() {
     removeAssistant: (id: string) => deleteAssistant(id),
     updateAssistant: (id: string, patch: UpdateAssistantDto) => updateAssistant(id, patch)
   }
-}
-
-/** Returns the seeded default assistant row when it exists. */
-export function useDefaultAssistant() {
-  return useAssistantApiById(DEFAULT_ASSISTANT_ID)
 }
 
 /**

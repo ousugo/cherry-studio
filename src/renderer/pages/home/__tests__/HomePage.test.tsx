@@ -2,7 +2,6 @@ import { useCommandHandler } from '@renderer/commands'
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -41,8 +40,8 @@ const homeMocks = vi.hoisted(() => ({
     | undefined,
   cacheSetPersist: vi.fn(),
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
-  defaultAssistant: undefined as { id: string } | undefined,
-  defaultAssistantLoading: false,
+  assistants: [{ id: 'assistant-default' }] as Array<{ id: string }>,
+  assistantsLoading: false,
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
@@ -141,12 +140,14 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useDefaultAssistant: () => ({
-    assistant: homeMocks.defaultAssistant,
-    isLoading: homeMocks.defaultAssistantLoading,
+  useAssistants: () => ({
+    assistants: homeMocks.assistants,
+    isLoading: homeMocks.assistantsLoading,
     error: undefined,
     refetch: vi.fn(),
-    mutate: vi.fn()
+    addAssistant: vi.fn(),
+    removeAssistant: vi.fn(),
+    updateAssistant: vi.fn()
   }),
   useAssistantApiById: (id?: string) => ({
     assistant: id ? { id } : undefined,
@@ -316,8 +317,8 @@ describe('HomePage', () => {
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
-    homeMocks.defaultAssistant = { id: DEFAULT_ASSISTANT_ID }
-    homeMocks.defaultAssistantLoading = false
+    homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.assistantsLoading = false
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
@@ -623,7 +624,7 @@ describe('HomePage', () => {
       activeTopicId: 'topic-message'
     })
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
     })
   })
 
@@ -717,10 +718,10 @@ describe('HomePage', () => {
     })
   })
 
-  it('seeds the first-launch temporary topic from the default assistant when no remembered assistant exists', async () => {
+  it('seeds the first-launch temporary topic from the first assistant when no remembered assistant exists', async () => {
     homeMocks.locationState = undefined
     homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: DEFAULT_ASSISTANT_ID,
+      assistantId: 'assistant-default',
       id: 'temp-topic',
       topicId: 'temp-topic',
       type: 'assistant'
@@ -729,25 +730,25 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
     })
   })
 
-  it('waits for the default assistant before leasing the first-launch temporary topic', async () => {
+  it('waits for assistants before leasing the first-launch temporary topic', async () => {
     homeMocks.locationState = undefined
-    homeMocks.defaultAssistant = undefined
-    homeMocks.defaultAssistantLoading = true
+    homeMocks.assistants = []
+    homeMocks.assistantsLoading = true
 
     const { rerender } = render(<HomePage />)
 
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
 
-    homeMocks.defaultAssistant = { id: DEFAULT_ASSISTANT_ID }
-    homeMocks.defaultAssistantLoading = false
+    homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.assistantsLoading = false
     rerender(<HomePage />)
 
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: DEFAULT_ASSISTANT_ID })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
     })
   })
 

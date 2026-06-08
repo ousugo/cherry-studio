@@ -18,7 +18,7 @@ import {
 } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -26,7 +26,7 @@ import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SelectionActionUserModalProps {
@@ -44,15 +44,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
-  const assistantOptions = useMemo(
-    () =>
-      defaultAssistant
-        ? [defaultAssistant, ...userPredefinedAssistants.filter((assistant) => assistant.id !== defaultAssistant.id)]
-        : userPredefinedAssistants,
-    [defaultAssistant, userPredefinedAssistants]
-  )
+  const assistantOptions = userPredefinedAssistants
+  const firstAssistantId = assistantOptions[0]?.id
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
@@ -198,10 +192,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <RadioGroup
                 value={formData.assistantId ? 'assistant' : 'default'}
                 onValueChange={(value) =>
-                  handleInputChange(
-                    'assistantId',
-                    value === 'default' ? '' : (defaultAssistant?.id ?? assistantOptions[0]?.id ?? '')
-                  )
+                  handleInputChange('assistantId', value === 'default' ? '' : (firstAssistantId ?? ''))
                 }
                 className="flex flex-row gap-4">
                 <label className="flex items-center gap-2 text-sm">
@@ -232,7 +223,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                         <ModelAvatar model={defaultModel} size={18} />
                         <AssistantName>{a.name}</AssistantName>
                         <Spacer />
-                        {defaultAssistant?.id === a.id && (
+                        {firstAssistantId === a.id && (
                           <CurrentTag isCurrent={true}>
                             {t('selection.settings.user_modal.assistant.default')}
                           </CurrentTag>

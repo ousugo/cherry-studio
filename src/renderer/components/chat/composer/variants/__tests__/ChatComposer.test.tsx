@@ -363,13 +363,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
     updateAssistant: mocks.updateAssistant
-  }),
-  useDefaultAssistant: () => ({
-    assistant: {
-      id: 'default-assistant',
-      name: 'Default Assistant',
-      emoji: 'D'
-    }
   })
 }))
 

@@ -11,8 +11,7 @@ import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/
 import {
   DEFAULT_ASSISTANT_EMOJI,
   DEFAULT_ASSISTANT_NAME,
-  DEFAULT_ASSISTANT_PROMPT,
-  DEFAULT_ASSISTANT_SEED
+  DEFAULT_ASSISTANT_PROMPT
 } from '@shared/data/presets/default-assistant'
 import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -21,15 +20,12 @@ import { describe, expect, it } from 'vitest'
 
 describe('DefaultAssistantSeeder', () => {
   const dbh = setupTestDatabase()
+  const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   it('seeds the default assistant only for a fresh database', async () => {
     await new DefaultAssistantSeeder().run(dbh.db)
 
-    const [assistant] = await dbh.db
-      .select()
-      .from(assistantTable)
-      .where(eq(assistantTable.id, DEFAULT_ASSISTANT_SEED.id))
-      .limit(1)
+    const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
     const [provider] = await dbh.db
       .select()
       .from(userProviderTable)
@@ -46,8 +42,8 @@ describe('DefaultAssistantSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
       .limit(1)
 
+    expect(assistant?.id).toMatch(UUID_V4_PATTERN)
     expect(assistant).toMatchObject({
-      id: DEFAULT_ASSISTANT_SEED.id,
       source: ASSISTANT_SOURCE_USER,
       name: DEFAULT_ASSISTANT_NAME,
       emoji: DEFAULT_ASSISTANT_EMOJI,
@@ -86,7 +82,7 @@ describe('DefaultAssistantSeeder', () => {
 
     const rows = await dbh.db.select().from(assistantTable)
     expect(rows).toHaveLength(1)
-    expect(rows[0].id).not.toBe(DEFAULT_ASSISTANT_SEED.id)
+    expect(rows[0].id).toBe('11111111-1111-4111-8111-111111111111')
   })
 
   it('does not seed the default assistant when an active topic already exists', async () => {
