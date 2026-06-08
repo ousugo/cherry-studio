@@ -270,27 +270,51 @@ describe('MessagePartsRenderer', () => {
   it('shows the thinking placeholder while reasoning is the latest activity', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
-    renderParts([{ type: 'reasoning', text: 'thinking', state: 'streaming' } as unknown as CherryMessagePart])
+    const { container } = renderParts([
+      { type: 'reasoning', text: 'thinking', state: 'streaming' } as unknown as CherryMessagePart
+    ])
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'thinking')
+    expect(
+      Array.from(
+        container.querySelectorAll('[data-testid="mock-placeholder"], [data-testid="mock-thinking-block"]')
+      ).map((node) => node.getAttribute('data-testid'))
+    ).toEqual(['mock-placeholder', 'mock-thinking-block'])
   })
 
-  it('shows the tool placeholder while a tool call is the latest activity', () => {
+  it('shows the tool placeholder before existing content while a tool call is the latest activity', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
-    renderParts([
-      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'Read', state: 'input-available', input: {} }
+    const { container } = renderParts([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'a',
+        toolName: 'Read',
+        state: 'output-available',
+        input: {},
+        output: { content: 'ok', metadata: { serverName: 'S', serverId: 's1', type: 'mcp' } }
+      }
     ] as unknown as CherryMessagePart[])
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
+    expect(
+      Array.from(container.querySelectorAll('button, [data-testid="mock-placeholder"]')).map(
+        (node) => node.getAttribute('data-testid') ?? node.tagName.toLowerCase()
+      )
+    ).toEqual(['mock-placeholder', 'button'])
   })
 
-  it('shows the generating placeholder after answer text starts streaming', () => {
+  it('shows the generating placeholder before answer text starts streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
-    renderParts([{ type: 'text', text: 'partial answer' } as unknown as CherryMessagePart])
+    const { container } = renderParts([{ type: 'text', text: 'partial answer' } as unknown as CherryMessagePart])
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'generating')
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="mock-markdown"], [data-testid="mock-placeholder"]')).map(
+        (node) => node.getAttribute('data-testid')
+      )
+    ).toEqual(['mock-placeholder', 'mock-markdown'])
   })
 
   // -- text --
@@ -642,7 +666,9 @@ describe('MessagePartsRenderer', () => {
   })
 
   it('shows thinking as the top-level history title while reasoning is streaming after a tool', () => {
-    renderParts(
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    const { container } = renderParts(
       [
         { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
         { type: 'reasoning', text: 'thinking after tool', state: 'streaming' }
@@ -653,6 +679,12 @@ describe('MessagePartsRenderer', () => {
     const historyButton = screen.getByRole('button', { name: 'Thinking...' })
     expect(historyButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'thinking')
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="mock-placeholder"], button')).map(
+        (node) => node.getAttribute('data-testid') ?? node.tagName.toLowerCase()
+      )
+    ).toEqual(['mock-placeholder', 'button'])
 
     fireEvent.click(historyButton)
 
