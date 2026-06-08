@@ -15,7 +15,6 @@ interface ChatMainProps {
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
-  openTrace?: MessageListActions['openTrace']
 }
 
 const ChatMain: FC<ChatMainProps> = ({
@@ -25,8 +24,7 @@ const ChatMain: FC<ChatMainProps> = ({
   isInitialLoading,
   loadOlder,
   hasOlder,
-  openCitationsPanel,
-  openTrace
+  openCitationsPanel
 }) => {
   const value = useHomeMessageListProviderValue({
     topic,
@@ -35,8 +33,7 @@ const ChatMain: FC<ChatMainProps> = ({
     isInitialLoading,
     loadOlder,
     hasOlder,
-    openCitationsPanel,
-    openTrace
+    openCitationsPanel
   })
   return (
     <MessageListProvider value={value}>

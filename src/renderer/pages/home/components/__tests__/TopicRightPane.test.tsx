@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TopicRightPane, useTopicRightPaneActions } from '../TopicRightPane'
+import { TopicRightPane } from '../TopicRightPane'
+
+const developerModeEnabled = vi.fn(() => true)
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: (key: string) =>
+    key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -70,44 +77,37 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-function OpenTraceButton() {
-  const { openTrace } = useTopicRightPaneActions()
-  return (
-    <button type="button" onClick={() => openTrace({ topicId: 'topic-a', traceId: 'trace-a' })}>
-      open trace
-    </button>
-  )
-}
-
 describe('TopicRightPane', () => {
-  it('opens the trace tab with the latest trace payload', () => {
+  beforeEach(() => {
+    developerModeEnabled.mockReturnValue(true)
+  })
+
+  it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
     render(
       <TopicRightPane>
-        <OpenTraceButton />
-        <TopicRightPane.Host topicId="topic-a" />
+        <TopicRightPane.Toggle />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
       </TopicRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()
+    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
 
-  it('keeps trace hidden until a message action opens it and removes it when closed', () => {
+  it('hides the trace tab when developer mode is off', () => {
+    developerModeEnabled.mockReturnValue(false)
+
     render(
       <TopicRightPane>
-        <OpenTraceButton />
-        <TopicRightPane.Host topicId="topic-a" />
+        <TopicRightPane.Toggle />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
       </TopicRightPane>
     )
 
-    expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
-    const traceTab = screen.getByRole('button', { name: /trace\.label/ })
-    fireEvent.click(within(traceTab.parentElement as HTMLElement).getByRole('button', { name: 'common.close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
 
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()

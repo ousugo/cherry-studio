@@ -30,7 +30,6 @@ type Props = {
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
-  openTrace?: MessageListActions['openTrace']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -48,7 +47,6 @@ const AgentSessionMessages = ({
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
-  openTrace,
   deleteMessage,
   respondToolApproval
 }: Props) => {
@@ -92,7 +90,6 @@ const AgentSessionMessages = ({
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
-    openTrace,
     deleteMessage,
     respondToolApproval,
     messageNavigation

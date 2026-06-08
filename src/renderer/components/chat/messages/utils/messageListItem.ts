@@ -63,8 +63,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     modelSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
-    stats: metadata.stats,
-    traceId: metadata.traceId
+    stats: metadata.stats
   }
 }
 
@@ -118,7 +117,6 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,
-    parts,
-    traceId: message.traceId ?? undefined
+    parts
   }
 }

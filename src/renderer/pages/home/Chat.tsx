@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -22,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
-import { TopicRightPane, useTopicBranchLiveStateSetter, useTopicRightPaneActions } from './components/TopicRightPane'
+import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
@@ -57,7 +56,6 @@ const ChatInner: FC<Props> = (props) => {
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
-  const { openTrace } = useTopicRightPaneActions()
   const branchDraftAnchorIdRef = useRef<string | null>(null)
   const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
 
@@ -139,18 +137,6 @@ const ChatInner: FC<Props> = (props) => {
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
   }, [])
-
-  const handleOpenTrace = useCallback<NonNullable<MessageListActions['openTrace']>>(
-    (message, options) => {
-      if (!message.traceId) return
-      openTrace({
-        topicId: message.topicId,
-        traceId: message.traceId,
-        modelName: options?.modelName
-      })
-    },
-    [openTrace]
-  )
 
   const handleBranchLiveStateChange = useCallback(
     (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
@@ -253,7 +239,6 @@ const ChatInner: FC<Props> = (props) => {
           key={props.activeTopic.id}
           topic={props.activeTopic}
           onOpenCitationsPanel={handleOpenCitationsPanel}
-          onOpenTrace={handleOpenTrace}
           onNewTopic={props.onNewTopic}
           onTemporaryAssistantChange={props.onTemporaryAssistantChange}
           locateMessageId={locateMessageId}
@@ -279,6 +264,7 @@ const ChatInner: FC<Props> = (props) => {
           <TopicRightPane.MaximizedOverlay
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
+            traceId={props.activeTopic.traceId}
             onLocateMessage={setBranchLocateMessageId}
             onStartBranchDraft={handleStartBranchDraft}
             onCancelBranchDraft={handleCancelBranchDraft}
@@ -290,6 +276,7 @@ const ChatInner: FC<Props> = (props) => {
           <TopicRightPane.Host
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
+            traceId={props.activeTopic.traceId}
             onLocateMessage={setBranchLocateMessageId}
             onStartBranchDraft={handleStartBranchDraft}
             onCancelBranchDraft={handleCancelBranchDraft}

@@ -1,11 +1,12 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
-import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
-import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
+import { Shell, useShellState } from '@renderer/components/chat/panes/Shell'
+import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
@@ -13,23 +14,11 @@ import TopicBranchPanel from './TopicBranchPanel'
 interface TopicRightPaneSurfaceProps {
   topicId: string
   topicName?: string
+  /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
+  traceId?: string
   onLocateMessage?: (messageId: string) => void
   onStartBranchDraft?: (messageId: string) => Promise<void> | void
   onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
-}
-
-interface TopicRightPaneState {
-  tracePayload: TracePanePayload | null
-}
-
-interface TopicRightPaneActions {
-  openTrace: (payload: TracePanePayload) => void
-  closeTrace: () => void
-}
-
-interface TopicRightPaneContextValue {
-  state: TopicRightPaneState
-  actions: TopicRightPaneActions
 }
 
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
@@ -77,22 +66,11 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 }
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
-const TopicRightPaneContext = createContext<TopicRightPaneContextValue | null>(null)
 
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane>')
   return store
-}
-
-function useTopicRightPane(): TopicRightPaneContextValue {
-  const value = use(TopicRightPaneContext)
-  if (!value) throw new Error('useTopicRightPane must be used within <TopicRightPane>')
-  return value
-}
-
-export function useTopicRightPaneActions(): TopicRightPaneActions {
-  return useTopicRightPane().actions
 }
 
 export function useTopicBranchLiveStateSetter(): TopicBranchLiveStateSetter {
@@ -107,43 +85,13 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function TopicRightPaneStateProvider({ children }: PropsWithChildren) {
-  const { openTab } = useShellActions()
-  const { activeTab } = useShellState()
-  const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
-
-  const openTrace = useCallback(
-    (payload: TracePanePayload) => {
-      setTracePayload(payload)
-      openTab('trace')
-    },
-    [openTab]
-  )
-  const closeTrace = useCallback(() => {
-    if (activeTab === 'trace') openTab('branch')
-    setTracePayload(null)
-  }, [activeTab, openTab])
-
-  const value = useMemo<TopicRightPaneContextValue>(
-    () => ({
-      state: { tracePayload },
-      actions: { openTrace, closeTrace }
-    }),
-    [closeTrace, openTrace, tracePayload]
-  )
-
-  return <TopicRightPaneContext value={value}>{children}</TopicRightPaneContext>
-}
-
 function TopicRightPaneProvider({ children }: PropsWithChildren) {
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
 
   return (
     <Shell defaultTab="branch">
-      <TopicBranchLiveStateStoreContext value={storeRef.current}>
-        <TopicRightPaneStateProvider>{children}</TopicRightPaneStateProvider>
-      </TopicBranchLiveStateStoreContext>
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
     </Shell>
   )
 }
@@ -151,12 +99,13 @@ function TopicRightPaneProvider({ children }: PropsWithChildren) {
 function TopicRightPaneSurface({
   topicId,
   topicName,
+  traceId,
   onLocateMessage,
   onStartBranchDraft,
   onCancelBranchDraft
 }: TopicRightPaneSurfaceProps) {
   const { t } = useTranslation()
-  const { state, actions } = useTopicRightPane()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
   const branchLiveState = useTopicBranchLiveState(topicId)
   const { mode, chrome } = useWindowFrame()
@@ -186,8 +135,8 @@ function TopicRightPaneSurface({
         <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
           {t('chat.message.flow.title')}
         </Shell.Tab>
-        {state.tracePayload && (
-          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />} onClose={actions.closeTrace}>
+        {enableDeveloperMode && (
+          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />}>
             {t('trace.label')}
           </Shell.Tab>
         )}
@@ -205,9 +154,9 @@ function TopicRightPaneSurface({
           onCancelBranchDraft={onCancelBranchDraft}
         />
       </Shell.Panel>
-      {state.tracePayload && (
+      {enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={state.tracePayload} />
+          <TracePane payload={{ topicId, traceId: traceId ?? '', modelName: undefined }} />
         </Shell.Panel>
       )}
     </Shell.Tabs>

@@ -167,8 +167,7 @@ vi.mock('../components/TopicRightPane', () => {
 
   return {
     TopicRightPane,
-    useTopicBranchLiveStateSetter: () => renderCounters.setBranchLiveState,
-    useTopicRightPaneActions: () => ({ openTrace: vi.fn() })
+    useTopicBranchLiveStateSetter: () => renderCounters.setBranchLiveState
   }
 })
 

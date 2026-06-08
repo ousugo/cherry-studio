@@ -14,6 +14,20 @@ import { describe, expect, it } from 'vitest'
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
+  describe('ensureTraceId', () => {
+    it('mints a stable topic trace id once and reuses it', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values({ id: 'topic-trace', orderKey: 'a0' })
+
+      const traceId = await service.ensureTraceId('topic-trace')
+      expect(traceId).toMatch(/^[0-9a-f]{32}$/)
+
+      // A second call returns the persisted id (no re-mint) and the entity carries it.
+      expect(await service.ensureTraceId('topic-trace')).toBe(traceId)
+      expect((await service.getById('topic-trace')).traceId).toBe(traceId)
+    })
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()

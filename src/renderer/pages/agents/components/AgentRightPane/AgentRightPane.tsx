@@ -7,7 +7,7 @@ import ArtifactPane, {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
-import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
+import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -86,6 +86,8 @@ interface AgentFilePreviewTab {
 interface AgentRightPaneMeta {
   sessionId?: string
   sessionName?: string
+  /** Container-level trace id for the session. When developer mode is on, the Trace tab renders this trace tree. */
+  traceId?: string
   agentId?: string
   agentName?: string
   agentAvatar?: string
@@ -97,7 +99,6 @@ interface AgentRightPaneState {
   activeFlowTab?: AgentFlowTab
   flow: ReturnType<typeof buildAgentToolFlowProjection>
   status: AgentRightPaneStatus
-  tracePayload: TracePanePayload | null
   filePreview: AgentFilePreviewTab | null
   selectedFile: string | null
   fileTreeOpen: boolean
@@ -108,9 +109,7 @@ interface AgentRightPaneState {
 
 interface AgentRightPaneActions {
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
-  openTrace: (payload: TracePanePayload) => void
   openArtifactFile: (path: string) => void
-  closeTrace: () => void
   closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
@@ -151,6 +150,7 @@ function AgentRightPaneStateProvider({
   partsByMessageId,
   sessionId,
   sessionName,
+  traceId,
   agentId,
   agentName,
   agentAvatar,
@@ -159,7 +159,6 @@ function AgentRightPaneStateProvider({
   const { activeTab } = useShellState()
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
-  const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
   const [filePreview, setFilePreview] = useState<AgentFilePreviewTab | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileTreeOpen, setFileTreeOpen] = useState(false)
@@ -194,13 +193,6 @@ function AgentRightPaneStateProvider({
     },
     [openTab]
   )
-  const openTrace = useCallback(
-    (payload: TracePanePayload) => {
-      setTracePayload(payload)
-      openTab('trace')
-    },
-    [openTab]
-  )
   const openArtifactFile = useCallback(
     (path: string) => {
       const selection = resolveArtifactPaneFileSelection(workspacePath, path)
@@ -223,10 +215,6 @@ function AgentRightPaneStateProvider({
     setFileTreeSearchKeyword('')
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
   }, [activeTab, openTab, workspacePath])
-  const closeTrace = useCallback(() => {
-    if (activeTab === 'trace') openTab('files')
-    setTracePayload(null)
-  }, [activeTab, openTab])
   const closeFilePreview = useCallback(() => {
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
     setFilePreview(null)
@@ -246,7 +234,6 @@ function AgentRightPaneStateProvider({
         activeFlowTab,
         flow,
         status,
-        tracePayload,
         filePreview,
         selectedFile,
         fileTreeOpen,
@@ -256,9 +243,7 @@ function AgentRightPaneStateProvider({
       },
       actions: {
         openAgentToolFlow,
-        openTrace,
         openArtifactFile,
-        closeTrace,
         closeFilePreview,
         closeFlowTab,
         setSelectedFile,
@@ -266,7 +251,7 @@ function AgentRightPaneStateProvider({
         setFileTreeExpandedIds,
         setFileTreeSearchKeyword
       },
-      meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
+      meta: { sessionId, sessionName, traceId, agentId, agentName, agentAvatar, modelFallback }
     }),
     [
       activeFlowTab,
@@ -274,7 +259,6 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       closeFilePreview,
-      closeTrace,
       closeFlowTab,
       fileTreeExpandedIds,
       fileTreeOpen,
@@ -285,12 +269,11 @@ function AgentRightPaneStateProvider({
       modelFallback,
       openArtifactFile,
       openAgentToolFlow,
-      openTrace,
       selectedFile,
       sessionId,
       sessionName,
       status,
-      tracePayload,
+      traceId,
       workspacePath
     ]
   )
@@ -545,11 +528,13 @@ function AgentAgentRightPaneStatusPanel() {
 }
 
 function AgentRightPaneSurface() {
-  const { state, actions } = useAgentRightPane()
+  const { state, actions, meta } = useAgentRightPane()
   const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
+  const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
 
   // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
   // (sub-window controls + pane toggle) so they don't overlap this header.
@@ -597,8 +582,8 @@ function AgentRightPaneSurface() {
           }>
           {t('agent.right_pane.tabs.status')}
         </Shell.Tab>
-        {state.tracePayload && (
-          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />} onClose={actions.closeTrace}>
+        {enableDeveloperMode && (
+          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />}>
             {t('trace.label')}
           </Shell.Tab>
         )}
@@ -619,9 +604,9 @@ function AgentRightPaneSurface() {
       <Shell.Panel value="status" className="overflow-auto">
         <AgentAgentRightPaneStatusPanel />
       </Shell.Panel>
-      {state.tracePayload && (
+      {enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={state.tracePayload} />
+          <TracePane payload={{ topicId: traceTopicId, traceId: meta.traceId ?? '', modelName: undefined }} />
         </Shell.Panel>
       )}
     </Shell.Tabs>

@@ -17,7 +17,6 @@ export interface MessageExportView {
   siblingsGroupId?: number
   stats?: MessageStats
   parts: CherryMessagePart[]
-  traceId?: string
 }
 
 export type ExportableMessage = Message | MessageExportView

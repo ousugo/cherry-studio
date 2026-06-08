@@ -18,7 +18,6 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
-  Activity,
   AtSign,
   Bug,
   Check,
@@ -170,15 +169,7 @@ registerCommand('message.regenerate', async ({ actions, message }) => {
 registerCommand('message.delete', async ({ actions, message }) => {
   await actions.abortMessageTranslation?.(message.id)
   await actions.deleteMessage?.(message.id, {
-    traceId: message.traceId ?? undefined,
     modelName: getMessageListItemModelName(message) || undefined
-  })
-})
-
-registerCommand('message.trace', async ({ actions, message }) => {
-  if (!message.traceId || !actions.openTrace) return
-  await actions.openTrace(message, {
-    modelName: message.role === 'user' ? undefined : getMessageListItemModelName(message)
   })
 })
 
@@ -381,17 +372,6 @@ registerToolbarAction({
         }
       : undefined,
   availability: toolbarAvailability('delete', ({ actions }) => !!actions.deleteMessage)
-})
-
-registerToolbarAction({
-  id: 'trace',
-  commandId: 'message.trace',
-  label: ({ t }) => t('trace.label'),
-  icon: <Activity size={15} />,
-  availability: toolbarAvailability(
-    'trace',
-    ({ actions, menuConfig, message }) => menuConfig.enableDeveloperMode && !!message.traceId && !!actions.openTrace
-  )
 })
 
 registerToolbarAction({

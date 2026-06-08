@@ -1,5 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -43,6 +45,7 @@ function rowToTopic(row: TopicRow): Topic {
     assistantId: row.assistantId ?? undefined,
     activeNodeId: row.activeNodeId ?? undefined,
     groupId: row.groupId ?? undefined,
+    traceId: row.traceId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -122,6 +125,27 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  /**
+   * Lazily mint and persist the topic-level OTel trace id — one trace tree per
+   * topic (see trace 重塑). Returns the existing id, or generates a valid 32-hex
+   * traceId and persists it. Runs inside `withWriteTx` so concurrent first turns
+   * serialize and converge on a single trace.
+   */
+  async ensureTraceId(topicId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: topicTable.traceId })
+        .from(topicTable)
+        .where(eq(topicTable.id, topicId))
+        .limit(1)
+      if (!row) throw DataApiErrorFactory.notFound('Topic', topicId)
+      if (row.traceId) return row.traceId
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId))
+      return traceId
+    })
   }
 
   async create(dto: CreateTopicDto): Promise<Topic> {
@@ -242,7 +266,6 @@ export class TopicService {
             siblingsGroupId: 0,
             modelId: sourceMessage.modelId,
             modelSnapshot: sourceMessage.modelSnapshot,
-            traceId: sourceMessage.traceId,
             stats: sourceMessage.stats
           })
           .returning()

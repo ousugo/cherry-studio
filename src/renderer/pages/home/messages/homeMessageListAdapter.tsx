@@ -75,7 +75,6 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
-  openTrace?: MessageListActions['openTrace']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -88,7 +87,6 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
-  openTrace,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -631,7 +629,6 @@ export function useHomeMessageListProviderValue({
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
-      openTrace,
       openPath,
       openCitationsPanel,
       showInFolder,
@@ -670,7 +667,6 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.updateMessageUiState,
       openCitationsPanel,
       openPath,
-      openTrace,
       regenerateMessage,
       renderRegenerateModelPicker,
       removeMessageErrorPart,

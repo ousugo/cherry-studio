@@ -51,6 +51,18 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('ensureTraceId mints a stable session trace id once and reuses it', async () => {
+    const session = await createSession('Traced')
+    expect(session.traceId ?? null).toBeNull()
+
+    const traceId = await agentSessionService.ensureTraceId(session.id)
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/)
+
+    // A second call returns the persisted id (no re-mint) and the entity carries it.
+    expect(await agentSessionService.ensureTraceId(session.id)).toBe(traceId)
+    expect((await agentSessionService.getById(session.id)).traceId).toBe(traceId)
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
 

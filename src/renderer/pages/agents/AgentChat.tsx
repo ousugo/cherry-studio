@@ -200,6 +200,7 @@ const AgentChat = ({
     return (
       <AgentRightPane
         workspacePath={temporaryAgentConversation?.session.workspace?.path}
+        traceId={temporaryAgentConversation?.session.traceId ?? undefined}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}>
         <ConversationShell
@@ -530,6 +531,7 @@ const AgentChatSessionFrame = ({
       partsByMessageId={runtime.partsByMessageId}
       sessionId={runtime.sessionId}
       sessionName={session.name}
+      traceId={session.traceId ?? undefined}
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}

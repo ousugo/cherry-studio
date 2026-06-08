@@ -60,6 +60,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     orderKey: t.orderKey,
+    traceId: t.traceId,
     messages: [],
     pinned: false,
     isNameManuallyEdited: t.isNameManuallyEdited
@@ -193,7 +194,6 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
     updatedAt: shared.updatedAt,
     askId: shared.parentId ?? undefined,
     modelId: shared.modelId ?? undefined,
-    traceId: shared.traceId ?? undefined,
     ...(shared.stats && {
       usage: statsToUsage(shared.stats),
       metrics: statsToMetrics(shared.stats)

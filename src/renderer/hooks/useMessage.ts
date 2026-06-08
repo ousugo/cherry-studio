@@ -27,13 +27,9 @@ export function useMessage(messageId: string, topic: Topic) {
   const chatWrite = useChatWrite()
   const partsMap = usePartsMap()
 
-  // `ChatContent.handleDeleteMessage` handles span-cache cleanup
-  // internally; callers that have `traceId` / `modelName` on hand (e.g.
-  // `MessageMenuBar` reading them off the assistant message) forward
-  // them via the optional second argument.
   const remove = useCallback(
-    async (traceId?: string, modelName?: string) => {
-      await chatWrite?.deleteMessage(messageId, { traceId, modelName })
+    async (modelName?: string) => {
+      await chatWrite?.deleteMessage(messageId, { modelName })
     },
     [chatWrite, messageId]
   )

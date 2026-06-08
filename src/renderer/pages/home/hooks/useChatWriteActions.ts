@@ -65,7 +65,7 @@ export function useChatWriteActions(params: Params): Result {
   } = cache
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
-    async (id, traceOptions) => {
+    async (id) => {
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
@@ -86,10 +86,9 @@ export function useChatWriteActions(params: Params): Result {
           throw err
         }
       }
-      void window.api.trace.cleanHistory(topic.id, traceOptions?.traceId ?? '', traceOptions?.modelName)
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, topic.id]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(

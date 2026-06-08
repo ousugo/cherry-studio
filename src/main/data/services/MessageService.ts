@@ -137,7 +137,6 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     siblingsGroupId: row.siblingsGroupId,
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     modelSnapshot: parseJson(row.modelSnapshot),
-    traceId: row.traceId,
     stats: parseJson(row.stats),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -972,7 +971,6 @@ export class MessageService {
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
           modelSnapshot: dto.modelSnapshot,
-          traceId: dto.traceId,
           stats: dto.stats
         })
         .returning()
@@ -1059,7 +1057,6 @@ export class MessageService {
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
             modelSnapshot: dto.modelSnapshot,
-            traceId: dto.traceId,
             stats: dto.stats
           })
           .returning()
@@ -1101,7 +1098,6 @@ export class MessageService {
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
             modelSnapshot: p.modelSnapshot,
-            traceId: p.traceId,
             stats: p.stats
           })
           .returning()
@@ -1166,7 +1162,6 @@ export class MessageService {
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       if (dto.status !== undefined) updates.status = dto.status
-      if (dto.traceId !== undefined) updates.traceId = dto.traceId
       if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = await tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning()

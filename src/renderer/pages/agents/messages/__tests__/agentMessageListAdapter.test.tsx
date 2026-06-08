@@ -194,7 +194,6 @@ describe('useAgentMessageListProviderValue', () => {
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
     const openArtifactFile = vi.fn()
-    const openTrace = vi.fn()
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -210,7 +209,6 @@ describe('useAgentMessageListProviderValue', () => {
         },
         isLoading: false,
         openArtifactFile,
-        openTrace,
         deleteMessage,
         respondToolApproval,
         messageNavigation: 'anchor'
@@ -283,7 +281,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
     expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
-    expect(value?.actions.openTrace).toBe(openTrace)
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))

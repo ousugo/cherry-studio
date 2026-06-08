@@ -61,7 +61,6 @@ interface AgentMessageListParams {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
-  openTrace?: MessageListActions['openTrace']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   messageNavigation: string
@@ -80,7 +79,6 @@ export function useAgentMessageListProviderValue({
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
-  openTrace,
   deleteMessage,
   respondToolApproval,
   messageNavigation
@@ -226,7 +224,6 @@ export function useAgentMessageListProviderValue({
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
-      openTrace,
       showInFolder,
       abortTool,
       bindMessageRuntime,
@@ -253,7 +250,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
-      openTrace,
       openPath,
       respondToolApproval,
       selectionController.actions,

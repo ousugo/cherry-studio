@@ -52,7 +52,6 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       siblingsGroupId: metadata.siblingsGroupId ?? 0,
       modelId: metadata.modelId ?? null,
       modelSnapshot: metadata.modelSnapshot ?? null,
-      traceId: metadata.traceId ?? null,
       stats: metadata.stats ?? null,
       createdAt,
       updatedAt: createdAt

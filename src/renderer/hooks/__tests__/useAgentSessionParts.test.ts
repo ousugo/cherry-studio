@@ -45,7 +45,6 @@ describe('toAgentSessionUIMessage', () => {
       status: 'success',
       modelId: 'anthropic::claude',
       modelSnapshot: { id: 'claude', name: 'Claude', provider: 'anthropic' },
-      traceId: 'trace-1',
       stats: { totalTokens: 10 },
       runtimeResumeToken: 'agent-session-1',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -61,7 +60,6 @@ describe('toAgentSessionUIMessage', () => {
         status: 'success',
         modelId: 'anthropic::claude',
         modelSnapshot: { id: 'claude', name: 'Claude', provider: 'anthropic' },
-        traceId: 'trace-1',
         stats: { totalTokens: 10 }
       }
     })

@@ -137,7 +137,6 @@ export class TemporaryChatService {
       siblingsGroupId: 0,
       modelId: dto.modelId ?? null,
       modelSnapshot: dto.modelSnapshot ?? null,
-      traceId: dto.traceId ?? null,
       stats: dto.stats ?? null,
       createdAt: now,
       updatedAt: now
@@ -233,7 +232,6 @@ export class TemporaryChatService {
             siblingsGroupId: 0,
             modelId: m.modelId ?? undefined,
             modelSnapshot: m.modelSnapshot ?? undefined,
-            traceId: m.traceId ?? undefined,
             stats: m.stats ?? undefined
           })
           prevId = m.id

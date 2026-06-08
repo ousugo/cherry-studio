@@ -184,7 +184,6 @@ export interface MessageListItem {
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
-  traceId?: string | null
   mentions?: Array<{
     id: string
     name: string
@@ -281,7 +280,6 @@ export interface MessageListActions {
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
-  openTrace?: (message: MessageListItem, options?: { modelName?: string }) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
@@ -323,7 +321,7 @@ export interface MessageListActions {
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
-  deleteMessage?: (messageId: string, traceOptions?: { traceId?: string; modelName?: string }) => void | Promise<void>
+  deleteMessage?: (messageId: string, traceOptions?: { modelName?: string }) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (parentId: string) => void | Promise<void>

@@ -36,6 +36,13 @@
       "when": 1780597235127,
       "tag": "0004_smart_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780826128283,
+      "tag": "0005_wandering_gladiator",
+      "breakpoints": true
     }
   ]
 }
