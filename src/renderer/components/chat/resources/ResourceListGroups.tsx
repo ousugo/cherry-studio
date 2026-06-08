@@ -1,5 +1,6 @@
 import { CommandContextMenu } from '@renderer/features/command'
 import { cn } from '@renderer/utils/style'
+import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback } from 'react'
 
@@ -189,6 +190,12 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
             {group.label}
           </span>
+          <ChevronRight
+            aria-hidden="true"
+            size={11}
+            className="shrink-0 text-muted-foreground/60 transition-transform duration-150"
+            style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+          />
         </button>
         {groupHeaderAction && (
           <div
