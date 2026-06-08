@@ -336,13 +336,18 @@ registerToolbarAction({
     const visibleInToolbar = context.toolbarButtonIds.has('translate')
     const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
+    const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
     const visible =
-      visibleInToolbar && !context.isUserMessage && (canTranslate || canCopyTranslation || canAbortTranslation)
+      visibleInToolbar &&
+      !context.isUserMessage &&
+      (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
 
     return {
       visible,
-      enabled: visible && (context.isTranslating ? canAbortTranslation : canTranslate || canCopyTranslation)
+      enabled:
+        visible &&
+        (context.isTranslating ? canAbortTranslation : canTranslate || canCopyTranslation || canRemoveTranslation)
     }
   }
 })
@@ -573,12 +578,10 @@ export function resolveMessageMenuBarTranslationItems(
 
   if (!hasTranslationBlocks) return items
 
-  if (!actions.copyText) return items
+  const trailingItems: MessageMenuBarTranslationItem[] = []
 
-  return [
-    ...items,
-    ...(items.length > 0 ? [{ type: 'divider' as const, key: 'translate-divider' }] : []),
-    {
+  if (actions.copyText) {
+    trailingItems.push({
       label: '📋 ' + t('common.copy'),
       key: 'translate-copy',
       onSelect: async () => {
@@ -599,7 +602,30 @@ export function resolveMessageMenuBarTranslationItems(
           actions.notifyWarning?.(t('translate.empty'))
         }
       }
-    }
+    })
+  }
+
+  if (actions.removeMessageTranslation) {
+    trailingItems.push({
+      label: '✖ ' + t('translate.close'),
+      key: 'translate-close',
+      onSelect: async () => {
+        try {
+          await actions.removeMessageTranslation?.(message.id)
+          actions.notifySuccess?.(t('translate.closed'))
+        } catch (error) {
+          notifyCommandError('message.removeTranslation', context, error)
+        }
+      }
+    })
+  }
+
+  if (trailingItems.length === 0) return items
+
+  return [
+    ...items,
+    ...(items.length > 0 ? [{ type: 'divider' as const, key: 'translate-divider' }] : []),
+    ...trailingItems
   ]
 }
 

@@ -445,6 +445,17 @@ export function useHomeMessageListProviderValue({
     []
   )
 
+  const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
+    async (messageId) => {
+      const currentParts = partsByMessageIdRef.current[messageId]
+      if (!currentParts) return
+      const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+      if (baseParts.length === currentParts.length) return
+      await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
+    },
+    [requireChatWrite]
+  )
+
   const getMessageSiblings = useCallback(
     (messageId: string) => {
       const group = siblingsContext?.siblingsMap[messageId]
@@ -648,6 +659,7 @@ export function useHomeMessageListProviderValue({
       regenerateMessage,
       translateMessage,
       abortMessageTranslation,
+      removeMessageTranslation,
       renderRegenerateModelPicker
     }),
     [
@@ -681,6 +693,7 @@ export function useHomeMessageListProviderValue({
       startNewContext,
       selectionController.actions,
       translateMessage,
+      removeMessageTranslation,
       updateRenderConfig
     ]
   )
