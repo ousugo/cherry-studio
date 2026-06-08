@@ -252,7 +252,6 @@ export function useHomeMessageListProviderValue({
       flushPendingTopicImageActions(runtime)
 
       const unsubscribes = [
-        EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
         EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
           consumeTopicImageAction(runtime, 'copy', data)
         ),
