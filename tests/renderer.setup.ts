@@ -155,6 +155,15 @@ vi.mock('@cherrystudio/ui', () => {
   const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
   const DropdownMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
+    ReorderableList: ({ items, renderItem, getId }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        items.map((item, index) =>
+          React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
+        )
+      ),
+    NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
       if (asChild && React.isValidElement(children)) {

@@ -30,6 +30,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { FILE_TYPE, type FileMetadata, type LocalSkill, type ThinkingOption } from '@renderer/types'
@@ -49,6 +50,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
+import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import type { ComposerSuggestionSource } from '../quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import {
@@ -876,12 +879,36 @@ const AgentComposerInner = ({
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
   }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
 
+  // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
+  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  const {
+    items: queuedFollowups,
+    enqueue: enqueueFollowup,
+    removeId: removeFollowup,
+    reorder: reorderFollowups,
+    paused: followupPaused,
+    setPaused: setFollowupPaused
+  } = useFollowupQueue({
+    scopeKey: sessionTopicId,
+    isFulfilled: sessionFulfilled,
+    markSeen: markSessionSeen,
+    onDrain: sendQueuedPayload
+  })
+
+  // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
+  // it from the queue. Agent editor tokens derive from `files` + `selectedSkills`, so set those.
+  const restoreFollowupDraft = useCallback(
+    (item: FollowupQueueItem) => {
+      setText(item.draft.text)
+      setFiles((item.payload.files as FileMetadata[] | undefined) ?? [])
+      setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
+    },
+    [setFiles, setText]
+  )
+
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
-      // The send queue was removed; while the session is streaming we no longer buffer
-      // messages, so block sending until it finishes instead of dispatching concurrently.
-      if (isStreaming) return
       if (!model) {
         window.toast?.error(t('code.model_required'))
         return
@@ -889,12 +916,20 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
+      // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
+      // the dock lets the user steer/edit/remove items.
+      if (isStreaming) {
+        enqueueFollowup(draft, payload)
+        clearCurrentDraft()
+        return
+      }
+
       clearCurrentDraft()
       void sendQueuedPayload(payload).catch((error: unknown) => {
         logger.warn('Failed to send message:', error as Error)
       })
     },
-    [buildQueuedPayload, clearCurrentDraft, isStreaming, model, sendDisabled, sendQueuedPayload, t]
+    [buildQueuedPayload, clearCurrentDraft, enqueueFollowup, isStreaming, model, sendDisabled, sendQueuedPayload, t]
   )
 
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
@@ -1023,13 +1058,34 @@ const AgentComposerInner = ({
         onTokensChange={handleTokensChange}
         resolveSkillMarker={resolveSkillMarker}
         placeholder={placeholderText}
-        sendDisabled={
-          isStreaming || sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
-        }
+        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
         sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
         isLoading={isStreaming}
         onSendDraft={handleSendDraft}
         onPause={abortAgentSession}
+        queueContent={
+          queuedFollowups.length > 0 ? (
+            <QueuedFollowupsDock
+              items={queuedFollowups}
+              paused={followupPaused}
+              onTogglePause={() => setFollowupPaused(!followupPaused)}
+              onSteer={(id) => {
+                const item = queuedFollowups.find((entry) => entry.id === id)
+                if (!item) return
+                void sendQueuedPayload(item.payload)
+                removeFollowup(id)
+              }}
+              onEdit={(id) => {
+                const item = queuedFollowups.find((entry) => entry.id === id)
+                if (!item) return
+                restoreFollowupDraft(item)
+                removeFollowup(id)
+              }}
+              onRemove={removeFollowup}
+              onReorder={reorderFollowups}
+            />
+          ) : undefined
+        }
         supportedExts={supportedExts}
         setFiles={setFiles}
         filesCount={files.length}

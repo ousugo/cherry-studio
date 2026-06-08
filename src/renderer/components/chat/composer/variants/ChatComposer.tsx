@@ -52,12 +52,14 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '../composerDraft'
+import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import {
   type ComposerDraftToken,
   type ComposerSerializedDraft,
   type ComposerSerializedToken,
   isComposerDraftTokenKind
 } from '../tokens'
+import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -530,7 +532,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = editingMessage?.message.topicId === topic.id ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending } = useTopicStreamStatus(topic.id)
+  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(topic.id)
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
@@ -569,6 +571,9 @@ const ChatComposerInner = ({
   }, [topic.id])
 
   const loading = isPending || isSending || awaitingApproval
+  // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
+  // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
+  const canSteer = isPending && !awaitingApproval
   const selectedAssistantId = assistant?.id ?? null
   const selectedKnowledgeBasesScopeKey = `${topic.id}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
@@ -998,6 +1003,34 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases([])
   }, [setFiles, setSelectedKnowledgeBases, setText])
 
+  // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
+  // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
+  const {
+    items: queuedFollowups,
+    enqueue: enqueueFollowup,
+    removeId: removeFollowup,
+    reorder: reorderFollowups,
+    paused: followupPaused,
+    setPaused: setFollowupPaused
+  } = useFollowupQueue({
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    isFulfilled,
+    markSeen,
+    onDrain: sendQueuedPayload
+  })
+
+  // Edit a queued item = restore the whole draft (text + tokens + files + knowledge bases) into the
+  // live composer, then drop it from the queue. Mirrors `restoreEditableMessageDraft`.
+  const restoreFollowupDraft = useCallback(
+    (item: FollowupQueueItem) => {
+      setText(item.draft.text)
+      setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
+      setFiles((item.payload.files as FileMetadata[] | undefined) ?? [])
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => item.payload.knowledgeBaseIds?.includes(base.id)))
+    },
+    [allKnowledgeBases, setFiles, setSelectedKnowledgeBases, setText]
+  )
+
   const buildEditedMessageParts = useCallback(
     (draft: ComposerSerializedDraft) => {
       const tokenIds = getComposerTokenIds(draft.tokens)
@@ -1083,12 +1116,19 @@ const ChatComposerInner = ({
 
       if (sendDisabled) return
       if (runtimeModelPending) return
-      // The send queue was removed; while a turn is streaming we no longer buffer
-      // messages, so block sending until it finishes instead of dispatching concurrently.
-      if (loading) return
+      // While streaming, only block if we can't steer (e.g. paused for tool approval).
+      if (loading && !canSteer) return
 
       const payload = buildQueuedPayload(draft)
       if (!payload) return
+
+      // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
+      // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
+      if (canSteer) {
+        enqueueFollowup(draft, payload)
+        clearCurrentDraft()
+        return
+      }
 
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
@@ -1114,9 +1154,11 @@ const ChatComposerInner = ({
     [
       buildQueuedPayload,
       buildEditedMessageParts,
+      canSteer,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
+      enqueueFollowup,
       files,
       handleModelSelect,
       loading,
@@ -1179,7 +1221,7 @@ const ChatComposerInner = ({
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
           text.trim().length === 0 ||
-          loading ||
+          (loading && !canSteer) ||
           sendDisabled ||
           searching ||
           runtimeModelPending ||
@@ -1204,6 +1246,29 @@ const ChatComposerInner = ({
             : undefined
         }
         onPause={onPause}
+        queueContent={
+          queuedFollowups.length > 0 ? (
+            <QueuedFollowupsDock
+              items={queuedFollowups}
+              paused={followupPaused}
+              onTogglePause={() => setFollowupPaused(!followupPaused)}
+              onSteer={(id) => {
+                const item = queuedFollowups.find((entry) => entry.id === id)
+                if (!item) return
+                void sendQueuedPayload(item.payload)
+                removeFollowup(id)
+              }}
+              onEdit={(id) => {
+                const item = queuedFollowups.find((entry) => entry.id === id)
+                if (!item) return
+                restoreFollowupDraft(item)
+                removeFollowup(id)
+              }}
+              onRemove={removeFollowup}
+              onReorder={reorderFollowups}
+            />
+          ) : undefined
+        }
         supportedExts={supportedExts}
         setFiles={setFiles}
         filesCount={files.length}

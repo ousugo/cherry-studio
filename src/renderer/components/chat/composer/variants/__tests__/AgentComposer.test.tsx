@@ -259,6 +259,10 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
+}))
+
 vi.mock('@renderer/features/command', () => ({
   useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
     mocks.shortcutHandlers.set(key, handler)
@@ -1030,7 +1034,7 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('does not send while the agent session is streaming', () => {
+  it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1043,7 +1047,9 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
+    // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

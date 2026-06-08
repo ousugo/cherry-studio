@@ -3,7 +3,7 @@
  * server (`mcp__cherry-tools__web__search` / `__web__fetch`), which routes through
  * the user's configured WebSearchService provider.
  */
-export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
+export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch', 'TodoWrite'] as const
 
 /**
  * System prompt section injected when the session receives messages from an

@@ -405,7 +405,7 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => false,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
+  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -903,15 +903,19 @@ describe('ChatComposer', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
   })
 
-  it('does not send while the topic is streaming', async () => {
+  it('queues a follow-up while the topic is streaming (does not send directly)', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
-    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
 
+    // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
   it('keeps the current draft when sending a new message fails', async () => {
