@@ -345,7 +345,14 @@ describe('ArtifactPane', () => {
         file: {
           openPath: vi.fn(),
           isTextFile: mocks.isTextFile,
-          getFileSize: mocks.getFileSize
+          getMetadata: vi.fn(async () => ({
+            kind: 'file',
+            type: 'other',
+            size: await mocks.getFileSize(),
+            createdAt: 1,
+            modifiedAt: 1,
+            mime: 'text/plain'
+          }))
         },
         fs: {
           read: mocks.fsRead,

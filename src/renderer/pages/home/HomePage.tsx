@@ -12,7 +12,7 @@ import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -110,6 +110,8 @@ const HomePage: FC = () => {
   } = temporaryConversation
 
   const { refreshTopics } = useTopicMutations()
+  const { assistants, isLoading: isAssistantsLoading } = useAssistants()
+  const firstAssistantId = assistants[0]?.id
 
   useEffect(() => {
     if (temporaryTopicConversation?.type !== 'assistant') {
@@ -337,7 +339,7 @@ const HomePage: FC = () => {
         const hasExplicitAssistantTarget = !!payload && 'assistantId' in payload
         const targetAssistantId = hasExplicitAssistantTarget
           ? (payload.assistantId ?? undefined)
-          : lastUsedAssistantIdRef.current
+          : (lastUsedAssistantIdRef.current ?? firstAssistantId)
         const shouldReuseTemporaryTopic = (currentAssistantId: string | undefined) =>
           hasExplicitAssistantTarget
             ? currentAssistantId === targetAssistantId
@@ -388,7 +390,7 @@ const HomePage: FC = () => {
         }
       }
     },
-    [setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
+    [firstAssistantId, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
   )
 
   const updateTemporaryTopicAssistant = useCallback(
@@ -412,12 +414,14 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldUseTemporary || firstTemporaryStartedRef.current || state?.topic) return
     if (temporaryTopicSnapshot || activeTopic || isActiveTopicLoading) return
+    if (!routeAssistantId && !lastUsedAssistantIdRef.current && isAssistantsLoading) return
 
     firstTemporaryStartedRef.current = true
     void startTemporaryTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
   }, [
     activeTopic,
     isActiveTopicLoading,
+    isAssistantsLoading,
     routeAssistantId,
     shouldUseTemporary,
     startTemporaryTopic,

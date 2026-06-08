@@ -11,11 +11,11 @@ const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
-const mockGetPathStatus = vi.fn()
+const mockGetMetadata = vi.fn()
 
 vi.stubGlobal('api', {
   file: {
-    getPathStatus: mockGetPathStatus
+    getMetadata: mockGetMetadata
   }
 })
 const externalCodeEditors: ExternalAppInfo[] = [
@@ -72,7 +72,14 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetPathStatus.mockResolvedValue({ ok: true, kind: 'file' })
+    mockGetMetadata.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
   })
 
   it('should render the path as text', () => {
@@ -95,11 +102,11 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
     })
-    expect(mockGetPathStatus).toHaveBeenCalledWith({ path: '/Users/foo/bar.tsx', expectedKind: 'file' })
+    expect(mockGetMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/Users/foo/bar.tsx' })
   })
 
   it('should short-circuit with notifyError when an absolute path is missing', async () => {
-    mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
+    mockGetMetadata.mockRejectedValueOnce(new Error('missing'))
     renderWithProvider(<ClickableFilePath path="/Users/foo/missing.tsx" />, {
       openArtifactFile: mockOpenArtifactFile,
       notifyError: mockNotifyError
@@ -119,7 +126,7 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
-    expect(mockGetPathStatus).not.toHaveBeenCalled()
+    expect(mockGetMetadata).not.toHaveBeenCalled()
   })
 
   it('should normalize paths wrapped in backticks before opening', async () => {

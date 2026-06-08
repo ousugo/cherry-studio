@@ -40,6 +40,8 @@ const homeMocks = vi.hoisted(() => ({
     | undefined,
   cacheSetPersist: vi.fn(),
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
+  assistants: [{ id: 'assistant-default' }] as Array<{ id: string }>,
+  assistantsLoading: false,
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
@@ -134,6 +136,25 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigation: () => ({
     focusExistingTab: homeMocks.focusExistingTab,
     openConversationTab: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistants: () => ({
+    assistants: homeMocks.assistants,
+    isLoading: homeMocks.assistantsLoading,
+    error: undefined,
+    refetch: vi.fn(),
+    addAssistant: vi.fn(),
+    removeAssistant: vi.fn(),
+    updateAssistant: vi.fn()
+  }),
+  useAssistantApiById: (id?: string) => ({
+    assistant: id ? { id } : undefined,
+    isLoading: false,
+    error: undefined,
+    refetch: vi.fn(),
+    mutate: vi.fn()
   })
 }))
 
@@ -296,6 +317,8 @@ describe('HomePage', () => {
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
+    homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.assistantsLoading = false
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
@@ -601,7 +624,7 @@ describe('HomePage', () => {
       activeTopicId: 'topic-message'
     })
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
     })
   })
 
@@ -692,6 +715,40 @@ describe('HomePage', () => {
 
     await waitFor(() => {
       expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+    })
+  })
+
+  it('seeds the first-launch temporary topic from the first assistant when no remembered assistant exists', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-default',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
+    })
+  })
+
+  it('waits for assistants before leasing the first-launch temporary topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.assistants = []
+    homeMocks.assistantsLoading = true
+
+    const { rerender } = render(<HomePage />)
+
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+
+    homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.assistantsLoading = false
+    rerender(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
     })
   })
 

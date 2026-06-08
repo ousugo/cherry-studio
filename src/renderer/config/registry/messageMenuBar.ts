@@ -37,13 +37,7 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
   'more-menu'
 ]
 
-export const SESSION_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
-  'copy',
-  'notes',
-  'delete',
-  'trace',
-  'more-menu'
-]
+export const SESSION_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = ['copy', 'notes', 'delete', 'more-menu']
 
 export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenuBarButtonId> = new Set([
   'user-edit',

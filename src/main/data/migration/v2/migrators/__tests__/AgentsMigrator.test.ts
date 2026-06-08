@@ -170,7 +170,10 @@ describe('AgentsMigrator', () => {
   })
 
   it('backfills agent order keys from legacy sort_order before id remap', async () => {
-    const all = vi.fn().mockResolvedValue([{ id: 'agent-b' }, { id: 'agent-a' }])
+    const all = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: 'agent-b' }, { id: 'agent-a' }])
+      .mockResolvedValueOnce([])
     const run = vi.fn().mockResolvedValue(undefined)
 
     await backfillAgentOrderKeys({ all, run } as never)

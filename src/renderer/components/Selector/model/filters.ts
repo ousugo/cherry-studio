@@ -1,4 +1,5 @@
 import { MODALITY } from '@cherrystudio/provider-registry'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { type Model, MODEL_CAPABILITY, type ModelTag } from '@shared/data/types/model'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -39,7 +40,7 @@ const capabilityTagPredicates: Record<Exclude<ModelSelectorTag, 'free'>, ModelPr
 }
 
 function isFreeModel(model: Model) {
-  if (model.providerId === 'cherryai') {
+  if (model.providerId === CHERRYAI_PROVIDER_ID) {
     return true
   }
 

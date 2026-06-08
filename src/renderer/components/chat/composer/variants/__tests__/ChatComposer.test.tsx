@@ -363,13 +363,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
     updateAssistant: mocks.updateAssistant
-  }),
-  useDefaultAssistant: () => ({
-    assistant: {
-      id: 'default-assistant',
-      name: 'Default Assistant',
-      emoji: 'D'
-    }
   })
 }))
 
@@ -858,19 +851,19 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('shows the default assistant for unlinked home topics', () => {
+  it('shows assistant selection with the default model for unlinked home topics', () => {
     mocks.assistant = undefined
 
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('button.select_assistant')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('sends unlinked home topics through the default assistant display state', async () => {
+  it('sends unlinked home topics through the default model fallback', async () => {
     mocks.assistant = undefined
     const onSend = vi.fn()
 

@@ -314,12 +314,11 @@ describe('CommandContextMenu', () => {
     })
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
-    await waitFor(() => expect(contextMenuOpenValues.at(-1)).toBe(true))
+    await waitFor(() => expect(events).toEqual(['open']))
 
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
     expect(events).toEqual(['open', 'close'])
-    expect(contextMenuOpenValues.at(-1)).toBe(false)
     expect(onSelect).not.toHaveBeenCalled()
 
     await waitFor(() => expect(events).toEqual(['open', 'close', 'action']))

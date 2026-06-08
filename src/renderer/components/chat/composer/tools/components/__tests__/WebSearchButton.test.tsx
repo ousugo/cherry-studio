@@ -97,8 +97,8 @@ vi.mock('@renderer/config/models', () => {
   }
 })
 
-vi.mock('@renderer/types', () => ({
-  BuiltinMCPServerNames: {
+vi.mock('@renderer/types', () => {
+  const builtinMcpServerNames = {
     flomo: '@cherry/flomo',
     mcpAutoInstall: '@cherry/mcp-auto-install',
     memory: '@cherry/memory',
@@ -112,9 +112,14 @@ vi.mock('@renderer/types', () => ({
     browser: '@cherry/browser',
     nowledgeMem: '@cherry/nowledge-mem',
     hub: '@cherry/hub'
-  },
-  getEffectiveMcpMode: () => 'disabled'
-}))
+  }
+
+  return {
+    BuiltinMCPServerNames: builtinMcpServerNames,
+    BuiltinMcpServerNames: builtinMcpServerNames,
+    getEffectiveMcpMode: () => 'disabled'
+  }
+})
 
 describe('WebSearchButton', () => {
   beforeEach(() => {

@@ -12,7 +12,7 @@ import styled from 'styled-components'
 import MessageItem from './Message'
 
 interface Props {
-  assistant: Assistant
+  assistant: Assistant | null
   route: string
   isOutputted: boolean
   messages: MessageListItem[]
@@ -33,7 +33,7 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
       partsByMessageId={partsByMessageId}
       renderConfig={renderConfig}
       actions={platformActions}>
-      <Container id="messages" key={assistant.id}>
+      <Container id="messages" key={assistant?.id ?? 'runtime-default'}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />

@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -65,17 +65,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel: defaultApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
-  const currentAssistant = chosenAssistant ?? defaultAssistant
+  const currentAssistant = chosenAssistant
   const currentModel = chosenApiModel ?? defaultApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
-  // currentAssistant may be the synthesised default — only pass a real
-  // persisted id (chosenAssistant) so main treats it as "no assistant" when
-  // the user hasn't picked one.
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
@@ -420,11 +416,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'explanation':
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {route === 'chat' && currentAssistant && (
+          {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
                 text={userInputText}
-                assistant={currentAssistant}
                 model={currentModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
@@ -467,10 +462,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     default:
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {currentAssistant && (
+          {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}
-              assistant={currentAssistant}
               model={currentModel}
               referenceText={referenceText}
               placeholder={inputPlaceholder}

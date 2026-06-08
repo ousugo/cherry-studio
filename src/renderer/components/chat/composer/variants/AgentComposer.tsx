@@ -485,7 +485,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
-  const workspaceWarning: string | undefined = undefined
+  const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -508,6 +508,34 @@ const AgentComposerInner = ({
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+
+  useEffect(() => {
+    const workspacePath = workspace?.path
+    if (!workspacePath) {
+      setWorkspaceWarning(undefined)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const isDirectory = await window.api.file.isDirectory(workspacePath)
+        if (cancelled) return
+        if (isDirectory) {
+          setWorkspaceWarning(undefined)
+          return
+        }
+        setWorkspaceWarning(t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+      } catch (error) {
+        logger.warn('Failed to check agent workspace path status', error as Error)
+        if (!cancelled) setWorkspaceWarning(undefined)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [t, workspace?.path])
 
   const setText = useCallback(
     (nextText: string) => {

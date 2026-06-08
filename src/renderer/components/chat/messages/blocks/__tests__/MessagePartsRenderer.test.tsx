@@ -51,6 +51,10 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.tools.groupHeader') {

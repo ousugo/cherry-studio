@@ -1,3 +1,4 @@
+import type * as ConstantConfig from '@renderer/config/constant'
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -19,7 +20,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/config/constant', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/config/constant')>()
+  const actual = await importOriginal<typeof ConstantConfig>()
   return {
     ...actual,
     isMac: true

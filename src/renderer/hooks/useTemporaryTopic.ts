@@ -37,9 +37,9 @@ export interface UseTemporaryTopicOptions {
    */
   enabled?: boolean
   /**
-   * Optional assistant id to bind the temp topic to. `undefined` means the
-   * topic has no associated assistant — main composes capabilities from the
-   * default model preference. Not a sentinel: do NOT pass DEFAULT_ASSISTANT_ID.
+   * Optional persisted assistant id to bind the temp topic to. `undefined`
+   * means the topic has no associated assistant — main composes capabilities
+   * from the default model preference.
    */
   assistantId?: string
 }
