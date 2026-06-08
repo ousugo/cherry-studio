@@ -2331,7 +2331,7 @@ describe('ResourceList', () => {
     )
     expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('px-1.5')
     expect(screen.getByRole('listbox')).not.toHaveClass('px-1.5')
-    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-2')
+    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-1.5')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass(
       'relative',
       'gap-1.5',

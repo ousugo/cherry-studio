@@ -65,7 +65,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-2 text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-sidebar-foreground',
         className
       )}
       {...props}
@@ -116,7 +116,7 @@ type HeaderProps = ComponentProps<'div'> & {
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 pb-0.5', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 pb-1', className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (
