@@ -18,6 +18,14 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: { children: ReactNode }) => <div data-testid="quick-panel">{children}</div>
 }))
 
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/config/constant')>()
+  return {
+    ...actual,
+    isMac: true
+  }
+})
+
 vi.mock('../ChatAppShell', () => ({
   ChatAppShell: (props: {
     centerContent?: ReactNode
@@ -69,6 +77,25 @@ describe('ConversationShell', () => {
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
     expect(topBarWrapper).toHaveClass('h-[37.5px]')
     expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
+    expect(topBarWrapper).toHaveClass('pl-[env(titlebar-area-x)]')
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
+  })
+
+  it('uses normal title-bar padding when the left pane is open in window mode', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
+        <ConversationShell
+          pane={<div data-testid="pane" />}
+          paneOpen
+          panePosition="left"
+          topBar={<div data-testid="top-bar" />}
+          center={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    expect(topBarWrapper).toHaveClass('pl-2')
+    expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 })
