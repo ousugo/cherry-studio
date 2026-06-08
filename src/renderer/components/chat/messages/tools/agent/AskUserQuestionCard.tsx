@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
+import { useAskUserQuestionOptimisticInput } from './AskUserQuestionOptimisticContext'
 import { SkeletonValue } from './GenericTools'
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './types'
 
@@ -68,6 +69,7 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
 // ==================== Main Component ====================
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
+  const optimisticInput = useAskUserQuestionOptimisticInput(toolResponse.toolCallId)
 
   // Parse from available sources. Completed Claude Code AskUserQuestion
   // parts can keep the original questions in `input` and put user answers
@@ -75,8 +77,9 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const { questions, answers } = useMemo(() => {
     const parsedInput = parseAskUserQuestionToolInput(toolResponse.arguments)
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
-    const questions = parsedInput?.questions ?? parsedOutput?.questions ?? []
-    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? {}
+    const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
+    const questions = parsedInput?.questions ?? parsedOptimisticInput?.questions ?? parsedOutput?.questions ?? []
+    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? parsedOptimisticInput?.answers ?? {}
 
     if (!questions.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
@@ -86,7 +89,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       })
     }
     return { questions, answers }
-  }, [toolResponse.arguments, toolResponse.response, toolResponse.status])
+  }, [optimisticInput, toolResponse.arguments, toolResponse.response, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const currentQuestion = questions[currentIndex]

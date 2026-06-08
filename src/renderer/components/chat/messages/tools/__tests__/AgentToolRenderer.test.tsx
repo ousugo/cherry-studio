@@ -4,6 +4,7 @@ import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
+import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
 
 vi.mock('@renderer/services/AssistantService', () => ({
@@ -461,6 +462,53 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Winston')).not.toBeVisible()
       fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeInTheDocument()
+      expect(screen.getByText('Winston')).toBeVisible()
+    })
+
+    it('shows optimistic AskUserQuestion answers before persisted tool data arrives', () => {
+      const questions = [
+        {
+          question: 'Choose logger',
+          header: 'Logger',
+          options: [{ label: 'Winston' }, { label: 'Pino' }],
+          multiSelect: false
+        }
+      ]
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'pending',
+        toolCallId: 'call-ask',
+        arguments: { questions }
+      })
+
+      mockPartsMap.mockReturnValue({
+        msg1: [
+          {
+            type: 'tool-AskUserQuestion',
+            toolName: 'AskUserQuestion',
+            toolCallId: toolResponse.toolCallId,
+            state: 'approval-responded',
+            approval: { id: 'approval-ask', approved: true },
+            input: toolResponse.arguments
+          }
+        ]
+      })
+
+      render(
+        <AskUserQuestionOptimisticInputProvider
+          value={{
+            'call-ask': {
+              questions,
+              answers: { 'Choose logger': 'Winston' }
+            }
+          }}>
+          <AgentToolRenderer toolResponse={toolResponse} />
+        </AskUserQuestionOptimisticInputProvider>
+      )
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      expect(screen.getByText('Winston')).not.toBeVisible()
+      fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeVisible()
     })
 

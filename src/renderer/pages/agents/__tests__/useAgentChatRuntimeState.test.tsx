@@ -1,5 +1,5 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   disposeOverlay: vi.fn(),
   sendTurn: vi.fn(),
   chatStop: vi.fn(),
-  chatSetMessages: vi.fn()
+  chatSetMessages: vi.fn(),
+  respondToolApproval: vi.fn(),
+  toastWarning: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -55,10 +57,52 @@ const assistantMessage = {
   parts: [],
   metadata: { status: 'pending' }
 } as CherryUIMessage
+const askUserQuestionInput = {
+  questions: [
+    {
+      question: 'Choose logger',
+      header: 'Logger',
+      options: [{ label: 'Winston' }, { label: 'Pino' }],
+      multiSelect: false
+    }
+  ]
+}
+const askUserQuestionUpdatedInput = {
+  ...askUserQuestionInput,
+  answers: { 'Choose logger': 'Winston' }
+}
+
+function makeAskUserQuestionPart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolName: 'AskUserQuestion',
+    toolCallId: 'call-ask',
+    state: 'approval-requested',
+    input: askUserQuestionInput,
+    approval: { id: 'approval-ask' },
+    ...overrides
+  } as unknown as CherryMessagePart
+}
+
+function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
+  return {
+    match: {
+      part,
+      state: 'approval-requested',
+      toolCallId: 'call-ask',
+      messageId: 'assistant-1',
+      approvalId: 'approval-ask',
+      input: askUserQuestionInput
+    },
+    approved: true,
+    updatedInput: askUserQuestionUpdatedInput
+  }
+}
 
 describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
@@ -96,6 +140,23 @@ describe('useAgentChatRuntimeState', () => {
       disposeOverlay: mocks.disposeOverlay,
       reset: vi.fn()
     })
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ai: {
+          toolApproval: {
+            respond: mocks.respondToolApproval
+          }
+        }
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        warning: mocks.toastWarning
+      }
+    })
   })
 
   it('refreshes persisted agent messages and drops stale overlay when an execution terminates', async () => {
@@ -132,5 +193,44 @@ describe('useAgentChatRuntimeState', () => {
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1))
     expect(mocks.disposeOverlay).toHaveBeenCalledWith('assistant-1')
     expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.disposeOverlay.mock.invocationCallOrder[0])
+  })
+
+  it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        activeAgent: undefined,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval(makeAskUserQuestionApproval(part))
+    })
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+  })
+
+  it('removes the temporary AskUserQuestion input when approval delivery fails', async () => {
+    mocks.respondToolApproval.mockRejectedValueOnce(new Error('ipc boom'))
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        activeAgent: undefined,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await expect(result.current.respondToolApproval(makeAskUserQuestionApproval(part))).rejects.toThrow('ipc boom')
+    })
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
 })

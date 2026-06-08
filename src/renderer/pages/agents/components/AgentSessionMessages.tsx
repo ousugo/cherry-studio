@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent/AskUserQuestionOptimisticContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSession'
@@ -21,6 +22,7 @@ type Props = {
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
+  optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   modelFallback?: ModelSnapshot
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -41,6 +43,7 @@ const AgentSessionMessages = ({
   messages,
   activeAgent,
   partsByMessageId,
+  optimisticAskUserQuestionInputsByToolCallId = {},
   modelFallback,
   isLoading,
   hasOlder = false,
@@ -110,9 +113,11 @@ const AgentSessionMessages = ({
   }, [sessionId])
 
   return (
-    <MessageListProvider value={messageList}>
-      <MessageList />
-    </MessageListProvider>
+    <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
+      <MessageListProvider value={messageList}>
+        <MessageList />
+      </MessageListProvider>
+    </AskUserQuestionOptimisticInputProvider>
   )
 }
 
