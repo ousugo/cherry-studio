@@ -20,7 +20,7 @@
         "website": {
           "official": "https://open.cherryin.ai",
           "apiKey": "https://open.cherryin.ai/console/token",
-          "docs": "https://open.cherryin.ai",
+          "docs": "https://docs.cherryin.ai/zh/docs",
           "models": "https://open.cherryin.ai/pricing"
         }
       }
