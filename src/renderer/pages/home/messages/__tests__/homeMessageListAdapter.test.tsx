@@ -1,4 +1,4 @@
-import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
+import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types'
 import { render } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -284,5 +284,23 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(consumePendingTopicImageActions('topic-b')).toEqual([
       expect.objectContaining({ id: requestB.id, topic: expect.objectContaining({ id: 'topic-b' }) })
     ])
+  })
+
+  it('does not bind SEND_MESSAGE to scroll-to-bottom', () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    const runtime: MessageListRuntime = {
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+
+    value?.actions.bindRuntime?.(runtime)
+
+    expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
+    expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
+    expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
   })
 })

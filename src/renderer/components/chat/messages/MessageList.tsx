@@ -438,6 +438,12 @@ const MessageList = () => {
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
   const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
+  const latestAssistantGroupMessages = latestAssistantGroupKey
+    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
+    : undefined
+  const preserveScrollAnchor =
+    latestAssistantGroupMessages?.some((message) => message.role === 'assistant' && message.status === 'pending') ??
+    false
   // The runtime now treats this key as the group to scroll to the viewport
   // top (rather than scrolling to the absolute bottom). User-message groups
   // are keyed by `user${msgId}` — see stableGroupedMessages.
@@ -476,6 +482,7 @@ const MessageList = () => {
               topPadding={topPadding}
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
+              preserveScrollAnchor={preserveScrollAnchor}
               topicId={topic.id}
               hasMoreTop={hasOlder}
               onScrollContainerReady={handleScrollContainerReady}

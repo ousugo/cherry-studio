@@ -1407,7 +1407,8 @@
       },
       "new_session": "新任務 {{Command}}",
       "new_topic": "新對話 {{Command}}",
-      "paste_text_file": "貼到輸入框",
+      "paste_text_file": "在文字框中顯示",
+      "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "resource_panel": {

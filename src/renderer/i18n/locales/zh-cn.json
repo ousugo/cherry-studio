@@ -1407,7 +1407,8 @@
       },
       "new_session": "新任务 {{Command}}",
       "new_topic": "新对话 {{Command}}",
-      "paste_text_file": "粘贴到输入框",
+      "paste_text_file": "在文本框中显示",
+      "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送，/ 选择工具",
       "resource_panel": {

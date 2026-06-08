@@ -60,6 +60,8 @@ export interface ChatVirtualizerRuntimeOptions<T> {
   topicId?: string
   /** Padding reserved below the last message; used to restore to the bottom. */
   bottomPadding: number
+  /** Keep the top-pinned user message stable while an assistant response is still growing. */
+  preserveScrollAnchor?: boolean
 }
 
 interface ScrollerEventHandlers {
@@ -111,7 +113,8 @@ export function useChatVirtualizerRuntime<T>({
   topReachOverscanItems,
   scrollToTopKey,
   topicId,
-  bottomPadding
+  bottomPadding,
+  preserveScrollAnchor = false
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -119,12 +122,21 @@ export function useChatVirtualizerRuntime<T>({
   const smoothScroll = useSmoothScrollAnimation(scrollerRef)
 
   const atBottom = useAtBottomTracker()
-  const anchor = useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll })
+  const preserveScrollAnchorRef = useRef(preserveScrollAnchor)
+  preserveScrollAnchorRef.current = preserveScrollAnchor
+  const canReleaseScrollAnchor = useCallback(() => !preserveScrollAnchorRef.current, [])
+  const anchor = useScrollAnchor({
+    scrollerRef,
+    vlistHandleRef,
+    smoothScroll,
+    canRelease: canReleaseScrollAnchor
+  })
+  const isBottomFollowSuppressed = useCallback(() => preserveScrollAnchorRef.current || anchor.isPinned(), [anchor])
   const autoStick = useAutoStickToBottom({
     scrollerRef,
     smoothScroll,
     isAtBottom: atBottom.isAtBottom,
-    isLocked: anchor.isPinned,
+    isLocked: isBottomFollowSuppressed,
     markStuck: atBottom.notifyProgrammaticStick
   })
 
@@ -206,6 +218,7 @@ export function useChatVirtualizerRuntime<T>({
     findDataIndexByKey,
     isAtBottom: atBottom.isAtBottom,
     notifyProgrammaticStick: atBottom.notifyProgrammaticStick,
+    suppressBottomFollow: isBottomFollowSuppressed,
     releaseAnchor: anchor.release,
     isAnimating: smoothScroll.isAnimating
   })
@@ -217,13 +230,17 @@ export function useChatVirtualizerRuntime<T>({
     const scroller = scrollerRef.current
     if (!content || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
+      const wasBottomFollowSuppressed = isBottomFollowSuppressed()
       // Anchor first: it may adjust spacer height. Auto-stick reads
       // scrollHeight after, so any pin-driven layout change is reflected.
       anchor.onContentSizeChange()
+      if (wasBottomFollowSuppressed || isBottomFollowSuppressed()) {
+        atBottom.reset()
+      }
       autoStick.onContentSizeChange()
       // Feed the at-bottom tracker so its state machine stays current.
       const el = scrollerRef.current
-      if (el) {
+      if (el && !wasBottomFollowSuppressed && !isBottomFollowSuppressed()) {
         atBottom.notifySizeChange({
           offset: el.scrollTop,
           scrollSize: el.scrollHeight,
@@ -239,7 +256,7 @@ export function useChatVirtualizerRuntime<T>({
     // room below the messages.
     if (scroller) observer.observe(scroller)
     return () => observer.disconnect()
-  }, [anchor, atBottom, autoStick])
+  }, [anchor, atBottom, autoStick, isBottomFollowSuppressed])
 
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 
@@ -257,7 +274,8 @@ export function useChatVirtualizerRuntime<T>({
     const idx = findDataIndexByKey(scrollToTopKey)
     if (idx < 0) return
     anchor.pinTo(idx)
-  }, [anchor, findDataIndexByKey, scrollToTopKey])
+    atBottom.reset()
+  }, [anchor, atBottom, findDataIndexByKey, scrollToTopKey])
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
   // restores the saved anchor for this topic, or scrolls to the newest message
@@ -316,10 +334,14 @@ export function useChatVirtualizerRuntime<T>({
     const direction: 'up' | 'down' | 'none' =
       wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
     lastScrollOffsetRef.current = offset
-    atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction })
+    if (isBottomFollowSuppressed()) {
+      atBottom.reset()
+    } else {
+      atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction })
+    }
     saveScrollPosition()
     maybeNotifyReachTop(offset)
-  }, [anchor, atBottom, maybeNotifyReachTop, saveScrollPosition, smoothScroll])
+  }, [anchor, atBottom, isBottomFollowSuppressed, maybeNotifyReachTop, saveScrollPosition, smoothScroll])
 
   const onScrollEnd = useCallback(() => {
     lastWheelDirRef.current = 'none'

@@ -16,14 +16,14 @@ import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult }
 
 const {
   mockUseModelSelectorData,
-  mockNavigate,
+  mockOpenSettingsWindow,
   mockScrollToIndex,
   mockLoggerError,
   mockVirtualListSizes,
   mockAvailablePopoverHeight
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
-  mockNavigate: vi.fn(),
+  mockOpenSettingsWindow: vi.fn(),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
   mockVirtualListSizes: [] as number[],
@@ -43,8 +43,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => mockNavigate
+vi.mock('@renderer/services/SettingsWindowService', () => ({
+  openSettingsWindow: mockOpenSettingsWindow
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -77,6 +77,21 @@ vi.mock('@cherrystudio/ui', () => {
     Checkbox: ({ checked, ...props }: InputHTMLAttributes<HTMLInputElement>) => (
       <input type="checkbox" checked={Boolean(checked)} readOnly {...props} />
     ),
+    CustomTag: ({
+      children,
+      onClick,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & { color?: string; size?: number }) => {
+      const { color, size, ...buttonProps } = props
+      void color
+      void size
+
+      return (
+        <button type="button" onClick={onClick} {...buttonProps}>
+          {children}
+        </button>
+      )
+    },
     Input: ({
       ref,
       ...props
@@ -299,12 +314,12 @@ function mockSelectorChromeHeight(height: number) {
 describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
-    mockNavigate.mockReset()
+    mockOpenSettingsWindow.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
     mockAvailablePopoverHeight.value = undefined
-    mockNavigate.mockResolvedValue(undefined)
+    mockOpenSettingsWindow.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -639,7 +654,7 @@ describe('ModelSelector', () => {
     expect(screen.getByTestId('model-selector-content')).toHaveAttribute('hidden')
   })
 
-  it('navigates from provider settings without selecting a model', async () => {
+  it('opens provider settings from the provider group action without selecting a model', async () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
     const onSelect = vi.fn()
 
@@ -647,9 +662,49 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
+    await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=openai'))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('opens provider settings from the CherryAI trial tag without selecting a model', async () => {
+    const cherryProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
+    const modelId = 'cherryai::Qwen/Qwen3-8B' as UniqueModelId
+    const cherryModel = {
+      ...makeModel(modelId, 'Qwen3-8B'),
+      providerId: 'cherryai',
+      apiModelId: 'Qwen/Qwen3-8B'
+    } as Model
+    const cherryItem = makeModelItem(modelId, {
+      model: cherryModel,
+      provider: cherryProvider,
+      modelIdentifier: 'Qwen/Qwen3-8B'
+    })
+
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [
+          {
+            key: 'provider-cherryai',
+            type: 'group',
+            title: 'CherryAI',
+            groupKind: 'provider',
+            provider: cherryProvider,
+            canNavigateToSettings: true
+          },
+          cherryItem
+        ],
+        modelItems: [cherryItem],
+        selectableModelsById: new Map([[modelId, cherryModel]]),
+        sortedProviders: [cherryProvider]
+      })
     )
+    const onSelect = vi.fn()
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('cherryin'))
+
+    await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
     expect(onSelect).not.toHaveBeenCalled()
   })
 

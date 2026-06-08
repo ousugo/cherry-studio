@@ -1408,6 +1408,7 @@
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
       "paste_text_file": "Dán vào ô nhập",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "resource_panel": {

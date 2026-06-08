@@ -162,6 +162,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       handleRef,
       items,
       onScrollContainerReady,
+      preserveScrollAnchor,
       renderItem,
       topPadding
     }: any) => {
@@ -191,6 +192,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       return (
         <div
           data-force-scroll-key={forceScrollToBottomKey ?? ''}
+          data-preserve-scroll-anchor={String(Boolean(preserveScrollAnchor))}
           data-testid="virtual-list"
           data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
@@ -202,12 +204,16 @@ vi.mock('../list/MessageVirtualList', async () => {
   }
 })
 
-const createMessage = (id: string, role: MessageListItem['role']): MessageListItem => ({
+const createMessage = (
+  id: string,
+  role: MessageListItem['role'],
+  status: MessageListItem['status'] = 'success'
+): MessageListItem => ({
   id,
   role,
   topicId: 'topic-1',
   createdAt: '2026-01-01T00:00:00Z',
-  status: 'success'
+  status
 })
 
 const createValue = (
@@ -302,6 +308,12 @@ describe('MessageList', () => {
     })
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
+  })
+
+  it('preserves the top anchor while the latest assistant response is pending', () => {
+    renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
   })
 
   it('uses the immersive navbar inset as the virtual-list top padding', () => {

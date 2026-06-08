@@ -252,7 +252,6 @@ export function useHomeMessageListProviderValue({
       flushPendingTopicImageActions(runtime)
 
       const unsubscribes = [
-        EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
         EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
           consumeTopicImageAction(runtime, 'copy', data)
         ),
@@ -444,6 +443,17 @@ export function useHomeMessageListProviderValue({
       translationAbortControllersRef.current.get(messageId)?.abort()
     },
     []
+  )
+
+  const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
+    async (messageId) => {
+      const currentParts = partsByMessageIdRef.current[messageId]
+      if (!currentParts) return
+      const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+      if (baseParts.length === currentParts.length) return
+      await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
+    },
+    [requireChatWrite]
   )
 
   const getMessageSiblings = useCallback(
@@ -649,6 +659,7 @@ export function useHomeMessageListProviderValue({
       regenerateMessage,
       translateMessage,
       abortMessageTranslation,
+      removeMessageTranslation,
       renderRegenerateModelPicker
     }),
     [
@@ -682,6 +693,7 @@ export function useHomeMessageListProviderValue({
       startNewContext,
       selectionController.actions,
       translateMessage,
+      removeMessageTranslation,
       updateRenderConfig
     ]
   )

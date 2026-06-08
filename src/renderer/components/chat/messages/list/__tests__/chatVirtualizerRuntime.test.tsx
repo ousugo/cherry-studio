@@ -1,30 +1,48 @@
 import { act, render } from '@testing-library/react'
-import { type ReactNode } from 'react'
+import { type ReactNode, type Ref } from 'react'
 import type { VListHandle } from 'virtua'
 import { describe, expect, it, vi } from 'vitest'
 
-import { type ChatVirtualizerRuntime, useChatVirtualizerRuntime } from '../chatVirtualizerRuntime'
+import {
+  type ChatVirtualizerRuntime,
+  type MessageVirtualListHandle,
+  useChatVirtualizerRuntime
+} from '../chatVirtualizerRuntime'
 
 const getStringItemKey = (item: string) => item
 
 interface RuntimeProbeProps {
   items: string[]
   hasMoreTop?: boolean
+  handleRef?: Ref<MessageVirtualListHandle>
   onReachTop?: () => void
   onRuntime(runtime: ChatVirtualizerRuntime<string>): void
+  preserveScrollAnchor?: boolean
+  scrollToTopKey?: string
 }
 
 interface RuntimeDomProbeProps extends RuntimeProbeProps {
   nonce?: number
 }
 
-function RuntimeProbe({ items, hasMoreTop = false, onReachTop, onRuntime }: RuntimeProbeProps) {
+function RuntimeProbe({
+  items,
+  hasMoreTop = false,
+  handleRef,
+  onReachTop,
+  onRuntime,
+  preserveScrollAnchor,
+  scrollToTopKey
+}: RuntimeProbeProps) {
   const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey: getStringItemKey,
     renderItem: (item): ReactNode => <span>{item}</span>,
     hasMoreTop,
+    handleRef,
     onReachTop,
+    preserveScrollAnchor,
+    scrollToTopKey,
     topReachOverscanItems: 4,
     bottomPadding: 12
   })
@@ -32,14 +50,26 @@ function RuntimeProbe({ items, hasMoreTop = false, onReachTop, onRuntime }: Runt
   return null
 }
 
-function RuntimeDomProbe({ items, hasMoreTop = false, nonce, onReachTop, onRuntime }: RuntimeDomProbeProps) {
+function RuntimeDomProbe({
+  items,
+  handleRef,
+  hasMoreTop = false,
+  nonce,
+  onReachTop,
+  onRuntime,
+  preserveScrollAnchor,
+  scrollToTopKey
+}: RuntimeDomProbeProps) {
   void nonce
   const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey: getStringItemKey,
     renderItem: (item): ReactNode => <span>{item}</span>,
     hasMoreTop,
+    handleRef,
     onReachTop,
+    preserveScrollAnchor,
+    scrollToTopKey,
     topReachOverscanItems: 4,
     bottomPadding: 12
   })
@@ -184,5 +214,168 @@ describe('useChatVirtualizerRuntime', () => {
     })
 
     expect(onReachTop).toHaveBeenCalledTimes(1)
+  })
+
+  it('resets bottom-follow state when pinning a message to the viewport top', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    const view = render(
+      <RuntimeProbe items={['message-a']} handleRef={handleRef} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+
+    runtime!.vlistHandleRef.current = createHandle({
+      getItemOffset: vi.fn(() => 120)
+    })
+    runtime!.scrollerRef.current = {
+      scrollTop: 0,
+      scrollHeight: 600,
+      clientHeight: 400
+    } as HTMLDivElement
+
+    act(() => {
+      handle!.scrollToBottom()
+    })
+    expect(handle!.isAtBottom()).toBe(true)
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-a']}
+        handleRef={handleRef}
+        scrollToTopKey="message-a"
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    expect(handle!.isAtBottom()).toBe(false)
+  })
+
+  it('does not restore bottom-follow from scroll events while preserving the top anchor', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    const view = render(
+      <RuntimeProbe items={['message-a']} handleRef={handleRef} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+    let scrollHeight = 600
+    const scroller = {
+      scrollTop: 0,
+      clientHeight: 400
+    } as HTMLDivElement
+    Object.defineProperty(scroller, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    })
+
+    runtime!.vlistHandleRef.current = createHandle({
+      getItemOffset: vi.fn(() => 120)
+    })
+    runtime!.scrollerRef.current = scroller
+
+    act(() => {
+      handle!.scrollToBottom()
+    })
+    expect(handle!.isAtBottom()).toBe(true)
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-a']}
+        handleRef={handleRef}
+        preserveScrollAnchor
+        scrollToTopKey="message-a"
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+    expect(handle!.isAtBottom()).toBe(false)
+
+    scroller.scrollTop = 300
+    scrollHeight = 700
+
+    act(() => {
+      runtime!.scrollerProps.onScroll(300)
+    })
+
+    expect(handle!.isAtBottom()).toBe(false)
+  })
+
+  it('does not auto-stick to bottom on content growth while preserving the top anchor', () => {
+    const originalResizeObserver = globalThis.ResizeObserver
+    const callbacks: ResizeObserverCallback[] = []
+
+    class ResizeObserverMock {
+      disconnect = vi.fn()
+      observe = vi.fn()
+      unobserve = vi.fn()
+
+      constructor(callback: ResizeObserverCallback) {
+        callbacks.push(callback)
+      }
+    }
+
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      let scrollHeight = 600
+      const view = render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight
+      })
+      Object.defineProperty(scroller, 'clientHeight', {
+        configurable: true,
+        get: () => 400
+      })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => {
+        handle!.scrollToBottom()
+      })
+      expect(scrollTop).toBe(200)
+      expect(handle!.isAtBottom()).toBe(true)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+
+      scrollHeight = 900
+      act(() => {
+        callbacks[0]?.([], {} as ResizeObserver)
+      })
+
+      expect(scrollTop).toBe(200)
+      expect(handle!.isAtBottom()).toBe(false)
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver
+    }
   })
 })

@@ -1408,6 +1408,7 @@
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
       "paste_text_file": "Επικόλληση στην είσοδο",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "resource_panel": {

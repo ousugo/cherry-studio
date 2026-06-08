@@ -6,7 +6,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { type ReactNode, useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { composerInputTokenComponentByKind, ComposerToken } from '../../tokens'
+import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../../tokens'
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
@@ -46,7 +46,12 @@ vi.mock('@cherrystudio/ui', async () => {
           <span data-testid="composer-token-tooltip-content">{content}</span>
         </span>
       )
-    }
+    },
+    Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
+    PopoverContent: ({ children }: { children: ReactNode }) => (
+      <span data-testid="composer-token-popover-content">{children}</span>
+    ),
+    PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
   }
 })
 
@@ -180,6 +185,7 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
+    expect(screen.getByText('2 KB').closest('div')).toHaveClass('justify-between')
     expect(screen.getByAltText('avatar-preview.png')).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
   })
 
@@ -250,6 +256,37 @@ describe('ComposerToken', () => {
     expect(token?.querySelector('[data-file-token-icon="text"]')).not.toHaveClass('border-info', 'bg-background')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
+  })
+
+  it('extends file tokens with interactive actions without changing the shared chip scale', () => {
+    const { container } = render(
+      <FileComposerToken
+        token={{
+          id: 'file:pasted-text',
+          kind: 'file',
+          label: '已粘贴的文本.txt',
+          payload: createFileMetadata({
+            name: 'pasted_text.txt',
+            origin_name: '已粘贴的文本.txt',
+            path: '/tmp/pasted_text.txt',
+            size: 23552,
+            ext: '.txt',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+        tooltipMetadataLayout="split"
+        tooltipActions={<button type="button">在文本框中显示</button>}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('h-6', 'font-medium', 'text-xs', 'leading-[inherit]')
+    expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('已粘贴的文本.txt')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TXT')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('23 KB')
+    expect(screen.getByRole('button', { name: '在文本框中显示' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除' })).toBeNull()
   })
 
   it('keeps selected file tokens highlighted with primary border and ring', () => {

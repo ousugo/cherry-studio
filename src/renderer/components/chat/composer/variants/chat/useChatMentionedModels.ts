@@ -65,7 +65,7 @@ export function useChatMentionedModels({
     if (!enabled) {
       mentionedModelSelectorInitKeyRef.current = null
       setMentionedModelSelectorValue((currentModels) => (currentModels.length === 0 ? currentModels : []))
-      setMentionedModelMultiSelectMode(false)
+      setMentionedModelMultiSelectMode((currentEnabled) => (currentEnabled ? false : currentEnabled))
       return
     }
 
@@ -79,7 +79,8 @@ export function useChatMentionedModels({
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
     mentionedModelSelectorInitKeyRef.current = initializationKey
     initializeMentionedModelSelector(isInitialSelection, runtimeModel)
-  }, [initializeMentionedModelSelector, runtimeModel, runtimeModelPending, selectedAssistantId, topicId, enabled])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
+  }, [runtimeModel, runtimeModelPending, selectedAssistantId, topicId, enabled])
 
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {

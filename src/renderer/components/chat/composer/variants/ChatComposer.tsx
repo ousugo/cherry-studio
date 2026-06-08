@@ -393,6 +393,7 @@ const ChatComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
+  const restoredEditingSessionIdRef = useRef<number | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!topic.assistantId && !isAssistantLoading && !assistant
@@ -506,7 +507,13 @@ const ChatComposerInner = ({
   })
 
   useEffect(() => {
-    if (!editingMessageForCurrentTopic) return
+    if (!editingMessageForCurrentTopic) {
+      restoredEditingSessionIdRef.current = null
+      return
+    }
+    if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
+    restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
+
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
       const currentDraft = actionsRef.current.getDraft()
       savedDraftBeforeEditingRef.current = {
@@ -518,8 +525,8 @@ const ChatComposerInner = ({
     }
 
     restoreEditableMessageDraft(editingMessageForCurrentTopic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the current selectable knowledge bases without resetting the edit draft when they refresh.
-  }, [actionsRef, editingMessageForCurrentTopic])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
+  }, [actionsRef, editingMessageForCurrentTopic, filesRef, selectedKnowledgeBasesRef])
 
   useEffect(() => {
     if (!staleEditingMessage) return

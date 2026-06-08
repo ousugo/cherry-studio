@@ -4,8 +4,8 @@ import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/features/command'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -268,7 +268,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -476,11 +475,11 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+      openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`).catch((error) => {
         logger.error('Failed to navigate to provider settings', error as Error, { providerId })
       })
     },
-    [navigate, setOpen]
+    [setOpen]
   )
 
   const handleTogglePin = useCallback(
