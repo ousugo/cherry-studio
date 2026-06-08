@@ -20,12 +20,14 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { useToasts } from '@renderer/components/TopView/toast'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { useAssistantMutationsById } from '@renderer/pages/library/adapters/assistantAdapter'
 import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/pages/library/constants'
 import { fetchGenerate } from '@renderer/services/ApiService'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AGENT_PROMPT } from '@shared/config/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Database, Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
@@ -408,6 +410,7 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
+  const toast = useToasts()
   const [generating, setGenerating] = useState(false)
   const [showUndoButton, setShowUndoButton] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState('')
@@ -443,10 +446,15 @@ function AssistantPromptField({
     try {
       const generatedPrompt = await fetchGenerate({
         prompt: AGENT_PROMPT,
-        content: generateSource
+        content: generateSource,
+        throwOnError: true
       })
 
-      if (generateRequestIdRef.current !== requestId || !generatedPrompt) return
+      if (generateRequestIdRef.current !== requestId) return
+      if (!generatedPrompt) {
+        toast.error(t('error.no_response'))
+        return
+      }
 
       setOriginalPrompt(prompt)
       form.setValue('prompt', generatedPrompt, { shouldDirty: true, shouldTouch: true })
@@ -456,6 +464,7 @@ function AssistantPromptField({
       logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
         assistantId: resource.id
       })
+      toast.error(formatErrorMessageWithPrefix(error, t('library.config.prompt.generate')))
     } finally {
       if (generateRequestIdRef.current === requestId) {
         setGenerating(false)

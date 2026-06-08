@@ -14,6 +14,7 @@ const {
   fetchGenerateMock,
   mcpStatusState,
   openSettingsWindowMock,
+  toastErrorMock,
   toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
@@ -51,6 +52,7 @@ const {
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsWindowMock: vi.fn(),
+  toastErrorMock: vi.fn(),
   toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
@@ -185,6 +187,10 @@ vi.mock('@renderer/hooks/usePromptProcessor', () => ({
   usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
 }))
 
+vi.mock('@renderer/components/TopView/toast', () => ({
+  useToasts: () => ({ error: toastErrorMock })
+}))
+
 vi.mock('@renderer/services/ApiService', () => ({
   fetchGenerate: fetchGenerateMock
 }))
@@ -219,6 +225,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.required_field': 'Required',
           'common.save': 'Save',
           'common.undo': 'Undo',
+          'error.no_response': 'No response',
           'library.action.enable': 'Enable',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
@@ -693,6 +700,36 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
 
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+  })
+
+  it('shows a toast when assistant prompt generation fails', async () => {
+    fetchGenerateMock.mockRejectedValueOnce(new Error('Model failed'))
+
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Generate prompt: Model failed'))
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    expect(fetchGenerateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Original prompt',
+        throwOnError: true
+      })
+    )
+  })
+
+  it('shows a toast when assistant prompt generation returns no response', async () => {
+    fetchGenerateMock.mockResolvedValueOnce('')
+
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('No response'))
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
   })
 
