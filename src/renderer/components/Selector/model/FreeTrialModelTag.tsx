@@ -1,8 +1,8 @@
 import { CustomTag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getProviderLabel } from '@renderer/i18n/label'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +33,6 @@ function resolveTrialProviderId(model: Model): string {
  */
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBeforeNavigate }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
 
   if (model.providerId !== 'cherryai') {
     return null
@@ -43,7 +42,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
 
   const navigateToProvider = () => {
     onBeforeNavigate?.()
-    navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+    openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`).catch((error) => {
       logger.error('Failed to navigate to provider settings', error as Error, { providerId })
     })
   }
