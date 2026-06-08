@@ -1,4 +1,4 @@
-import { CommandContextMenu } from '@renderer/commands'
+import { CommandContextMenu } from '@renderer/features/command'
 import { cn } from '@renderer/utils/style'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback } from 'react'

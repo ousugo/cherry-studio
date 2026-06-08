@@ -9,7 +9,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { CommandPopupMenu } from '@renderer/commands'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
   remapResourceListExpandedGroupIds,
@@ -28,6 +27,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useCurrentTabId } from '@renderer/context/TabIdContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { CommandPopupMenu } from '@renderer/features/command'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'

@@ -5,7 +5,7 @@ import {
   type ImagePreviewLabels
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils'

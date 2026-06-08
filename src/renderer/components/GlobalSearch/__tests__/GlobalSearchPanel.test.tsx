@@ -182,7 +182,7 @@ vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   CommandContextMenu: ({ children }: any) => children
 }))
 

@@ -1,4 +1,4 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Eye } from 'lucide-react'

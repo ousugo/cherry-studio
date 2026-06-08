@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 

@@ -1,6 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useCommandHandler } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
@@ -18,6 +17,7 @@ import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/compo
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/features/command'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
