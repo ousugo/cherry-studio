@@ -666,7 +666,7 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('opens provider settings from the CherryAI trial tag without selecting a model', async () => {
+  it('opens CherryAI provider settings from the group action without rendering a row navigation tag', async () => {
     const cherryProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
     const modelId = 'cherryai::Qwen/Qwen3-8B' as UniqueModelId
     const cherryModel = {
@@ -689,7 +689,8 @@ describe('ModelSelector', () => {
             title: 'CherryAI',
             groupKind: 'provider',
             provider: cherryProvider,
-            canNavigateToSettings: true
+            canNavigateToSettings: true,
+            settingsProviderId: 'cherryin'
           },
           cherryItem
         ],
@@ -702,7 +703,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
 
-    fireEvent.click(screen.getByText('cherryin'))
+    expect(screen.queryByText('cherryin')).toBeNull()
+    fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
     await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
     expect(onSelect).not.toHaveBeenCalled()
