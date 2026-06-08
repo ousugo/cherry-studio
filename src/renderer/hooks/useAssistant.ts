@@ -46,7 +46,7 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  * consumer.
  */
 export function useAssistantsApi(options: { enabled?: boolean } = {}) {
-  const { data, isLoading, error, refetch, mutate } = useQuery('/assistants', {
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/assistants', {
     enabled: options.enabled ?? true,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
@@ -54,7 +54,9 @@ export function useAssistantsApi(options: { enabled?: boolean } = {}) {
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
     total: data?.total ?? 0,
+    hasLoaded: data !== undefined,
     isLoading,
+    isRefreshing,
     error,
     refetch,
     mutate
@@ -133,12 +135,14 @@ export function useAssistantMutations() {
 // ─── Tier 2: composed hooks ───────────────────────────────────────────────
 
 export function useAssistants() {
-  const { assistants, isLoading, error, refetch } = useAssistantsApi()
+  const { assistants, hasLoaded, isLoading, isRefreshing, error, refetch } = useAssistantsApi()
   const { createAssistant, deleteAssistant, updateAssistant } = useAssistantMutations()
 
   return {
     assistants,
+    hasLoaded,
     isLoading,
+    isRefreshing,
     error,
     refetch,
     addAssistant: (dto: CreateAssistantDto) => createAssistant(dto),

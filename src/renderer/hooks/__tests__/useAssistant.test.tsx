@@ -38,6 +38,16 @@ describe('useAssistants', () => {
       query: { limit: 500 }
     })
     expect(result.current.assistants).toEqual([assistant])
+    expect(result.current.hasLoaded).toBe(true)
+  })
+
+  it('reports the assistant list as unresolved before DataApi returns data', () => {
+    mockUseQuery.mockReturnValue(queryResult(undefined, { isLoading: false }))
+
+    const { result } = renderHook(() => useAssistants())
+
+    expect(result.current.assistants).toEqual([])
+    expect(result.current.hasLoaded).toBe(false)
   })
 })
 
