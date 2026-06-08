@@ -218,7 +218,11 @@
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
         "error": {
-          "loadFailed": "Failed to load tasks"
+          "createFailed": "Failed to create task",
+          "deleteFailed": "Failed to delete task",
+          "loadFailed": "Failed to load tasks",
+          "runFailed": "Failed to run task",
+          "updateFailed": "Failed to update task"
         },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
@@ -1957,6 +1961,7 @@
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "create_success": "Created successfully",
     "current": "Current",
     "cut": "Cut",
     "default": "Default",

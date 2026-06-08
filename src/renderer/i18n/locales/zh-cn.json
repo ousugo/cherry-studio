@@ -218,7 +218,11 @@
         "edit": "编辑",
         "empty": "暂无定时任务。添加一个开始吧。",
         "error": {
-          "loadFailed": ""
+          "createFailed": "创建任务失败",
+          "deleteFailed": "删除任务失败",
+          "loadFailed": "加载任务列表失败",
+          "runFailed": "运行任务失败",
+          "updateFailed": "更新任务失败"
         },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
@@ -231,7 +235,7 @@
           "failed": "失败",
           "justNow": "刚刚",
           "label": "运行历史",
-          "loadError": "",
+          "loadError": "加载运行历史失败",
           "result": "结果",
           "runAt": "运行时间",
           "running": "运行中...",
@@ -1957,6 +1961,7 @@
     "copied": "已复制",
     "copy": "复制",
     "copy_failed": "复制失败",
+    "create_success": "创建成功",
     "current": "当前",
     "cut": "剪切",
     "default": "默认",
