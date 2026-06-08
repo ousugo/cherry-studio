@@ -11,6 +11,7 @@ import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { deriveRootSpanId } from '../core/AiTurnTrace'
 import { TraceSpanStore } from './TraceSpanStore'
 
 const logger = loggerService.withContext('SpanCacheService')
@@ -21,6 +22,26 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
   for (const span of base) byId.set(span.id, span)
   for (const span of overrides) byId.set(span.id, span)
   return Array.from(byId.values())
+}
+
+/**
+ * A warm Claude Code connection bakes one `TRACEPARENT` (the container root) at spawn and reuses it
+ * across every turn, so each `claude_code.*` span parents to the container root — a sibling of the
+ * per-turn `ai.turn` spans, not a child. Turns run sequentially with non-overlapping time windows,
+ * so re-home each container-root `claude_code` span under the `ai.turn` whose [start, end] contains
+ * its start. Display-only re-parenting at read; the stored spans stay OTel-faithful.
+ */
+function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): SpanEntity[] {
+  const containerRoot = deriveRootSpanId(traceId)
+  const turns = spans
+    .filter((s) => s.name === 'ai.turn' && s.parentId === containerRoot)
+    .map((s) => ({ id: s.id, start: s.startTime, end: s.endTime ?? Number.POSITIVE_INFINITY }))
+  if (turns.length === 0) return spans
+  return spans.map((s) => {
+    if (s.parentId !== containerRoot || !s.name?.startsWith('claude_code')) return s
+    const turn = turns.find((t) => s.startTime >= t.start && s.startTime <= t.end)
+    return turn ? { ...s, parentId: turn.id } : s
+  })
 }
 
 @Injectable('SpanCacheService')
@@ -166,7 +187,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   async getSpans(topicId: string, traceId: string, modelName?: string) {
     const live = this.store.getSpans({ topicId, traceId, modelName })
     const history = await this.getHistoryData(topicId, traceId, modelName)
-    return mergeSpansById(history, live)
+    return reparentClaudeCodeUnderTurns(mergeSpansById(history, live), traceId)
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
