@@ -6658,8 +6658,8 @@
       "api_key": "API Key",
       "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",

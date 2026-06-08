@@ -6658,8 +6658,8 @@
       "api_key": "API 金鑰",
       "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
-      "bulk_disable": "全部關閉",
-      "bulk_enable": "全選",
+      "bulk_disable": "全部停用",
+      "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型檢查皆成功",
