@@ -31,7 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
 
@@ -39,6 +38,10 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+
+  // StorageMonitor: main-process disk-space watcher for the user-data volume
+  StorageMonitor_GetHealth = 'storage-monitor:get-health',
+  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -214,7 +217,6 @@ export enum IpcChannel {
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  Word_ReadPreview = 'word:readPreview',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
@@ -242,9 +244,6 @@ export enum IpcChannel {
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
-
-  // Excel
-  Excel_ReadWorkbookPreview = 'excel:readWorkbookPreview',
 
   Export_Word = 'export:word',
 
@@ -370,14 +369,10 @@ export enum IpcChannel {
   TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
-  // API Server
-  ApiServer_Start = 'api-server:start',
-  ApiServer_Stop = 'api-server:stop',
-  ApiServer_Restart = 'api-server:restart',
-  ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_Ready = 'api-server:ready',
-  // NOTE: This api is not be used.
-  ApiServer_GetConfig = 'api-server:get-config',
+  // API Gateway
+  ApiGateway_Start = 'api-gateway:start',
+  ApiGateway_Stop = 'api-gateway:stop',
+  ApiGateway_Restart = 'api-gateway:restart',
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',

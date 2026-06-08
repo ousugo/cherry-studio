@@ -186,7 +186,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
     t: (key: string) =>
       ({
         'common.loading': 'Loading...',
-        'history.error.topic_not_found': 'Topic not found'
+        'history.error.topic_not_found': 'Conversation not found'
       })[key] ?? key
   })
 }))
@@ -578,7 +578,7 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('Topic not found')
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('Conversation not found')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()

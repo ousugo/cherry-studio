@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "53039679-1743-4c9e-b7b6-b7b2549d8a77",
-  "prevId": "bf730106-4a60-48cf-93f8-0be5dc34fcbe",
+  "id": "4ef947fa-45e8-4205-a4b2-395ac3b4ad1b",
+  "prevId": "42474ea0-ee52-400c-830d-844399281ff1",
   "tables": {
     "agent": {
       "name": "agent",
@@ -517,13 +517,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "trace_id": {
-          "name": "trace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -637,6 +630,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "stats": {
           "name": "stats",
           "type": "text",
@@ -670,6 +670,11 @@
         "agent_session_message_session_created_id_idx": {
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
+          "isUnique": false
+        },
+        "agent_session_message_status_idx": {
+          "name": "agent_session_message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -2009,7 +2014,7 @@
       "checkConstraints": {
         "knowledge_item_type_check": {
           "name": "knowledge_item_type_check",
-          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
+          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'directory')"
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
@@ -2017,7 +2022,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",
@@ -2361,6 +2366,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "stats": {
           "name": "stats",
           "type": "text",
@@ -2399,6 +2411,16 @@
         "message_topic_created_idx": {
           "name": "message_topic_created_idx",
           "columns": ["topic_id", "created_at"],
+          "isUnique": false
+        },
+        "message_trace_id_idx": {
+          "name": "message_trace_id_idx",
+          "columns": ["trace_id"],
+          "isUnique": false
+        },
+        "message_status_idx": {
+          "name": "message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -3038,13 +3060,6 @@
         },
         "group_id": {
           "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "trace_id": {
-          "name": "trace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

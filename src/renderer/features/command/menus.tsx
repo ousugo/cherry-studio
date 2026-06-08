@@ -783,6 +783,7 @@ export function CommandPopupMenu({
       const nativeItems = combinedItems.map(toNativePopupMenuItem)
       if (!nativeItems.length) return
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
+      onOpenChange?.(true)
       try {
         const result = await window.api.command.showNativePopupMenu(model as never, anchor)
         if (result?.type === 'command') {
@@ -792,9 +793,11 @@ export function CommandPopupMenu({
         }
       } catch (error) {
         logger.error('Failed to show native command popup menu', error as Error)
+      } finally {
+        onOpenChange?.(false)
       }
     },
-    [combinedItems, decoratedExtraItems, location, mode, runtime]
+    [combinedItems, decoratedExtraItems, location, mode, runtime, onOpenChange]
   )
 
   const handleCherryOpenChange = useCallback(

@@ -408,26 +408,28 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
-        'agent.session.add.title': 'Add session',
+        'agent.session.add.title': 'Add task',
         'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Project',
+        'agent.session.empty.description': 'Tasks will appear here after you start one.',
+        'agent.session.empty.title': 'No tasks yet',
         'agent.edit.title': 'Edit Agent',
-        'agent.session.edit.title': 'Edit session',
+        'agent.session.edit.title': 'Edit task',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
         'agent.session.file_manager.finder': 'Finder',
-        'agent.session.get.error.failed': 'Failed to get sessions',
+        'agent.session.get.error.failed': 'Failed to get tasks',
         'agent.session.agent.delete.content':
-          "Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
-        'agent.session.agent.delete.error.failed': 'Failed to delete agent chats',
-        'agent.session.agent.delete.title': 'Delete agent chats',
-        'agent.session.agent.delete.trigger': 'Delete agent chats',
+          "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
+        'agent.session.agent.delete.error.failed': 'Failed to delete agent tasks',
+        'agent.session.agent.delete.title': 'Delete agent tasks',
+        'agent.session.agent.delete.trigger': 'Delete agent tasks',
         'agent.session.group.collapse': 'Collapse display',
         'agent.session.group.collapse_all': 'Collapse all',
-        'agent.session.group.conversation': 'Chats',
-        'agent.session.group.drag_hint': 'Drag to reorder. Drag sessions to adjust display and hidden groups.',
+        'agent.session.group.conversation': 'Conversations',
+        'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.expand_all': 'Expand all',
         'agent.session.group.no_workdir': 'No project',
@@ -436,13 +438,15 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.today': 'Today',
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
-        'agent.session.list.title': 'Sessions',
+        'agent.session.list.title': 'Tasks',
         'agent.pin.title': 'Pin Agent',
-        'agent.session.reorder.error.failed': 'Failed to reorder sessions',
-        'agent.session.search.placeholder': 'Search sessions',
-        'agent.session.update.error.failed': 'Failed to update session',
+        'agent.session.pin.title': 'Pin task',
+        'agent.session.reorder.error.failed': 'Failed to reorder tasks',
+        'agent.session.search.placeholder': 'Search tasks',
+        'agent.session.update.error.failed': 'Failed to update task',
+        'agent.session.unpin.title': 'Unpin task',
         'agent.session.workdir.delete.content':
-          'Deleting this project also deletes sessions under it. The actual folder is not deleted.',
+          'Deleting this project also deletes tasks under it. The actual folder is not deleted.',
         'agent.session.workdir.delete.error.failed': 'Failed to delete project',
         'agent.session.workdir.delete.title': 'Delete project',
         'agent.session.workdir.delete.trigger': 'Delete project',
@@ -451,8 +455,6 @@ vi.mock('react-i18next', () => ({
         'agent.session.workdir.rename.trigger': 'Rename project',
         'agent.unpin.title': 'Unpin Agent',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
-        'chat.topics.pin': 'Pin',
-        'chat.topics.unpin': 'Unpin',
         'common.cancel': 'Cancel',
         'common.delete': 'Delete',
         'common.delete_success': 'Deleted successfully',
@@ -727,7 +729,7 @@ describe('Sessions', () => {
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search tasks')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
     const projectIconContainer = screen
@@ -753,7 +755,7 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the header new conversation action enabled without agents and starts a missing-agent draft', () => {
+  it('keeps the header new task action enabled without agents and starts a missing-agent draft', () => {
     const onStartTemporarySession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()
     setupSessions({ sessions: [] })
@@ -771,7 +773,7 @@ describe('Sessions', () => {
       />
     )
 
-    const newConversationButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    const newConversationButton = screen.getByRole('button', { name: 'Add task' })
     expect(newConversationButton).not.toBeDisabled()
 
     fireEvent.click(newConversationButton)
@@ -780,7 +782,19 @@ describe('Sessions', () => {
     expect(onStartTemporarySession).not.toHaveBeenCalled()
   })
 
-  it('renders no-project sessions in a bottom chats section', () => {
+  it('shows the empty task state without a creation action', () => {
+    const onStartTemporarySession = vi.fn()
+    setupSessions({ sessions: [] })
+
+    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
+    expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add task' })).toHaveLength(1)
+    expect(onStartTemporarySession).not.toHaveBeenCalled()
+  })
+
+  it('renders no-project sessions in a bottom no-project section', () => {
     const onStartTemporarySession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
@@ -810,16 +824,17 @@ describe('Sessions', () => {
     render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
 
     const projectSection = screen.getByRole('button', { name: 'Project' })
-    const chatsSection = screen.getByRole('button', { name: 'Chats' })
-    expect(projectSection.compareDocumentPosition(chatsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const noProjectSection = screen.getByRole('button', { name: 'No project' })
+    expect(projectSection.compareDocumentPosition(noProjectSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('System session')).toBeInTheDocument()
     const systemSessionRow = screen.getByText('System session').closest('[role="option"]')
     expect(systemSessionRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
 
-    const chatsSectionHeader = chatsSection.closest('[class*="group/resource-list-section"]')
-    expect(chatsSectionHeader).not.toBeNull()
-    fireEvent.click(within(chatsSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    const noProjectSectionHeader = noProjectSection.closest('[class*="group/resource-list-section"]')
+    expect(noProjectSectionHeader).not.toBeNull()
+    fireEvent.click(
+      within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
+    )
 
     expect(onStartTemporarySession).toHaveBeenCalledWith({
       agentId: 'agent-a',
@@ -1002,7 +1017,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.queryByRole('button', { name: 'Chats' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
     expect(screen.getByText('System session')).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
@@ -1120,8 +1135,8 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
+    expect(screen.queryByPlaceholderText('Search tasks')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
     expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1185,7 +1200,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
     expect(screen.getByRole('alert')).toHaveTextContent('Workspace request failed')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1255,7 +1270,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled', workspaceId: 'ws-b' })
@@ -1337,7 +1352,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
-    const input = screen.getByLabelText('Edit session')
+    const input = screen.getByLabelText('Edit task')
     expect(input).toHaveFocus()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -1362,7 +1377,7 @@ describe('Sessions', () => {
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Edit session')
+    expect(dialog).toHaveTextContent('Edit task')
     const input = within(dialog).getByLabelText('Name')
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
 
@@ -1419,11 +1434,11 @@ describe('Sessions', () => {
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
     expect(pinnedRow).not.toBeNull()
-    const unpinButton = within(pinnedRow as HTMLElement).getByLabelText('Unpin')
+    const unpinButton = within(pinnedRow as HTMLElement).getByLabelText('Unpin task')
     expect(unpinButton).toBeInTheDocument()
     expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
-      pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin"]') ?? null
+      pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin task"]') ?? null
     ).not.toBeInTheDocument()
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
@@ -1845,7 +1860,7 @@ describe('Sessions', () => {
     )
     expect(window.modal.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'Deleting this project also deletes sessions under it. The actual folder is not deleted.'
+        content: 'Deleting this project also deletes tasks under it. The actual folder is not deleted.'
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([
@@ -1935,7 +1950,7 @@ describe('Sessions', () => {
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
     expect(agentGroup).toHaveClass('border', 'border-transparent')
-    expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag sessions to adjust display and hidden groups.')
+    expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag tasks to adjust display and hidden groups.')
     expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
@@ -1990,7 +2005,7 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete agent chats' })
+      .getAllByRole('menuitem', { name: 'Delete agent tasks' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteMenuItem).toBeDefined()
     expect(deleteMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
@@ -2004,8 +2019,8 @@ describe('Sessions', () => {
     expect(window.modal.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content:
-          "Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
-        title: 'Delete agent chats'
+          "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
+        title: 'Delete agent tasks'
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId/sessions')?.refresh).toEqual([
@@ -2054,11 +2069,11 @@ describe('Sessions', () => {
     expect(alphaGroup).not.toBeNull()
     expect(betaGroup).not.toBeNull()
     fireEvent.pointerDown(within(alphaGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(alphaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent chats' }))
+    fireEvent.click(within(alphaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' }))
 
     await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
     fireEvent.pointerDown(within(betaGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const betaDeleteMenuItem = within(betaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent chats' })
+    const betaDeleteMenuItem = within(betaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' })
     await vi.waitFor(() => expect(betaDeleteMenuItem).toBeDisabled())
     fireEvent.click(betaDeleteMenuItem)
 

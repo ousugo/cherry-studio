@@ -515,7 +515,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
-    ({ message, messageParts, trigger }) => {
+    ({ message, messageParts, trigger, onOpenChange }) => {
       const messageModel = getMessageListItemModel(message)
       const currentMentionModel = messageModel
         ? ({
@@ -556,6 +556,7 @@ export function useHomeMessageListProviderValue({
           filter={mentionModelFilter}
           onSelect={onSelectMentionModel}
           trigger={trigger}
+          onOpenChange={onOpenChange}
         />
       )
     },

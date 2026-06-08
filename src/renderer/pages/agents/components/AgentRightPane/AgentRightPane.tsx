@@ -63,11 +63,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf|xlsx|xlsm)$/i.test(filePath)
-}
-
-function isExcelFilePreview(filePath: string): boolean {
-  return /\.(xlsx|xlsm)$/i.test(filePath)
+  return /\.(html?|pdf)$/i.test(filePath)
 }
 
 interface AgentFlowTab {
@@ -313,9 +309,8 @@ function AgentRightPaneFilesPanel() {
 
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
-  const textPreviewFile = isExcelFilePreview(preview.filePath) ? null : preview.filePath
-  const isText = useIsTextFile(preview.workspacePath, textPreviewFile)
-  const fileSize = useFileSize(preview.workspacePath, textPreviewFile)
+  const isText = useIsTextFile(preview.workspacePath, preview.filePath)
+  const fileSize = useFileSize(preview.workspacePath, preview.filePath)
 
   return (
     <div

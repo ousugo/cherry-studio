@@ -5,7 +5,6 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
-import { isAgentSessionTopic } from '../agentSession/topic'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
   AiStreamAbortRequest,
@@ -23,8 +22,9 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import { isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest } from '../types/requests'
+import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
@@ -301,10 +301,10 @@ export class AiStreamManager extends BaseService {
    */
   private async reconcileStalePendingMessages(): Promise<void> {
     try {
-      const stale = await messageService.findPendingAssistantMessages()
-      if (stale.length === 0) return
-      logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
-      await messageService.markMessagesError(stale.map((message) => message.id))
+      const staleIds = await messageService.findPendingAssistantMessageIds()
+      if (staleIds.length === 0) return
+      logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
+      await messageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }
@@ -414,6 +414,10 @@ export class AiStreamManager extends BaseService {
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
+    /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
+    callOverrides?: CallOverrides
+    /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
+    idleTimeoutMs?: number
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -424,7 +428,9 @@ export class AiStreamManager extends BaseService {
       chatId: input.streamId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
-      messages
+      messages,
+      callOverrides: input.callOverrides,
+      ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
       topicId: input.streamId,

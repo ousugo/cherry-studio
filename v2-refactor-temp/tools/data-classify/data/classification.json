@@ -1070,18 +1070,18 @@
         {
           "originalKey": "pasteLongTextAsFile",
           "type": "boolean",
-          "defaultValue": true,
+          "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_as_file"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
-          "defaultValue": 2000,
+          "defaultValue": 1500,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_threshold"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "clickAssistantToShowTopic",
@@ -2430,7 +2430,7 @@
               "defaultValue": false,
               "originalKey": "enabled",
               "status": "classified",
-              "targetKey": "feature.csaas.enabled",
+              "targetKey": "feature.api_gateway.enabled",
               "type": "boolean"
             },
             {
@@ -2438,7 +2438,7 @@
               "defaultValue": "127.0.0.1",
               "originalKey": "host",
               "status": "classified",
-              "targetKey": "feature.csaas.host",
+              "targetKey": "feature.api_gateway.host",
               "type": "string"
             },
             {
@@ -2446,7 +2446,7 @@
               "defaultValue": 23333,
               "originalKey": "port",
               "status": "classified",
-              "targetKey": "feature.csaas.port",
+              "targetKey": "feature.api_gateway.port",
               "type": "number"
             },
             {
@@ -2454,7 +2454,7 @@
               "defaultValue": "VALUE: null",
               "originalKey": "apiKey",
               "status": "classified",
-              "targetKey": "feature.csaas.api_key",
+              "targetKey": "feature.api_gateway.api_key",
               "type": "string"
             }
           ]

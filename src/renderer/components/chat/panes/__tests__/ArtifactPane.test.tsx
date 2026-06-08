@@ -22,20 +22,7 @@ const mocks = vi.hoisted(() => ({
     filePath: string
     refreshKey: number
   }>,
-  excelPreviewProps: [] as Array<{
-    fileName?: string
-    filePath: string
-    refreshKey?: number
-  }>,
-  wordPreviewPanelProps: [] as Array<{
-    fileName?: string
-    filePath: string
-    refreshKey?: number
-    workspacePath: string
-  }>,
   pdfPreviewPanelModuleLoadCount: 0,
-  excelPreviewModuleLoadCount: 0,
-  wordPreviewPanelModuleLoadCount: 0,
   artifactFileTreeWidth: null as number | null,
   setArtifactFileTreeWidth: vi.fn((width: number) => {
     mocks.artifactFileTreeWidth = width
@@ -298,44 +285,6 @@ vi.mock('../PdfPreviewPanel', () => {
   }
 })
 
-vi.mock('@renderer/components/Preview/ExcelPreview', () => {
-  mocks.excelPreviewModuleLoadCount += 1
-
-  return {
-    default: (props: { fileName?: string; filePath: string; refreshKey?: number }) => {
-      mocks.excelPreviewProps.push(props)
-
-      return (
-        <div
-          data-testid="excel-preview-panel"
-          data-file-name={props.fileName}
-          data-file-path={props.filePath}
-          data-refresh-key={props.refreshKey}
-        />
-      )
-    }
-  }
-})
-
-vi.mock('../WordPreviewPanel', () => {
-  mocks.wordPreviewPanelModuleLoadCount += 1
-
-  return {
-    default: (props: { fileName?: string; filePath: string; refreshKey?: number; workspacePath: string }) => {
-      mocks.wordPreviewPanelProps.push(props)
-
-      return (
-        <div
-          data-testid="word-preview-panel"
-          data-file-name={props.fileName}
-          data-file-path={props.filePath}
-          data-refresh-key={props.refreshKey}
-        />
-      )
-    }
-  }
-})
-
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) =>
     key === 'ui.chat.artifact_pane.file_tree.width'
@@ -372,8 +321,6 @@ describe('ArtifactPane', () => {
     vi.clearAllMocks()
     mocks.artifactFileTreeWidth = null
     mocks.pdfPreviewPanelProps.length = 0
-    mocks.excelPreviewProps.length = 0
-    mocks.wordPreviewPanelProps.length = 0
     mocks.nextTreeId = 0
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
@@ -454,8 +401,6 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Hello'))
     expect(mocks.pdfPreviewPanelModuleLoadCount).toBe(0)
-    expect(mocks.excelPreviewModuleLoadCount).toBe(0)
-    expect(mocks.wordPreviewPanelModuleLoadCount).toBe(0)
   })
 
   it('shows the ready empty state when no workspace path is available', () => {
@@ -1157,153 +1102,27 @@ describe('ArtifactPane', () => {
     expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
-  it('renders Excel files with ExcelPreview and bypasses binary text preview fallbacks', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 })
-    mockWorkspaceTree('/tmp/workspace', ['report.xlsx'])
+  it.each(['report.xlsx', 'report.xlsm', 'proposal.docx'])(
+    'shows the binary unavailable state for %s without loading a dedicated preview',
+    async (fileName) => {
+      mocks.isTextFile.mockResolvedValueOnce(false)
+      mockWorkspaceTree('/tmp/workspace', [fileName])
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+      render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-report.xlsx')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+      await waitFor(() => expect(screen.getByTestId(`tree-node-${fileName}`)).toBeInTheDocument())
 
-    fireEvent.click(screen.getByTestId('tree-node-report.xlsx'))
+      fireEvent.click(screen.getByTestId(`tree-node-${fileName}`))
 
-    await waitFor(() => expect(screen.getByTestId('excel-preview-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('excel-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/report.xlsx')
-    expect(screen.getByTestId('excel-preview-panel')).toHaveAttribute('data-file-name', 'report.xlsx')
-    expect(screen.getByTestId('excel-preview-panel')).toHaveAttribute('data-refresh-key', '0')
-    expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).not.toHaveBeenCalled()
-    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
-    expect(mocks.excelPreviewProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/report.xlsx',
-      fileName: 'report.xlsx',
-      refreshKey: 0
-    })
-  })
-
-  it('renders Word files with WordPreviewPanel and bypasses binary text preview fallbacks', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
-    mockWorkspaceTree('/tmp/workspace', ['proposal.docx'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-proposal.docx')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-proposal.docx'))
-
-    await waitFor(() => expect(screen.getByTestId('word-preview-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-path', 'proposal.docx')
-    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-name', 'proposal.docx')
-    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-refresh-key', '0')
-    expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/proposal.docx' })
-    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
-    expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
-      filePath: 'proposal.docx',
-      fileName: 'proposal.docx',
-      refreshKey: 0,
-      workspacePath: '/tmp/workspace'
-    })
-  })
-
-  it('passes refresh clicks to the selected Word preview without reading text content', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['proposal.docx'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-proposal.docx')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-proposal.docx'))
-    await waitFor(() => expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
-
-    await waitFor(() => expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/proposal.docx' })
-    expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
-      filePath: 'proposal.docx',
-      fileName: 'proposal.docx',
-      refreshKey: 1,
-      workspacePath: '/tmp/workspace'
-    })
-  })
-
-  it('skips Word preview above the Word size cap', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 26 * 1024 * 1024 })
-    mockWorkspaceTree('/tmp/workspace', ['oversized.docx'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-oversized.docx')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-oversized.docx'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
-    expect(screen.queryByTestId('word-preview-panel')).not.toBeInTheDocument()
-    expect(mocks.wordPreviewPanelProps).toHaveLength(0)
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/oversized.docx' })
-  })
-
-  it('passes refresh clicks to the selected Excel preview without reading text content', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['report.xlsm'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-report.xlsm')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-report.xlsm'))
-    await waitFor(() => expect(screen.getByTestId('excel-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
-
-    await waitFor(() => expect(screen.getByTestId('excel-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).not.toHaveBeenCalled()
-    expect(mocks.excelPreviewProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/report.xlsm',
-      fileName: 'report.xlsm',
-      refreshKey: 1
-    })
-  })
-
-  it('does not route legacy xls files to ExcelPreview', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
-    mockWorkspaceTree('/tmp/workspace', ['legacy.xls'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-legacy.xls')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-legacy.xls'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
-    expect(screen.queryByTestId('excel-preview-panel')).not.toBeInTheDocument()
-    expect(mocks.excelPreviewProps).toEqual([])
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-  })
+      await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
+      expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
+      expect(mocks.fsRead).not.toHaveBeenCalled()
+      expect(mocks.fsReadText).not.toHaveBeenCalled()
+      expect(mocks.isTextFile).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
+    }
+  )
 
   it('renders non-markdown text files through CodeViewer with the resolved language', async () => {
     mockWorkspaceTree('/tmp/workspace', ['config.json'])

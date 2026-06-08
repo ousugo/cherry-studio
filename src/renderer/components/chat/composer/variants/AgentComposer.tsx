@@ -1,24 +1,20 @@
 import { Button } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
-  ComposerActiveToolControls,
   ComposerToolDerivedStateProvider,
-  ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
+  useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/chat/composer/tools/types'
-import { formatQuoteTokenPromptText } from '@renderer/components/chat/utils/quoteToken'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
-import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useCommandHandler } from '@renderer/features/command'
@@ -33,157 +29,53 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { FILE_TYPE, type FileMetadata, type LocalSkill, type ThinkingOption } from '@renderer/types'
+import type { FileMetadata, LocalSkill, ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { getFileTypeByExt } from '@shared/file/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
-import type { ComposerSuggestionSource } from '../quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import {
+  type AgentComposerDraftCache,
+  getAgentDraftCacheKey,
+  getCachedSkillTokens,
+  getSkillFromCachedToken,
+  readAgentDraftCache,
+  writeAgentDraftCache
+} from './agent/agentDraftCache'
+import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
   agentSkillToComposerToken,
   getAgentComposerTokenIds
 } from './agentComposerTokens'
-import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIconOnly'
+import {
+  COMPOSER_ICON_ONLY_LABEL_CLASS,
+  COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+  COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_TOOLBAR_CLASS,
+  ComposerBelowControls,
+  ComposerToolbarControls,
+  ComposerToolMenuControls
+} from './shared/ComposerControlScaffolding'
+import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
+import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 
 const logger = loggerService.withContext('AgentComposer')
-const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
-const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
-const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
-const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
-const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
-
-const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
-
-interface AgentComposerDraftCache {
-  text: string
-  tokens: ComposerSerializedToken[]
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isLocalSkill(value: unknown): value is LocalSkill {
-  return (
-    isRecord(value) &&
-    typeof value.name === 'string' &&
-    typeof value.filename === 'string' &&
-    (value.description === undefined || typeof value.description === 'string')
-  )
-}
-
-function isComposerSerializedToken(value: unknown): value is ComposerSerializedToken {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.kind === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.index === 'number' &&
-    typeof value.textOffset === 'number'
-  )
-}
-
-function getSkillFilenameFromToken(token: ComposerSerializedToken): string {
-  return token.id.startsWith('skill:') ? token.id.slice('skill:'.length) : token.label
-}
-
-function getSkillFromCachedToken(token: ComposerSerializedToken): LocalSkill {
-  if (isLocalSkill(token.payload)) return token.payload
-
-  return {
-    name: token.label,
-    ...(token.description && { description: token.description }),
-    filename: getSkillFilenameFromToken(token)
-  }
-}
-
-function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind === 'skill')
-}
-
-function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
-  const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
-  if (typeof cached === 'string') return { text: cached, tokens: [] }
-  if (!isRecord(cached) || typeof cached.text !== 'string' || !Array.isArray(cached.tokens)) {
-    return { text: '', tokens: [] }
-  }
-
-  return {
-    text: cached.text,
-    tokens: getCachedSkillTokens(cached.tokens.filter(isComposerSerializedToken))
-  }
-}
-
-function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
-  cacheService.setCasual<AgentComposerDraftCache>(
-    cacheKey,
-    {
-      text,
-      tokens: getCachedSkillTokens(tokens)
-    },
-    DRAFT_CACHE_TTL
-  )
-}
-
-const getBaseName = (filePath: string) => {
-  const normalized = filePath.replace(/\\/g, '/')
-  return normalized.split('/').pop() || normalized
-}
-
-const getFileExtension = (fileName: string) => {
-  const lastDotIndex = fileName.lastIndexOf('.')
-  return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
-}
-
-const createFileMetadataFromPath = (filePath: string): FileMetadata => {
-  const name = getBaseName(filePath)
-  const ext = getFileExtension(name)
-  return {
-    id: filePath,
-    name,
-    origin_name: name,
-    path: filePath,
-    size: 0,
-    ext,
-    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER,
-    created_at: new Date().toISOString(),
-    count: 1
-  }
-}
-
-const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
-  const normalizedFilePath = filePath.replace(/\\/g, '/')
-
-  for (const basePath of accessiblePaths) {
-    const normalizedBasePath = basePath.replace(/\\/g, '/')
-    const baseWithSlash = normalizedBasePath.endsWith('/') ? normalizedBasePath : `${normalizedBasePath}/`
-
-    if (normalizedFilePath.startsWith(baseWithSlash)) {
-      return normalizedFilePath.slice(baseWithSlash.length)
-    }
-  }
-
-  return filePath
-}
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -239,14 +131,6 @@ const emptyActions: ProviderActionHandlers = {
   insertToken: () => undefined,
   getDraft: () => ({ text: '', tokens: [] })
 }
-
-const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
-  id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-  kind: 'quote',
-  label,
-  description: selectedText,
-  promptText: formatQuoteTokenPromptText(selectedText)
-})
 
 const AgentComposerRoot = ({
   agentId,
@@ -512,31 +396,7 @@ const AgentComposerWorkspaceControl = ({
   return selector
 }
 
-interface AgentComposerToolbarControlsProps extends Omit<AgentComposerContextControlsProps, 'side'> {
-  inputAdapter?: QuickPanelInputAdapter
-}
-
-const AgentComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
-  return (
-    <>
-      <ComposerToolMenu inputAdapter={inputAdapter} />
-      <ComposerActiveToolControls inputAdapter={inputAdapter} />
-    </>
-  )
-}
-
-const AgentComposerToolbarControls = ({ inputAdapter, ...contextProps }: AgentComposerToolbarControlsProps) => {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
-
-  return (
-    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-      <AgentComposerToolMenuControls inputAdapter={inputAdapter} />
-      <AgentComposerContextControls {...contextProps} side="top" iconOnly={iconOnly} />
-    </div>
-  )
-}
-
-type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputAdapter'> & {
+type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
   workspace?: AgentSessionEntity['workspace']
   workspaceId?: string | null
   workspaceChanging?: boolean
@@ -548,34 +408,40 @@ type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
-const AgentComposerBelowControls = (contextProps: AgentComposerControlProps) => {
-  const { showWorkspaceSelector = true, ...controlProps } = contextProps
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
-
-  return (
-    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-      <AgentComposerContextControls {...controlProps} side="bottom" iconOnly={iconOnly} />
-      {showWorkspaceSelector ? (
-        <div className="ml-auto flex shrink-0">
-          <AgentComposerWorkspaceControl {...controlProps} side="bottom" iconOnly={iconOnly} />
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => <AgentComposerToolbarControls inputAdapter={inputAdapter} {...props} />
+  renderLeftControls: (inputAdapter) => (
+    <ComposerToolbarControls
+      inputAdapter={inputAdapter}
+      renderContextControls={({ side, iconOnly }) => (
+        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+      )}
+    />
+  )
 })
 
-const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      <AgentComposerToolMenuControls inputAdapter={inputAdapter} />
-    </div>
-  ),
-  renderBelowControls: () => <AgentComposerBelowControls {...props} />
-})
+const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
+  const { showWorkspaceSelector = true } = props
+
+  return {
+    renderLeftControls: (inputAdapter) => (
+      <div className={COMPOSER_TOOLBAR_CLASS}>
+        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+      </div>
+    ),
+    renderBelowControls: () => (
+      <ComposerBelowControls
+        renderContextControls={({ side, iconOnly }) => (
+          <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+        )}
+        trailing={
+          showWorkspaceSelector
+            ? ({ iconOnly }) => <AgentComposerWorkspaceControl {...props} side="bottom" iconOnly={iconOnly} />
+            : undefined
+        }
+      />
+    )
+  }
+}
 
 const AgentComposerInner = ({
   model,
@@ -610,7 +476,6 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
-  const workspaceWarning: string | undefined = undefined
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -632,25 +497,7 @@ const AgentComposerInner = ({
   const enableMentionModelTrigger = accessiblePaths.length > 0
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
 
-  const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
-  const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
-
-  const canAddImageFile = useMemo(
-    () => isVisionAssistant || isGenerateImageAssistant,
-    [isGenerateImageAssistant, isVisionAssistant]
-  )
-
-  const canAddTextFile = useMemo(
-    () => isVisionAssistant || (!isVisionAssistant && !isGenerateImageAssistant),
-    [isGenerateImageAssistant, isVisionAssistant]
-  )
-
-  const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) return [...imageExts, ...documentExts, ...textExts]
-    if (canAddImageFile) return [...imageExts]
-    if (canAddTextFile) return [...documentExts, ...textExts]
-    return []
-  }, [canAddImageFile, canAddTextFile])
+  const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
   const setText = useCallback(
     (nextText: string) => {
@@ -684,65 +531,6 @@ const AgentComposerInner = ({
     },
     [skillByFilename]
   )
-
-  const handleTokensChange = useCallback(
-    (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getCachedSkillTokens(draftTokens)
-      setDraftTokens(nextDraftTokens)
-      draftTokensRef.current = nextDraftTokens
-      writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
-      const fileTokenIds = getAgentComposerTokenIds(draftTokens, 'file')
-      const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
-      const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
-      setFiles((prev) => {
-        const next = prev.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file)))
-        return next.length === prev.length ? prev : next
-      })
-      setSelectedSkills((prev) => {
-        const next = prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill)))
-        const nextIds = new Set(next.map(agentComposerTokenId.skill))
-        let changed = next.length !== prev.length
-
-        for (const token of skillTokens) {
-          const skill = availableSkills.find((candidate) => {
-            const candidateId = agentComposerTokenId.skill(candidate)
-            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
-          })
-          if (!skill) continue
-
-          const skillId = agentComposerTokenId.skill(skill)
-          if (nextIds.has(skillId)) continue
-          next.push(skill)
-          nextIds.add(skillId)
-          changed = true
-        }
-
-        return changed ? next : prev
-      })
-    },
-    [availableSkills, draftCacheKey, setFiles]
-  )
-
-  useEffect(() => {
-    setFiles((prev) => {
-      const seenIds = new Set<string>()
-      const next: typeof prev = []
-      let changed = false
-
-      for (const file of prev) {
-        const id = agentComposerTokenId.file(file)
-        if (seenIds.has(id)) {
-          changed = true
-          continue
-        }
-
-        seenIds.add(id)
-        next.push(file)
-      }
-
-      return changed ? next : prev
-    })
-  }, [files, setFiles])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -783,21 +571,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  const handleQuote = useCallback(
-    (selectedText: string) => {
-      if (!selectedText) return
-
-      actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
-      actionsRef.current.toggleExpanded(isExpanded)
-    },
-    [actionsRef, isExpanded, t]
-  )
-
-  useEffect(() => {
-    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
-      handleQuote(selectedText)
-    })
-  }, [handleQuote])
+  useComposerQuoteInsertion(actionsRef, isExpanded)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -829,6 +603,45 @@ const AgentComposerInner = ({
     return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
   }, [sessionData, reasoningEffort])
 
+  // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
+  // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
+  // cache snapshot, which is variant state.
+  const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
+  const handleTokensChange = useCallback(
+    (draftTokens: readonly ComposerSerializedToken[]) => {
+      const nextDraftTokens = getCachedSkillTokens(draftTokens)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
+      writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
+      reconcileTokens(draftTokens)
+
+      const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
+      const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
+      setSelectedSkills((prev) => {
+        const next = prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill)))
+        const nextIds = new Set(next.map(agentComposerTokenId.skill))
+        let changed = next.length !== prev.length
+
+        for (const token of skillTokens) {
+          const skill = availableSkills.find((candidate) => {
+            const candidateId = agentComposerTokenId.skill(candidate)
+            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
+          })
+          if (!skill) continue
+
+          const skillId = agentComposerTokenId.skill(skill)
+          if (nextIds.has(skillId)) continue
+          next.push(skill)
+          nextIds.add(skillId)
+          changed = true
+        }
+
+        return changed ? next : prev
+      })
+    },
+    [availableSkills, draftCacheKey, reconcileTokens]
+  )
+
   const placeholderText = useMemo(() => {
     if (isSoulModeEnabled(agentBase?.configuration)) return t('agent.input.soul_placeholder')
     return t('agent.input.placeholder', {
@@ -837,18 +650,8 @@ const AgentComposerInner = ({
   }, [agentBase?.configuration, sendMessageShortcut, t])
 
   const buildQueuedPayload = useCallback(
-    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
-      if (draft.text.trim().length === 0 && files.length === 0) return null
-      const fileTokenIds = getAgentComposerTokenIds(draft.tokens, 'file')
-      const attachedFiles = files.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file)))
-      const userMessageParts = createComposerUserMessageParts(draft, { files: attachedFiles })
-
-      return {
-        text: draft.text.trim(),
-        files: attachedFiles.length ? (attachedFiles as unknown as Array<Record<string, unknown>>) : undefined,
-        userMessageParts
-      }
-    },
+    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
+      buildComposerQueuedPayload(draft, { files, fileTokenId: agentComposerTokenId.file }),
     [files]
   )
 
@@ -932,100 +735,12 @@ const AgentComposerInner = ({
     [buildQueuedPayload, clearCurrentDraft, enqueueFollowup, isStreaming, model, sendDisabled, sendQueuedPayload, t]
   )
 
-  const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
-  resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
-
-  const resourceSuggestionSource = useMemo<ComposerSuggestionSource>(
-    () => ({
-      pluginKey: 'agent-resource-mention-suggestion',
-      char: '@',
-      title: t('chat.input.resource_panel.title'),
-      allowedPrefixes: [' ', '\n'],
-      items: async ({ query }) => {
-        const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
-        if (accessiblePaths.length === 0) {
-          return [
-            {
-              id: 'agent-resource:no-paths',
-              label: t('chat.input.resource_panel.no_file_found.label'),
-              description: t('chat.input.resource_panel.no_file_found.description'),
-              disabled: true,
-              command: () => undefined
-            }
-          ]
-        }
-
-        const searchPattern = query.trim() || '.'
-        const results = await Promise.allSettled(
-          accessiblePaths.map((dirPath) =>
-            window.api.file.listDirectory(dirPath, {
-              recursive: true,
-              maxDepth: 3,
-              includeHidden: false,
-              includeFiles: true,
-              includeDirectories: true,
-              maxEntries: 20,
-              searchPattern
-            })
-          )
-        )
-        const collected = new Set<string>()
-        for (const result of results) {
-          if (result.status !== 'fulfilled') continue
-          for (const filePath of result.value) {
-            collected.add(filePath.replace(/\\/g, '/'))
-          }
-        }
-
-        if (collected.size === 0 && results.some((result) => result.status === 'rejected')) {
-          return [
-            {
-              id: 'agent-resource:error',
-              label: t('common.error'),
-              description: t('chat.input.resource_panel.no_file_found.description'),
-              disabled: true,
-              command: () => undefined
-            }
-          ]
-        }
-
-        return [...collected].slice(0, 50).map((filePath) => {
-          const relativePath = getRelativePath(filePath, accessiblePaths)
-          const file = files.find((currentFile) => currentFile.path === filePath || currentFile.id === filePath)
-          const tokenFile = file ?? createFileMetadataFromPath(filePath)
-          const token = agentFileToComposerToken(tokenFile)
-
-          return {
-            id: token.id,
-            label: relativePath,
-            description: filePath,
-            icon: <Folder size={16} />,
-            filterText: `${relativePath} ${filePath}`,
-            disabled: files.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id),
-            command: ({ editor }) => {
-              const exists = serializeComposerDocument(editor).tokens.some(
-                (currentToken) => currentToken.id === token.id
-              )
-              if (!exists) {
-                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
-              }
-              setFiles((prevFiles) =>
-                prevFiles.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id)
-                  ? prevFiles
-                  : [...prevFiles, tokenFile]
-              )
-            }
-          }
-        })
-      }
-    }),
-    [t]
-  )
-
-  const suggestionSources = useMemo(
-    () => (enableMentionModelTrigger ? [resourceSuggestionSource] : []),
-    [enableMentionModelTrigger, resourceSuggestionSource]
-  )
+  const suggestionSources = useAgentResourceSuggestion({
+    accessiblePaths,
+    files,
+    setFiles,
+    enabled: enableMentionModelTrigger
+  })
 
   const controlSlots = renderControls({
     agent: agentBase,
@@ -1114,7 +829,7 @@ type MissingAgentHomeComposerProps = {
 }
 
 type MissingAgentHomeComposerInnerProps = MissingAgentHomeComposerProps & {
-  actionsRef: React.MutableRefObject<ProviderActionHandlers>
+  actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
 const MissingAgentHomeComposerInner = ({

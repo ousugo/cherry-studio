@@ -116,7 +116,7 @@ const useKnowledgeBaseToolController = ({
     return configuredBases.map((base) => ({
       id: `knowledge-base:${base.id}`,
       label: base.name,
-      description: tRef.current('library.config.knowledge.doc_count', { count: base.documentCount ?? 0 }),
+      description: tRef.current('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       filterText: [base.name, base.id].join(' '),
       icon: <FileSearch />,
       isSelected: selectedBaseIds.has(base.id),

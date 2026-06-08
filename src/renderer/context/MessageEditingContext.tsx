@@ -1,11 +1,12 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useState } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 
 export interface EditingMessageSnapshot {
   message: MessageListItem
   parts: CherryMessagePart[]
+  editingSessionId: number
 }
 
 interface MessageEditingContextType {
@@ -21,9 +22,11 @@ const MessageEditingContext = createContext<MessageEditingContextType | null>(nu
 export function MessageEditingProvider({ children }: { children: ReactNode }) {
   const parent = use(MessageEditingContext)
   const [editingMessage, setEditingMessage] = useState<EditingMessageSnapshot | null>(null)
+  const editingSessionIdRef = useRef(0)
 
   const startEditing = useCallback((message: MessageListItem, parts: CherryMessagePart[]) => {
-    setEditingMessage({ message, parts })
+    editingSessionIdRef.current += 1
+    setEditingMessage({ message, parts, editingSessionId: editingSessionIdRef.current })
   }, [])
 
   const stopEditing = useCallback(() => {

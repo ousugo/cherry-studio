@@ -103,6 +103,7 @@ export interface MessageModelPickerRenderOptions {
   message: MessageListItem
   messageParts: CherryMessagePart[]
   trigger: ReactNode
+  onOpenChange?: (open: boolean) => void
 }
 
 export interface MessageErrorDiagnosisStep {

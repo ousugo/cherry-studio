@@ -154,12 +154,14 @@ const MessageActionMenuPopover = ({
   actions,
   align = 'end',
   children,
-  onAction
+  onAction,
+  onOpenChange
 }: {
   actions: MessageMenuBarResolvedAction[]
   align?: 'start' | 'center' | 'end'
   children: ReactNode
   onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
+  onOpenChange?: (open: boolean) => void
 }) => {
   const extraItems = useMemo(
     () =>
@@ -170,7 +172,13 @@ const MessageActionMenuPopover = ({
   )
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+    <CommandPopupMenu
+      location="webcontents.context"
+      extraItems={extraItems}
+      align={align}
+      side="top"
+      onOpenChange={onOpenChange}
+      contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
   )
@@ -179,11 +187,13 @@ const MessageActionMenuPopover = ({
 const TranslateMenuPopover = ({
   children,
   items,
-  align = 'end'
+  align = 'end',
+  onOpenChange
 }: {
   children: ReactNode
   items: MessageMenuBarTranslationItem[]
   align?: 'start' | 'center' | 'end'
+  onOpenChange?: (open: boolean) => void
 }) => {
   const extraItems = useMemo<readonly CommandContextMenuExtraItem[]>(
     () =>
@@ -203,10 +213,39 @@ const TranslateMenuPopover = ({
   )
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+    <CommandPopupMenu
+      location="webcontents.context"
+      extraItems={extraItems}
+      align={align}
+      side="top"
+      onOpenChange={onOpenChange}
+      contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
   )
+}
+
+const useMenuTooltipState = (onOpenChange?: (open: boolean) => void) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false)
+
+  const handleMenuOpenChange = (open: boolean) => {
+    setIsMenuOpen(open)
+    if (open) {
+      setIsTooltipOpen(false)
+    }
+    onOpenChange?.(open)
+  }
+
+  const handleTooltipOpenChange = (open: boolean) => {
+    setIsTooltipOpen(open && !isMenuOpen)
+  }
+
+  return {
+    tooltipOpen: !isMenuOpen && isTooltipOpen,
+    handleMenuOpenChange,
+    handleTooltipOpenChange
+  }
 }
 
 export function renderDefaultToolbarAction({ action, executeAction, softHoverBg }: MessageMenuBarToolbarRenderContext) {
@@ -216,7 +255,8 @@ export function renderDefaultToolbarAction({ action, executeAction, softHoverBg 
 export function renderModelPickerToolbarAction({
   action,
   actionContext,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   const label = typeof action.label === 'string' ? action.label : undefined
 
@@ -229,7 +269,8 @@ export function renderModelPickerToolbarAction({
           <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
             {action.icon}
           </MessageActionButton>
-        )
+        ),
+        onOpenChange: onMenuOpenChange
       }) ?? null}
     </Tooltip>
   )
@@ -240,13 +281,16 @@ export function renderTranslateToolbarAction({
   actionContext,
   executeAction,
   softHoverBg,
-  translationItems
+  translationItems,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   if (actionContext.isTranslating) {
+    const label = actionContext.t('translate.stop')
     return (
-      <Tooltip content={actionContext.t('translate.stop')}>
+      <Tooltip content={label}>
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
             void executeAction(action)
@@ -261,10 +305,35 @@ export function renderTranslateToolbarAction({
   if (translationItems.length === 0) return null
 
   return (
-    <Tooltip content={action.label} delay={1200}>
-      <TranslateMenuPopover items={translationItems} align="center">
+    <TranslateToolbarAction
+      action={action}
+      translationItems={translationItems}
+      softHoverBg={softHoverBg}
+      onMenuOpenChange={onMenuOpenChange}
+    />
+  )
+}
+
+const TranslateToolbarAction = ({
+  action,
+  translationItems,
+  softHoverBg,
+  onMenuOpenChange
+}: {
+  action: MessageMenuBarResolvedAction
+  translationItems: MessageMenuBarTranslationItem[]
+  softHoverBg: boolean
+  onMenuOpenChange?: (open: boolean) => void
+}) => {
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
+  const label = typeof action.label === 'string' ? action.label : undefined
+
+  return (
+    <Tooltip content={action.label} delay={1200} isOpen={tooltipOpen} onOpenChange={handleTooltipOpenChange}>
+      <TranslateMenuPopover items={translationItems} align="center" onOpenChange={handleMenuOpenChange}>
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => e.stopPropagation()}
           softHoverBg={softHoverBg}>
           {action.icon}
@@ -278,19 +347,54 @@ export function renderMoreMenuToolbarAction({
   action,
   executeAction,
   menuActions,
-  softHoverBg
+  softHoverBg,
+  onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   if (menuActions.length === 0) return null
 
   return (
-    <MessageActionMenuPopover actions={menuActions} align="end" onAction={executeAction}>
-      <MessageActionButton
-        className="message-action-button"
-        onClick={(e) => e.stopPropagation()}
-        softHoverBg={softHoverBg}>
-        {action.icon}
-      </MessageActionButton>
-    </MessageActionMenuPopover>
+    <MoreMenuToolbarAction
+      action={action}
+      executeAction={executeAction}
+      menuActions={menuActions}
+      softHoverBg={softHoverBg}
+      onMenuOpenChange={onMenuOpenChange}
+    />
+  )
+}
+
+const MoreMenuToolbarAction = ({
+  action,
+  executeAction,
+  menuActions,
+  softHoverBg,
+  onMenuOpenChange
+}: {
+  action: MessageMenuBarResolvedAction
+  executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
+  menuActions: MessageMenuBarResolvedAction[]
+  softHoverBg: boolean
+  onMenuOpenChange?: (open: boolean) => void
+}) => {
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
+  const label = typeof action.label === 'string' ? action.label : undefined
+
+  return (
+    <Tooltip content={action.label} delay={800} isOpen={tooltipOpen} onOpenChange={handleTooltipOpenChange}>
+      <MessageActionMenuPopover
+        actions={menuActions}
+        align="end"
+        onAction={executeAction}
+        onOpenChange={handleMenuOpenChange}>
+        <MessageActionButton
+          className="message-action-button"
+          aria-label={label}
+          onClick={(e) => e.stopPropagation()}
+          softHoverBg={softHoverBg}>
+          {action.icon}
+        </MessageActionButton>
+      </MessageActionMenuPopover>
+    </Tooltip>
   )
 }
 

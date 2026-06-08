@@ -8,10 +8,12 @@ import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
+import { chatComposerTokenId } from '../../variants/chatComposerTokens'
+import { getComposerTokenIds } from '../../variants/shared/composerTokens'
 import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 
 type KnowledgeBaseToolContext = ToolRenderContext<
-  readonly ['selectedKnowledgeBases', 'files'],
+  readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
   readonly ['setSelectedKnowledgeBases']
 >
 
@@ -55,12 +57,34 @@ const knowledgeBaseTool = defineTool({
   visibleInScopes: [TopicType.Chat],
 
   dependencies: {
-    state: ['selectedKnowledgeBases', 'files'] as const,
+    state: ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'] as const,
     actions: ['setSelectedKnowledgeBases'] as const
   },
 
   composer: {
-    runtime: ({ context }) => <KnowledgeBaseComposerRuntime context={context} />
+    runtime: ({ context }) => <KnowledgeBaseComposerRuntime context={context} />,
+    // Editor→state: prune deselected knowledge bases and re-add ones whose marker was pasted,
+    // resolved against the scope's selectable knowledge bases.
+    tokens: {
+      reconcile: (draftTokens, { state, actions }) => {
+        const knowledgeTokenIds = getComposerTokenIds(draftTokens, 'knowledge')
+        actions.setSelectedKnowledgeBases?.((prev) => {
+          const next = prev.filter((base) => knowledgeTokenIds.has(chatComposerTokenId.knowledge(base)))
+          const nextIds = new Set(next.map(chatComposerTokenId.knowledge))
+          let changed = next.length !== prev.length
+
+          for (const base of state.selectableKnowledgeBases) {
+            const tokenId = chatComposerTokenId.knowledge(base)
+            if (!knowledgeTokenIds.has(tokenId) || nextIds.has(tokenId)) continue
+            next.push(base)
+            nextIds.add(tokenId)
+            changed = true
+          }
+
+          return changed ? next : prev
+        })
+      }
+    }
   }
 })
 
