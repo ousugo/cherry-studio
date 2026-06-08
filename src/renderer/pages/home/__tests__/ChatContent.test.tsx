@@ -700,6 +700,76 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant')
   })
 
+  it('clears branch live state when runtime live producers disappear', async () => {
+    const onBranchLiveStateChange = vi.fn()
+    const liveAssistant = {
+      id: 'reserved-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'final stream text' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:02.000Z',
+        modelId: 'provider::model',
+        parentId: 'reserved-user',
+        status: 'success'
+      }
+    } as CherryUIMessage
+
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
+    })
+    mockExecutionOverlay.current = {
+      overlay: {},
+      liveAssistants: [liveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+
+    const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'reserved-assistant',
+              preview: 'final stream text',
+              status: 'pending'
+            })
+          ])
+        })
+      )
+    })
+
+    onBranchLiveStateChange.mockClear()
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+    mockExecutionOverlay.current = {
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+
+    view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
+    })
+  })
+
   it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
     const onBranchLiveStateChange = vi.fn()
     const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
