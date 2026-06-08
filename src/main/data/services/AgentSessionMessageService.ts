@@ -21,17 +21,12 @@ import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES } from '@shared/data/types/message'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import {
-  coerceSearchRole,
-  decodeMessageSearchCursor,
-  encodeMessageSearchCursor,
-  type MessageSearchFetchContext,
-  searchMessagesWithCursor
-} from './utils/messageSearch'
+import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const MESSAGE_CURSOR_CONFIG = {
@@ -50,11 +45,6 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
-type InternalSessionSearchMessageResult = SessionMessageContentSearchItem & {
-  cursorCreatedAt: number
-  cursorId: string
-}
-
 type SessionMessageContentSearchInput = {
   q: string
   cursor?: string
@@ -64,8 +54,13 @@ type SessionMessageContentSearchInput = {
 }
 
 // Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
-function decodeMessageCursor(raw: string): { createdAt: number; id: string } {
-  return decodeMessageSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
+  try {
+    return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+  } catch (error) {
+    logger.warn('Ignoring malformed session message list cursor', { cursor: raw, error })
+    return null
+  }
 }
 
 export class AgentSessionMessageService {
@@ -73,17 +68,13 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
 
-    return await searchMessagesWithCursor<
-      SessionMessageSearchRow,
-      InternalSessionSearchMessageResult,
-      SessionMessageContentSearchItem
-    >({
+    return await searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
       q: query.q,
       limit: query.limit,
       cursor: query.cursor,
       createdAtFrom: query.createdAtFrom,
       cursorConfig: MESSAGE_CURSOR_CONFIG,
-      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: MessageSearchFetchContext) => {
+      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
         const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
         return await db.all<SessionMessageSearchRow>(sql`
@@ -115,30 +106,23 @@ export class AgentSessionMessageService {
         `)
       },
       getSearchableText: (row) => row.searchableText,
+      buildSnippet: buildSearchSnippet,
       mapRow: (row, { snippet }) => ({
-        messageId: row.rowId,
-        sessionId: row.sessionId,
-        sessionName: row.sessionName,
-        agentId: row.agentId ?? undefined,
-        agentName: row.agentName ?? undefined,
-        role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
-        snippet,
-        createdAt: timestampToISO(Number(row.createdAt)),
-        cursorCreatedAt: Number(row.createdAt),
-        cursorId: row.rowId
-      }),
-      toPublicItem: (item) => ({
-        messageId: item.messageId,
-        sessionId: item.sessionId,
-        sessionName: item.sessionName,
-        agentId: item.agentId,
-        agentName: item.agentName,
-        role: item.role,
-        snippet: item.snippet,
-        createdAt: item.createdAt
-      }),
-      getCursorCreatedAt: (item) => item.cursorCreatedAt,
-      getCursorId: (item) => item.cursorId
+        item: {
+          messageId: row.rowId,
+          sessionId: row.sessionId,
+          sessionName: row.sessionName,
+          agentId: row.agentId ?? undefined,
+          agentName: row.agentName ?? undefined,
+          role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.rowId
+        }
+      })
     })
   }
 
@@ -215,7 +199,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeMessageSearchCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? encodeSearchCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
   }
