@@ -18,6 +18,7 @@ import type {
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -27,6 +28,7 @@ const logger = loggerService.withContext('AgentSessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 
 // Cursor wire format: `<orderKey>:<id>`. Stale/legacy cursors fall back
 // to first page (warn) instead of throwing — opaque server-issued tokens.
@@ -82,6 +84,40 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  async search(query: { search: string; limit: number; updatedAtFrom?: number }): Promise<SessionEntitySearchItem[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = []
+    const search = buildSearchPredicate(query.search)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select({
+        id: sessionsTable.id,
+        agentId: sessionsTable.agentId,
+        agentName: agentsTable.name,
+        name: sessionsTable.name,
+        updatedAt: sessionsTable.updatedAt
+      })
+      .from(sessionsTable)
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(limit)
+
+    return rows.map((row) => ({
+      type: 'session',
+      id: row.id,
+      title: row.name,
+      subtitle: row.agentName ?? undefined,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { sessionId: row.id, agentId: row.agentId }
+    }))
+  }
+
   async createSession(
     dto: CreateAgentSessionDto,
     options: { id?: string; allowSystemWorkspaceId?: boolean } = {}
