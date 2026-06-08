@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => ({
     <div className="message-header">
       <div className="message-body-column">
         {contentSlot && <div className="message-body-content">{contentSlot}</div>}
-        {footerSlot}
+        {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
       </div>
     </div>
   )),
@@ -297,6 +297,45 @@ describe('MessageGroup', () => {
     const gridCard = document.getElementById('message-msg-1')
 
     expect(gridCard).toHaveClass('grid', 'p-2.5', '[&.grid_.message]:pt-0')
+  })
+
+  it('adds fixed-height flex constraints for horizontal and grid message cards', () => {
+    const topic = { id: 'topic-1' } as Topic
+
+    const { rerender } = render(
+      <MessageGroup
+        messages={[createMessage('horizontal-1', 0, 'horizontal'), createMessage('horizontal-2', 1, 'horizontal')]}
+        topic={topic}
+      />
+    )
+
+    const horizontalCard = document.getElementById('message-horizontal-1')
+    expect(horizontalCard).toHaveClass(
+      '[&.horizontal_.message-header]:h-full',
+      '[&.horizontal_.message-body-column]:min-h-0',
+      '[&.horizontal_.message-body-content]:flex-1'
+    )
+
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    rerender(
+      <MessageGroup messages={[createMessage('grid-1', 0, 'grid'), createMessage('grid-2', 1, 'grid')]} topic={topic} />
+    )
+
+    const gridCard = document.getElementById('message-grid-1')
+    expect(gridCard).toHaveClass(
+      '[&.grid_.message-header]:h-full',
+      '[&.grid_.message-body-column]:min-h-0',
+      '[&.grid_.message-body-content]:flex-1'
+    )
   })
 
   it('renders assistant content inside the message body column', () => {

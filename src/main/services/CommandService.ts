@@ -2,21 +2,17 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { showNativePopupMenu } from '@main/services/nativePopupMenu'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { type CommandId, type ContextReader, evaluateContextExpr, findCommandDefinition } from '@shared/commands'
+import { type CommandId, type ContextReader, evaluateContextExpr, findCommandDefinition } from '@shared/command'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('CommandService')
 
 type MainCommandHandler = (window?: BrowserWindow) => void | Promise<void>
 
-const getMainWindows = (): BrowserWindow[] =>
-  application
-    .get('WindowManager')
-    .getAllWindows()
-    .filter((managedWindow) => managedWindow.type === WindowType.Main)
-    .map((managedWindow) => managedWindow.window)
-    .filter((window) => !window.isDestroyed())
+const getMainWindows = (): BrowserWindow[] => application.get('WindowManager').getWindowsByType(WindowType.Main)
 
 const getCommandTargetWindows = (window?: BrowserWindow): BrowserWindow[] => (window ? [window] : getMainWindows())
 
@@ -27,6 +23,16 @@ export class CommandService extends BaseService {
 
   protected async onInit() {
     this.registerBuiltInHandlers()
+
+    this.ipcHandle(IpcChannel.NativeCommandPopupMenu_Show, (event, model: unknown, anchor: unknown) =>
+      showNativePopupMenu(event, model, anchor, (command, window) => {
+        if (!this.canExecute(command)) {
+          return false
+        }
+        this.execute(command, window)
+        return true
+      })
+    )
   }
 
   protected async onStop() {

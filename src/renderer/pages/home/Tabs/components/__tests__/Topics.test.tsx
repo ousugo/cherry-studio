@@ -223,8 +223,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       if (key === 'selector.common.pinned_title') return 'Pinned'
-      if (key === 'chat.topics.title') return 'Topics'
-      if (key === 'chat.topics.list') return 'Topic List'
+      if (key === 'chat.topics.title') return 'Conversations'
+      if (key === 'chat.topics.list') return 'Conversation List'
       if (key === 'chat.topics.display.title') return 'Display mode'
       if (key === 'chat.topics.display.time') return 'Time'
       if (key === 'chat.topics.display.assistant') return 'Assistant'
@@ -233,22 +233,25 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.this_week') return 'This week'
       if (key === 'chat.topics.group.earlier') return 'Earlier'
       if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
-      if (key === 'chat.topics.group.show_more') return 'Show more topics'
-      if (key === 'chat.topics.group.collapse') return 'Collapse topics'
+      if (key === 'chat.topics.group.show_more') return 'Show more conversations'
+      if (key === 'chat.topics.group.collapse') return 'Collapse conversations'
       if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
       if (key === 'chat.topics.group.expand_all') return 'Expand all'
-      if (key === 'chat.topics.search.placeholder') return 'Search topics'
-      if (key === 'chat.topics.search.title') return 'Search topics'
-      if (key === 'chat.topics.pin') return 'Pin Topic'
-      if (key === 'chat.topics.unpin') return 'Unpin Topic'
-      if (key === 'chat.topics.auto_rename') return 'Generate topic name'
-      if (key === 'chat.topics.edit.title') return 'Edit topic name'
+      if (key === 'chat.topics.search.placeholder') return 'Search conversations'
+      if (key === 'chat.topics.search.title') return 'Search conversations'
+      if (key === 'chat.topics.pin') return 'Pin Conversation'
+      if (key === 'chat.topics.unpin') return 'Unpin Conversation'
+      if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
+      if (key === 'chat.topics.edit.title') return 'Edit conversation name'
+      if (key === 'chat.topics.empty.description')
+        return 'Create a chat and it will stay here so you can continue with its context later.'
+      if (key === 'chat.topics.empty.title') return 'No chats yet'
       if (key === 'assistants.edit.title') return 'Edit Assistant'
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
-      if (key === 'assistants.clear.menu_title') return 'Delete all assistant chats'
-      if (key === 'assistants.clear.title') return 'Clear topics'
-      if (key === 'assistants.clear.content') return 'Delete all assistant chats?'
+      if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
+      if (key === 'assistants.clear.title') return 'Clear conversations'
+      if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
       if (key === 'chat.topics.clear.title') return 'Clear messages'
       if (key === 'notes.save') return 'Save to notes'
       if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
@@ -280,13 +283,13 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.save') return 'Save'
       if (key === 'common.select_all') return 'Select All'
       if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
-      if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
-      if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
-      if (key === 'chat.topics.manage.error.at_least_one') return 'At least one topic must be kept'
-      if (key === 'chat.add.topic.title') return 'New Topic'
+      if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
+      if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
+      if (key === 'chat.topics.manage.error.at_least_one') return 'At least one conversation must be kept'
+      if (key === 'chat.add.topic.title') return 'New Conversation'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
-      if (key === 'history.records.title') return 'Topic History'
+      if (key === 'history.records.title') return 'Conversation History'
       if (key === 'history.records.shortTitle') return 'History'
       if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
@@ -672,7 +675,7 @@ describe('Topics', () => {
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
-    const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Topic"]')
+    const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
     expect(unpinButton).not.toHaveAttribute('data-active')
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
@@ -705,15 +708,38 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
   })
 
+  it('shows the empty chat state without a creation action', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic } = renderTopicList()
+
+    expect(screen.getByText('No chats yet')).toBeInTheDocument()
+    expect(
+      screen.getByText('Create a chat and it will stay here so you can continue with its context later.')
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(1)
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
   it('pins from the trailing row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
-    const pinButton = alphaRow?.querySelector('[aria-label="Pin Topic"]')
+    const pinButton = alphaRow?.querySelector('[aria-label="Pin Conversation"]')
     expect(pinButton ?? null).toBeInTheDocument()
     expect(pinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
-      alphaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Pin Topic"]') ?? null
+      alphaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Pin Conversation"]') ?? null
     ).not.toBeInTheDocument()
 
     fireEvent.click(pinButton as Element)
@@ -730,12 +756,12 @@ describe('Topics', () => {
     const { getByText } = renderTopicList()
 
     const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
-    const unpinButton = betaRow?.querySelector('[aria-label="Unpin Topic"]')
+    const unpinButton = betaRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
     expect(betaRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(unpinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
-      betaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin Topic"]') ?? null
+      betaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin Conversation"]') ?? null
     ).not.toBeInTheDocument()
 
     fireEvent.click(unpinButton as Element)
@@ -751,7 +777,7 @@ describe('Topics', () => {
     expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
-    fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Topic"]') as Element)
+    fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Conversation"]') as Element)
     await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalled())
 
     expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
@@ -770,8 +796,8 @@ describe('Topics', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveTextContent('Pin Topic')
-    expect(menuContent).not.toHaveTextContent('Unpin Topic')
+    expect(menuContent).toHaveTextContent('Pin Conversation')
+    expect(menuContent).not.toHaveTextContent('Unpin Conversation')
     expect(menuContent).not.toHaveTextContent('Topic position')
   })
 
@@ -786,9 +812,9 @@ describe('Topics', () => {
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate topic name',
-      'Edit topic name',
-      'Pin Topic',
+      'Generate conversation name',
+      'Edit conversation name',
+      'Pin Conversation',
       'Open in new tab',
       'Clear messages',
       '',
@@ -943,7 +969,7 @@ describe('Topics', () => {
 
     fireEvent.doubleClick(getByText('Alpha topic'))
 
-    const input = screen.getByLabelText('Edit topic name')
+    const input = screen.getByLabelText('Edit conversation name')
     expect(input).toHaveFocus()
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
@@ -958,7 +984,7 @@ describe('Topics', () => {
 
     // Deletion is gated behind a confirm popup (command-menu items have no inline dialog).
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
+      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
     )
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
 
@@ -1030,7 +1056,7 @@ describe('Topics', () => {
 
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
-    expect(topicRow.querySelector('[aria-label="Pin Topic"]')).toBeInTheDocument()
+    expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {
@@ -1086,13 +1112,13 @@ describe('Topics', () => {
     expect(screen.getByText('Topic 5')).toBeInTheDocument()
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
     expect(screen.getByText('Topic 10')).toBeInTheDocument()
     expect(screen.getByText('Topic 11')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse topics' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversations' }))
 
     expect(screen.getByText('Topic 5')).toBeInTheDocument()
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
@@ -1134,7 +1160,7 @@ describe('Topics', () => {
 
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
     fireEvent.click(getTopicRow('Topic 6'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-6' }))
@@ -1143,7 +1169,7 @@ describe('Topics', () => {
 
     expect(screen.getByText('Topic 10')).toBeInTheDocument()
     expect(screen.getByText('Topic 11')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
   it('collapses assistant groups from the display options menu', async () => {
@@ -1232,14 +1258,14 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
     expect(
       screen.getAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
     ).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse topics' })).toHaveTextContent('Collapse topics')
+    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toHaveTextContent('Collapse conversations')
   })
 
   it('subscribes topic stream status only for rows visible in the ResourceList view', () => {
@@ -1350,7 +1376,7 @@ describe('Topics', () => {
     renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Search topics')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
 
@@ -1382,7 +1408,7 @@ describe('Topics', () => {
 
     renderTopicList({ onOpenHistory })
 
-    expect(screen.queryByLabelText('Topic History')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Conversation History')).not.toBeInTheDocument()
 
     openTopicListOptions()
 
@@ -1781,7 +1807,7 @@ describe('Topics', () => {
 
     fireEvent.click(moreButton)
     const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
-      name: 'Delete all assistant chats'
+      name: 'Delete all assistant conversations'
     })
     expect(deleteAssistantChatsButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
@@ -1793,8 +1819,8 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(window.modal.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: 'Delete all assistant chats?',
-          title: 'Clear topics'
+          content: 'Delete all assistant conversations?',
+          title: 'Clear conversations'
         })
       )
     )
@@ -1830,12 +1856,14 @@ describe('Topics', () => {
     expect(alphaHeader).toBeInTheDocument()
     expect(betaHeader).toBeInTheDocument()
     fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant chats' }))
+    fireEvent.click(
+      within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
 
     await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
     fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
     const betaDeleteButton = within(betaHeader as HTMLElement).getByRole('button', {
-      name: 'Delete all assistant chats'
+      name: 'Delete all assistant conversations'
     })
     await vi.waitFor(() => expect(betaDeleteButton).toBeDisabled())
     fireEvent.click(betaDeleteButton)
@@ -1935,9 +1963,11 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant chats' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
 
-    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('At least one topic must be kept'))
+    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('At least one conversation must be kept'))
     expect(window.modal.confirm).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()

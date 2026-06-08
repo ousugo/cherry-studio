@@ -18,11 +18,12 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  getPathStatus: vi.fn(),
+  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
@@ -197,7 +198,8 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  })
+  }),
+  useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
@@ -368,8 +370,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.getPathStatus.mockReset()
-    mocks.getPathStatus.mockImplementation(() => new Promise(() => undefined))
+    mocks.isDirectory.mockReset()
+    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
@@ -379,7 +381,7 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        getPathStatus: mocks.getPathStatus,
+        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory
       }
     }
@@ -881,9 +883,8 @@ describe('AgentComposer', () => {
     await waitFor(() => {
       expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
     })
-    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
-    expect(typeof setFilesUpdater).toBe('function')
-    expect(setFilesUpdater([file])).toEqual([])
+    // File-token prune/dedup now lives in attachmentTool (see attachmentTool.test); this test
+    // only asserts the agent-owned skill reconcile keeps the skill when a file token is removed.
   })
 
   it('sends a draft that only contains a skill token', () => {
@@ -1322,7 +1323,7 @@ describe('AgentComposer', () => {
   })
 
   it('does not block sends when workspace status preflight fails', async () => {
-    mocks.getPathStatus.mockRejectedValueOnce(new Error('preflight unavailable'))
+    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
 
     render(
       <AgentHomeComposer
@@ -1334,9 +1335,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() =>
-      expect(mocks.getPathStatus).toHaveBeenCalledWith({ path: '/workspace', expectedKind: 'directory' })
-    )
+    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
     await act(async () => {
       await Promise.resolve()
     })

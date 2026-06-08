@@ -1070,18 +1070,18 @@
         {
           "originalKey": "pasteLongTextAsFile",
           "type": "boolean",
-          "defaultValue": true,
+          "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_as_file"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
-          "defaultValue": 2000,
+          "defaultValue": 1500,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_threshold"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "clickAssistantToShowTopic",
@@ -2430,7 +2430,7 @@
               "defaultValue": false,
               "originalKey": "enabled",
               "status": "classified",
-              "targetKey": "feature.csaas.enabled",
+              "targetKey": "feature.api_gateway.enabled",
               "type": "boolean"
             },
             {
@@ -2438,7 +2438,7 @@
               "defaultValue": "127.0.0.1",
               "originalKey": "host",
               "status": "classified",
-              "targetKey": "feature.csaas.host",
+              "targetKey": "feature.api_gateway.host",
               "type": "string"
             },
             {
@@ -2446,7 +2446,7 @@
               "defaultValue": 23333,
               "originalKey": "port",
               "status": "classified",
-              "targetKey": "feature.csaas.port",
+              "targetKey": "feature.api_gateway.port",
               "type": "number"
             },
             {
@@ -2454,7 +2454,7 @@
               "defaultValue": "VALUE: null",
               "originalKey": "apiKey",
               "status": "classified",
-              "targetKey": "feature.csaas.api_key",
+              "targetKey": "feature.api_gateway.api_key",
               "type": "string"
             }
           ]
@@ -2478,7 +2478,7 @@
           "targetKey": null,
           "children": [
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2487,12 +2487,12 @@
                 "enabled": true
               },
               "originalKey": "zoom_in",
-              "status": "classified",
-              "targetKey": "shortcut.general.zoom_in",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2501,12 +2501,12 @@
                 "enabled": true
               },
               "originalKey": "zoom_out",
-              "status": "classified",
-              "targetKey": "shortcut.general.zoom_out",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2515,12 +2515,12 @@
                 "enabled": true
               },
               "originalKey": "zoom_reset",
-              "status": "classified",
-              "targetKey": "shortcut.general.zoom_reset",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2529,23 +2529,23 @@
                 "enabled": true
               },
               "originalKey": "show_settings",
-              "status": "classified",
-              "targetKey": "shortcut.general.show_settings",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [],
                 "enabled": false
               },
               "originalKey": "show_app",
-              "status": "classified",
-              "targetKey": "shortcut.general.show_main_window",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2554,34 +2554,34 @@
                 "enabled": false
               },
               "originalKey": "mini_window",
-              "status": "classified",
-              "targetKey": "shortcut.feature.quick_assistant.toggle_window",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [],
                 "enabled": false
               },
               "originalKey": "selection_assistant_toggle",
-              "status": "classified",
-              "targetKey": "shortcut.feature.selection.toggle_enabled",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [],
                 "enabled": false
               },
               "originalKey": "selection_assistant_select_text",
-              "status": "classified",
-              "targetKey": "shortcut.feature.selection.get_text",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2590,8 +2590,8 @@
                 "enabled": true
               },
               "originalKey": "new_topic",
-              "status": "classified",
-              "targetKey": "shortcut.topic.new",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2637,7 +2637,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2647,12 +2647,12 @@
                 "enabled": false
               },
               "originalKey": "copy_last_message",
-              "status": "classified",
-              "targetKey": "shortcut.chat.copy_last_message",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2662,12 +2662,12 @@
                 "enabled": false
               },
               "originalKey": "edit_last_user_message",
-              "status": "classified",
-              "targetKey": "shortcut.chat.edit_last_user_message",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2676,12 +2676,12 @@
                 "enabled": true
               },
               "originalKey": "search_message_in_chat",
-              "status": "classified",
-              "targetKey": "shortcut.chat.search_message",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2691,12 +2691,12 @@
                 "enabled": true
               },
               "originalKey": "search_message",
-              "status": "classified",
-              "targetKey": "shortcut.general.search",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2705,12 +2705,12 @@
                 "enabled": true
               },
               "originalKey": "clear_topic",
-              "status": "classified",
-              "targetKey": "shortcut.chat.clear",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2719,12 +2719,12 @@
                 "enabled": true
               },
               "originalKey": "toggle_new_context",
-              "status": "classified",
-              "targetKey": "shortcut.chat.toggle_new_context",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2734,12 +2734,12 @@
                 "enabled": true
               },
               "originalKey": "select_model",
-              "status": "classified",
-              "targetKey": "shortcut.chat.select_model",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "Escape"
@@ -2747,8 +2747,8 @@
                 "enabled": true
               },
               "originalKey": "exit_fullscreen",
-              "status": "classified",
-              "targetKey": "shortcut.general.exit_fullscreen",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             }
           ]

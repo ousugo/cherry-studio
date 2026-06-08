@@ -155,7 +155,8 @@ vi.mock('@cherrystudio/ui', () => {
         {...props}
       />
     ),
-    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+    usePortalContainer: () => undefined
   }
 })
 

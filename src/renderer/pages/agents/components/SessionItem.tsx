@@ -6,7 +6,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -221,9 +221,9 @@ const SessionItem = ({
 
       <ResourceList.ItemActions active={hasStreamIndicator || isConfirmingDeletion}>
         {showPinAction && (
-          <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+          <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
               className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
               onClick={handleTogglePinClick}>
               <PinIcon size={13} className={cn('size-3.25!', pinned && '-rotate-45')} />

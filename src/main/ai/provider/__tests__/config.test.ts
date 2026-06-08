@@ -6,7 +6,7 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { AuthConfig } from '@shared/data/types/provider'
+import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
@@ -453,6 +453,28 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
+      const provider = makeProvider({
+        id: 'dashscope',
+        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'dashscope', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('dashscope')
+      expect(settings.includeUsage).toBe(true)
+      expect(settings.apiKey).toBe('sk-test-key')
+      expect(settings.name).toBeUndefined()
+    })
+
     it('falls back to buildOpenAICompatibleConfig for an unknown openai-compatible provider', async () => {
       // No adapterFamily → resolveAiSdkProviderId returns 'openai-compatible',
       // which matches no builder row and is excluded from the generic branch.

@@ -2,7 +2,6 @@ import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { CommandProvider, ContextKeyProvider } from '@renderer/commands'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
@@ -11,10 +10,10 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import store, { persistor } from '@renderer/store'
+import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
+import store from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 const logger = loggerService.withContext('MainApp')
 
@@ -41,17 +40,15 @@ function MainApp(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <ContextKeyProvider>
-                      <CommandProvider>
-                        <TabsProvider>
-                          <TopViewContainer>
-                            <AppShell />
-                          </TopViewContainer>
-                        </TabsProvider>
-                      </CommandProvider>
-                    </ContextKeyProvider>
-                  </PersistGate>
+                  <ContextKeyProvider>
+                    <CommandProvider>
+                      <TabsProvider>
+                        <TopViewContainer>
+                          <AppShell />
+                        </TopViewContainer>
+                      </TabsProvider>
+                    </CommandProvider>
+                  </ContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>

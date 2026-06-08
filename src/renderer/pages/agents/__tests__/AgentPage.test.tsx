@@ -1,5 +1,5 @@
-import { useCommandHandler } from '@renderer/commands'
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
+import { useCommandHandler } from '@renderer/features/command'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -41,7 +41,7 @@ const activeSessionMocks = vi.hoisted(() => ({
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   useCommandHandler: vi.fn()
 }))
 

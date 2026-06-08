@@ -19,7 +19,6 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { Notification } from '@types'
-import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -406,6 +405,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
@@ -422,9 +422,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
-  // File_SelectFolder / File_GetPathStatus / File_ListDirectory / File_GetDirectoryStructure are
-  // registered by the FileManager lifecycle service so they are ready before
-  // the renderer loads.
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
@@ -514,21 +511,6 @@ export async function registerIpc() {
   // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
   //   configManager.setUseSystemTitleBar(isActive)
   // })
-  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
-    try {
-      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
-      logger.debug('disk space', diskSpace)
-      const { free, size } = diskSpace
-      return {
-        free,
-        size
-      }
-    } catch (error) {
-      logger.error('check disk space error', error as Error)
-      return null
-    }
-  })
-
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 

@@ -1229,6 +1229,15 @@ function TopicListBody(props: TopicListBodyProps) {
       draggable={variant === 'draggable'}
       virtualClassName="pt-0 pb-3"
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
+      emptyFallback={
+        <ResourceList.EmptyState
+          compact
+          preset="no-topic"
+          className="min-h-60 px-5 py-10"
+          title={t('chat.topics.empty.title')}
+          description={t('chat.topics.empty.description')}
+        />
+      }
       renderItem={renderItem}
     />
   )

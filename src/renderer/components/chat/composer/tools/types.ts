@@ -7,6 +7,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
+import type { ComposerSerializedToken } from '../tokens'
 import type { ComposerToolContextValue } from './ComposerToolProvider'
 
 export { TopicType }
@@ -100,6 +101,18 @@ export interface ToolComposerMenuContribution<
   createItems: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
 }
 
+export interface ToolTokenContribution<
+  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
+  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
+> {
+  /**
+   * Reconcile composer state when the editor's managed tokens change. Each tool prunes/re-adds
+   * ONLY its own token kind (file/knowledge/skill) via `context.actions`, using functional
+   * `setState` updates so it is safe to call from an event handler.
+   */
+  reconcile: (draftTokens: readonly ComposerSerializedToken[], context: ToolRenderContext<S, A>) => void
+}
+
 export interface ToolComposerContribution<
   S extends readonly ToolStateKey[] = readonly ToolStateKey[],
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
@@ -112,6 +125,9 @@ export interface ToolComposerContribution<
    * to register menu items, pickers, or active controls.
    */
   runtime?: React.ComponentType<{ context: ToolRenderContext<S, A> }>
+
+  /** Editor→state token reconciliation owned by this tool (see `useComposerTokenReconcile`). */
+  tokens?: ToolTokenContribution<S, A>
 }
 
 /**

@@ -12,11 +12,13 @@ describe('messageMenuBar registry', () => {
     expect(getMessageMenuBarConfig(TopicType.Session).buttonIds).not.toContain('translate')
   })
 
-  it('offers the trace button in the agent (Session) scope', () => {
-    expect(getMessageMenuBarConfig(TopicType.Session).buttonIds).toContain('trace')
-  })
-
   it('still offers the translate button in the chat scope', () => {
     expect(getMessageMenuBarConfig(TopicType.Chat).buttonIds).toContain('translate')
+  })
+
+  // Regression: the standalone trace window was removed, so the trace button
+  // (its only entry point) must no longer be registered in any scope.
+  it('excludes the trace button from the agent (Session) scope', () => {
+    expect(getMessageMenuBarConfig(TopicType.Session).buttonIds).not.toContain('trace')
   })
 })

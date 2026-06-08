@@ -1,8 +1,8 @@
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { preferenceTable } from '@data/db/schemas/preference'
-import type { NewUserModel } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import {
@@ -23,8 +23,8 @@ export const CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
 export const CHAT_DEFAULT_MODEL_PREFERENCE_KEY = 'chat.default_model_id' as const
 
 type TxLike = Pick<DbType, 'select' | 'insert' | 'update'>
-type CherryAIProviderRow = Omit<NewUserProvider, 'orderKey'>
-type CherryAIDefaultModelRow = Omit<NewUserModel, 'orderKey'>
+type CherryAIProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
+type CherryAIDefaultModelRow = Omit<InsertUserModelRow, 'orderKey'>
 
 export function createCherryAIProviderRow(): CherryAIProviderRow {
   return {

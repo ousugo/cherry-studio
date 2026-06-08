@@ -134,6 +134,19 @@ describe('ComposerToken', () => {
     expect(icon).not.toHaveClass('border', 'border-border', 'bg-background')
   })
 
+  it('keeps long file token names clipped to a single line while preserving tooltip text', () => {
+    const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_pasted_text.txt'
+
+    const { container } = render(<ComposerToken token={{ id: 'file:long', kind: 'file', label: longLabel }} />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const label = token?.querySelector('span.truncate')
+
+    expect(token).toHaveClass('max-w-52', 'overflow-hidden')
+    expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent(longLabel)
+  })
+
   it('renders image file tokens with image variant metadata and preview', () => {
     const { container } = render(
       <ComposerToken

@@ -82,6 +82,7 @@ export interface MessageMenuBarToolbarRenderContext {
   actionContext: MessageMenuBarActionContext
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
   menuActions: MessageMenuBarResolvedAction[]
+  onMenuOpenChange?: (open: boolean) => void
   softHoverBg: boolean
   translationItems: MessageMenuBarTranslationItem[]
 }
@@ -405,7 +406,7 @@ registerToolbarAction({
 registerToolbarAction({
   id: 'more-menu',
   renderToolbar: renderMoreMenuToolbarAction,
-  label: 'More',
+  label: ({ t }) => t('chat.message.more'),
   icon: <Menu size={19} />,
   availability: toolbarAvailability('more-menu', ({ isUserMessage }) => !isUserMessage)
 })

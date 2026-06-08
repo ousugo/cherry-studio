@@ -36,7 +36,7 @@ describe('session item actions', () => {
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
     expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin', 'session.delete'])
-    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('chat.topics.unpin')
+    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
     expect(deleteAction?.confirm).toMatchObject({
       title: 'agent.session.delete.title',
       description: 'agent.session.delete.content',

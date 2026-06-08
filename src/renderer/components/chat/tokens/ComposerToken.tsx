@@ -191,7 +191,7 @@ export function FileComposerToken(props: ComposerTokenProps) {
   const tokenElement = (
     <span
       className={cn(
-        'mx-0.5 inline-flex h-6 max-w-52 select-none items-center gap-1 rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-colors',
+        'mx-0.5 inline-flex h-6 max-w-52 select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-colors',
         presentation.containerClassName,
         props.selected && 'border-primary ring-1 ring-ring',
         props.className
@@ -208,7 +208,11 @@ export function FileComposerToken(props: ComposerTokenProps) {
         data-file-token-icon={presentation.variant}>
         {props.token.icon ? props.token.icon : presentation.icon}
       </span>
-      {props.children ?? <span className={cn('min-w-0 truncate', props.maxWidthClassName)}>{label}</span>}
+      {props.children ?? (
+        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+          {label}
+        </span>
+      )}
     </span>
   )
 

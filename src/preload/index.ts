@@ -1,6 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
@@ -17,7 +17,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/commands'
+import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/command'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -61,31 +61,25 @@ import type {
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
-import type { ExcelWorkbookPreviewRequest, ExcelWorkbookPreviewResult } from '@shared/excelPreview'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath } from '@shared/file/types/common'
+import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  GetPathStatusIpcParams,
-  GetPhysicalPathIpcParams,
-  PathStatus
+  GetPhysicalPathIpcParams
 } from '@shared/file/types/ipc'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import type { WordPreviewRequest, WordPreviewResult } from '@shared/wordPreview'
+import type { StorageHealth } from '@shared/types/storageMonitor'
 import type {
+  ApiGatewayStatusResult,
   FileMetadata,
-  GetApiServerStatusResult,
   Notification,
   OcrProvider,
   OcrResult,
-  RestartApiServerStatusResult,
   S3Config,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -145,8 +139,6 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
-  getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
-    ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
@@ -301,9 +293,8 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getPathStatus: (params: GetPathStatusIpcParams): Promise<PathStatus> =>
-      ipcRenderer.invoke(IpcChannel.File_GetPathStatus, params),
-    getFileSize: (filePath: string): Promise<number> => ipcRenderer.invoke(IpcChannel.File_GetFileSize, filePath),
+    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
+      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
@@ -339,14 +330,6 @@ const api = {
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
-  },
-  excel: {
-    readWorkbookPreview: (request: ExcelWorkbookPreviewRequest): Promise<ExcelWorkbookPreviewResult> =>
-      ipcRenderer.invoke(IpcChannel.Excel_ReadWorkbookPreview, request)
-  },
-  word: {
-    readPreview: (request: WordPreviewRequest): Promise<WordPreviewResult> =>
-      ipcRenderer.invoke(IpcChannel.Word_ReadPreview, request)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
@@ -396,14 +379,7 @@ const api = {
       model: NativePopupMenuModel<CommandId>,
       anchor?: MenuAnchor
     ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
-      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor),
-    onExecuteFromNativeMenu: (callback: (command: CommandId) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, command: CommandId) => callback(command)
-      ipcRenderer.on(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      }
-    }
+      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)
@@ -725,21 +701,12 @@ const api = {
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    getData: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName),
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
-    tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
     cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
-    cleanTopic: (topicId: string, traceId?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
-    addEndMessage: (spanId: string, modelName: string, context: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),
-    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
-    addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
+    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   codeCli: {
     run: (
@@ -809,6 +776,19 @@ const api = {
 
     // Get all shared cache entries from Main for initialization sync
     getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
+  },
+
+  // StorageMonitorService related APIs (main-process disk-space watcher)
+  storageMonitor: {
+    // Pull the current disk-space health to seed initial state on mount
+    getHealth: (): Promise<StorageHealth> => ipcRenderer.invoke(IpcChannel.StorageMonitor_GetHealth),
+
+    // Subscribe to health transitions (ok <-> low) pushed from Main
+    onHealthChange: (callback: (health: StorageHealth) => void) => {
+      const listener = (_: any, health: StorageHealth) => callback(health)
+      ipcRenderer.on(IpcChannel.StorageMonitor_HealthChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.StorageMonitor_HealthChanged, listener)
+    }
   },
 
   // PreferenceService related APIs
@@ -951,20 +931,10 @@ const api = {
       sourceLangCode?: string
     }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
-  apiServer: {
-    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
-    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
-    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
-    onReady: (callback: () => void): (() => void) => {
-      const listener = () => {
-        callback()
-      }
-      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
-      }
-    }
+  apiGateway: {
+    start: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
+    restart: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
+    stop: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
     list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>

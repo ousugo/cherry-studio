@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { FilePath } from '@shared/file/types/common'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useFileSize')
@@ -10,11 +11,6 @@ const joinAbsPath = (base: string, rel: string): string => {
   return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
 }
 
-/**
- * Read a file's size via the main-side `file.getFileSize` IPC (thin
- * `fs.stat` wrapper). Used to gate previews above a size threshold before
- * any `readText` is attempted.
- */
 export function useFileSize(
   workspacePath: string | null | undefined,
   filePath: string | null | undefined
@@ -33,12 +29,12 @@ export function useFileSize(
 
     void (async () => {
       try {
-        const size = await window.api.file.getFileSize(absPath)
-        if (!cancelled) setState({ status: 'ok', size })
+        const metadata = await window.api.file.getMetadata({ kind: 'path', path: absPath as FilePath })
+        if (!cancelled) setState({ status: 'ok', size: metadata.size })
       } catch (err) {
         if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error(`Failed to read file size: ${absPath}`, normalized)
+        logger.error(`Failed to get file size: ${absPath}`, normalized)
         setState({ status: 'error' })
       }
     })()

@@ -201,19 +201,6 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
-export type PathStatusKind = 'file' | 'directory'
-
-export type PathStatusReason = 'missing' | 'not-file' | 'not-directory' | 'inaccessible'
-
-export interface GetPathStatusIpcParams {
-  path: string
-  expectedKind?: PathStatusKind
-}
-
-export type PathStatus =
-  | { ok: true; kind: PathStatusKind }
-  | { ok: false; reason: PathStatusReason; actualKind?: PathStatusKind; detail?: string }
-
 // ─── File IPC API ───
 
 /**
@@ -230,7 +217,7 @@ export type PathStatus =
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete`, `getMetadata` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -350,7 +337,9 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
+   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
+   * is still `@phase 2` (not yet wired).
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -530,21 +519,6 @@ export interface FileIpcApi {
   // ─── I. Path Queries (arbitrary path) ───
   //
   // Section status: mixed; check each method's `@phase` tag.
-
-  /**
-   * Get status for an arbitrary filesystem path, optionally requiring a kind.
-   * @phase 1 — wired in FileManager lifecycle IPC
-   */
-  getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
-
-  /**
-   * Read the size (in bytes) of a regular file at an arbitrary path. Thin
-   * wrapper around `fs.stat` — rejects if the path is missing, inaccessible,
-   * or not a regular file. Separate from `getPathStatus` to keep each
-   * single-hop facade focused on one semantic concern (kind vs. measurement).
-   * @phase 1 — wired in FileManager lifecycle IPC
-   */
-  getFileSize(path: FilePath): Promise<number>
 
   /**
    * List contents of an arbitrary directory.

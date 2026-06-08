@@ -27,7 +27,7 @@ import { Route as SettingsFileProcessingRouteImport } from './routes/settings/fi
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
-import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
+import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
@@ -142,9 +142,9 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsApiServerRoute = SettingsApiServerRouteImport.update({
-  id: '/api-server',
-  path: '/api-server',
+const SettingsApiGatewayRoute = SettingsApiGatewayRouteImport.update({
+  id: '/api-gateway',
+  path: '/api-gateway',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsAboutRoute = SettingsAboutRouteImport.update({
@@ -272,7 +272,7 @@ export interface FileRoutesByFullPath {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -314,7 +314,7 @@ export interface FileRoutesByTo {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -357,7 +357,7 @@ export interface FileRoutesById {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -402,7 +402,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -444,7 +444,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -486,7 +486,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -650,11 +650,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/api-server': {
-      id: '/settings/api-server'
-      path: '/api-server'
-      fullPath: '/settings/api-server'
-      preLoaderRoute: typeof SettingsApiServerRouteImport
+    '/settings/api-gateway': {
+      id: '/settings/api-gateway'
+      path: '/api-gateway'
+      fullPath: '/settings/api-gateway'
+      preLoaderRoute: typeof SettingsApiGatewayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/about': {
@@ -876,7 +876,7 @@ const SettingsMcpRouteWithChildren = SettingsMcpRoute._addFileChildren(
 
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
-  SettingsApiServerRoute: typeof SettingsApiServerRoute
+  SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
@@ -897,7 +897,7 @@ interface SettingsRouteChildren {
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
-  SettingsApiServerRoute: SettingsApiServerRoute,
+  SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,

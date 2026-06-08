@@ -5,6 +5,7 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
+import type { FilePath } from '@shared/file/types/common'
 import { FolderOpen, MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +20,7 @@ interface ClickableFilePathProps {
 
 // Workspace-relative paths can't be resolved without workspace context here,
 // so existence validation only runs for absolute paths.
-const isAbsoluteFilePath = (value: string): boolean => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)
+const isAbsoluteFilePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path)
 
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
@@ -61,8 +62,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       e.stopPropagation()
       const run = async () => {
         if (isAbsoluteFilePath(normalizedPath)) {
-          const status = await window.api.file.getPathStatus({ path: normalizedPath, expectedKind: 'file' })
-          if (!status.ok) {
+          const metadata = await window.api.file
+            .getMetadata({ kind: 'path', path: normalizedPath as FilePath })
+            .catch(() => null)
+          if (metadata?.kind !== 'file') {
             notifyError?.(t('chat.input.tools.file_not_found', { path: normalizedPath }))
             return
           }

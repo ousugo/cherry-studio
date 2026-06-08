@@ -126,7 +126,7 @@ describe('HomeWindow', () => {
     state.resetTemporaryTopic.mockClear()
     ;(window.electron.ipcRenderer as any).removeAllListeners = vi.fn()
     ;(window as any).api = {
-      ...(window.api ?? {}),
+      ...window.api,
       quickAssistant: {
         setPin: vi.fn(),
         hide: vi.fn()

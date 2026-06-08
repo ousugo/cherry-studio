@@ -19,7 +19,7 @@
  * - regularPhrases -> dropped (future: FK IDs)
  */
 
-import type { AssistantInsert } from '@data/db/schemas/assistant'
+import type { InsertAssistantRow } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -131,7 +131,7 @@ export interface OldAssistant {
 // ============================================================================
 
 export interface AssistantTransformResult {
-  assistant: Omit<AssistantInsert, 'orderKey'>
+  assistant: Omit<InsertAssistantRow, 'orderKey'>
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
   tags: string[]
@@ -202,7 +202,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // (e.g. v1's `maxTokens: 0` sentinel for disabled-state) so the v2 row never starts
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
-  const settings: AssistantInsert['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
+  const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
 
   return {
     assistant: {

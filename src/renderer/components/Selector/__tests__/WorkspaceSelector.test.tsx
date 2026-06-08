@@ -142,7 +142,7 @@ describe('WorkspaceSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(useQueryMock).toHaveBeenCalledWith('/workspaces')
+    expect(useQueryMock).toHaveBeenCalledWith('/agent-workspaces')
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('cherry-studio')
     expect(options[1]).toHaveTextContent('cherry-studio-1')
