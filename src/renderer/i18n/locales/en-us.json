@@ -1407,7 +1407,8 @@
       },
       "new_session": "New Task {{Command}}",
       "new_topic": "New Conversation {{Command}}",
-      "paste_text_file": "Paste into input",
+      "paste_text_file": "Show in input",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send, / to include tools",
       "resource_panel": {

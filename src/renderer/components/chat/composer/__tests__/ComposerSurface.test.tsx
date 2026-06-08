@@ -1,3 +1,4 @@
+import { COMPOSER_FILE_KIND } from '@renderer/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
@@ -11,12 +12,14 @@ const mocks = vi.hoisted(() => ({
   editorViewComposing: false,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
+  deleteRange: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
   docDescendants: vi.fn(),
   docTextBetween: vi.fn(),
   focus: vi.fn(),
+  fsReadText: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
@@ -51,6 +54,9 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
+  PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
+  PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -94,6 +100,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       },
       chain: () => ({
         focus: () => ({
+          deleteRange: (...args: unknown[]) => {
+            mocks.deleteRange(...args)
+            return {
+              insertContent: (...contentArgs: unknown[]) => {
+                mocks.insertContent(...contentArgs)
+                return { run: mocks.chainRun }
+              },
+              run: mocks.chainRun
+            }
+          },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
             return { run: mocks.chainRun }
@@ -247,6 +263,7 @@ describe('ComposerSurface', () => {
     mocks.editorViewComposing = false
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
+    mocks.deleteRange.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -254,6 +271,8 @@ describe('ComposerSurface', () => {
     mocks.docTextBetween.mockReset()
     mocks.docTextBetween.mockReturnValue('')
     mocks.focus.mockReset()
+    mocks.fsReadText.mockReset()
+    mocks.fsReadText.mockResolvedValue('')
     mocks.getJSON.mockReset()
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
@@ -276,9 +295,24 @@ describe('ComposerSurface', () => {
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
       doc: {},
+      delete: vi.fn(() => mocks.transaction),
       setNodeMarkup: vi.fn(() => mocks.transaction),
       setSelection: vi.fn(() => mocks.transaction)
     }
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        fs: {
+          readText: mocks.fsReadText
+        }
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        error: vi.fn()
+      }
+    })
   })
 
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
@@ -945,6 +979,55 @@ describe('ComposerSurface', () => {
     })
     expect(mocks.insertContent).toHaveBeenCalledWith(' ')
     expect(mocks.insertContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
+    const pastedFile = {
+      id: 'file-1',
+      name: 'pasted_text.txt',
+      origin_name: '已粘贴的文本.txt',
+      path: '/tmp/pasted_text.txt',
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    }
+    const pastedToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: '已粘贴的文本.txt',
+      payload: pastedFile
+    }
+    const setFiles = vi.fn()
+
+    mocks.fsReadText.mockResolvedValue('long pasted text')
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(pastedToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
+    expect(showInInputButton).toHaveClass('min-h-0', 'w-fit', 'p-0', 'text-primary', 'hover:text-primary-hover')
+    expect(showInInputButton).not.toHaveClass('w-full', 'text-muted-foreground')
+
+    fireEvent.click(showInInputButton)
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
+    expect(mocks.deleteRange).toHaveBeenCalledWith({ from: 3, to: 4 })
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'long pasted text' }])
+    expect(mocks.chainRun).toHaveBeenCalled()
+
+    const fileUpdater = setFiles.mock.calls[0]?.[0] as (files: (typeof pastedFile)[]) => (typeof pastedFile)[]
+    expect(fileUpdater([pastedFile])).toEqual([])
   })
 
   it('does not notify token changes when only text changes', async () => {

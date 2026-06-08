@@ -1408,6 +1408,7 @@
       "new_session": "Новая сессия {{Команда}}",
       "new_topic": "Новый топик {{Command}}",
       "paste_text_file": "Вставьте во входные данные",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "resource_panel": {

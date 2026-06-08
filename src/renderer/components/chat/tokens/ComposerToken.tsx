@@ -1,4 +1,4 @@
-import { NormalTooltip } from '@cherrystudio/ui'
+import { NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -10,7 +10,15 @@ import { formatFileSize } from '@renderer/utils'
 import type { FilePath } from '@shared/file/types'
 import { toSafeFileUrl } from '@shared/file/urlUtil'
 import { Boxes, Braces, File, FileCode2, FileImage, FileText, TextQuote, Zap } from 'lucide-react'
-import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
+import {
+  type ComponentType,
+  type MouseEventHandler,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 
 import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
@@ -33,6 +41,11 @@ export interface ComposerTokenProps {
   children?: ReactNode
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
+}
+
+interface FileComposerTokenProps extends ComposerTokenProps {
+  tooltipActions?: ReactNode
+  tooltipMetadataLayout?: 'inline' | 'split'
 }
 
 interface ActiveComposerTokenProps extends ComposerTokenProps {
@@ -151,17 +164,26 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
 function FileTokenTooltip({
   file,
   label,
-  presentation
+  presentation,
+  actions,
+  metadataLayout = 'split'
 }: {
   file: FileMetadata | undefined
   label: string
   presentation: FileTokenPresentation
+  actions?: ReactNode
+  metadataLayout?: 'inline' | 'split'
 }) {
   const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
   const hasPreview = Boolean(presentation.previewUrl)
 
   return (
-    <div className={cn('space-y-2 text-left', hasPreview ? 'w-56' : 'min-w-36 max-w-56')}>
+    <div
+      className={cn(
+        'text-left',
+        hasPreview ? 'w-56 space-y-2' : 'min-w-36 max-w-56',
+        actions ? 'space-y-1.5' : 'space-y-2'
+      )}>
       {presentation.previewUrl && (
         <div className="overflow-hidden rounded-md border border-border bg-background">
           <img src={presentation.previewUrl} alt={label} className="h-28 w-full object-cover" />
@@ -169,26 +191,72 @@ function FileTokenTooltip({
       )}
       <div className="min-w-0">
         <div className="truncate font-medium text-popover-foreground text-xs leading-4">{label}</div>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground leading-4">
-          <span className="shrink-0 rounded-sm bg-muted px-1 font-medium uppercase">{presentation.typeLabel}</span>
-          {sizeLabel && (
-            <>
+        {metadataLayout === 'split' ? (
+          <div className="mt-1 flex min-w-0 items-center justify-between gap-4 text-[11px] text-muted-foreground leading-4">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="shrink-0 rounded-sm bg-muted px-1 font-medium uppercase">{presentation.typeLabel}</span>
               <span className="text-border-muted">/</span>
-              <span className="shrink-0">{sizeLabel}</span>
-            </>
-          )}
-        </div>
+            </div>
+            {sizeLabel && <span className="shrink-0">{sizeLabel}</span>}
+          </div>
+        ) : (
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground leading-4">
+            <span className="shrink-0 rounded-sm bg-muted px-1 font-medium uppercase">{presentation.typeLabel}</span>
+            {sizeLabel && (
+              <>
+                <span className="text-border-muted">/</span>
+                <span className="shrink-0">{sizeLabel}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
+      {actions && <div className="flex min-h-4 items-center pt-0.5">{actions}</div>}
     </div>
   )
 }
 
-export function FileComposerToken(props: ComposerTokenProps) {
+export function FileComposerToken(props: FileComposerTokenProps) {
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const closeTimerRef = useRef<number | null>(null)
   const file = isFileMetadata(props.token.payload) ? props.token.payload : undefined
   const label = file?.origin_name || file?.name || props.token.label
   const presentation = getFileTokenPresentation(file, label)
   const title = props.token.description ?? props.token.promptText ?? label
-  const tokenElement = (
+  const hasInteractiveTooltip = Boolean(props.tooltipActions)
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current === null) return
+    window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }, [])
+
+  const openPopover = useCallback(() => {
+    clearCloseTimer()
+    setPopoverOpen(true)
+  }, [clearCloseTimer])
+
+  const scheduleClosePopover = useCallback(() => {
+    clearCloseTimer()
+    closeTimerRef.current = window.setTimeout(() => {
+      setPopoverOpen(false)
+      closeTimerRef.current = null
+    }, 120)
+  }, [clearCloseTimer])
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer])
+
+  const tooltipContent = (
+    <FileTokenTooltip
+      file={file}
+      label={label}
+      presentation={presentation}
+      actions={props.tooltipActions}
+      metadataLayout={props.tooltipMetadataLayout}
+    />
+  )
+
+  const chipElement = (
     <span
       className={cn(
         'mx-0.5 inline-flex h-6 max-w-52 select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-colors',
@@ -216,9 +284,39 @@ export function FileComposerToken(props: ComposerTokenProps) {
     </span>
   )
 
+  const tokenElement = hasInteractiveTooltip ? (
+    <span
+      className="inline-flex align-baseline"
+      onMouseEnter={openPopover}
+      onMouseLeave={scheduleClosePopover}
+      onFocus={openPopover}
+      onBlur={scheduleClosePopover}>
+      {chipElement}
+    </span>
+  ) : (
+    chipElement
+  )
+
+  if (hasInteractiveTooltip) {
+    return (
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>{tokenElement}</PopoverTrigger>
+        <PopoverContent
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="w-fit max-w-64 px-3 py-2"
+          onMouseEnter={openPopover}
+          onMouseLeave={scheduleClosePopover}>
+          {tooltipContent}
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
   return (
     <NormalTooltip
-      content={<FileTokenTooltip file={file} label={label} presentation={presentation} />}
+      content={tooltipContent}
       side="top"
       sideOffset={8}
       delayDuration={300}

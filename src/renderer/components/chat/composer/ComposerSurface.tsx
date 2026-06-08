@@ -12,20 +12,21 @@ import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDrag
 import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHandler'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
-import type { FileMetadata } from '@renderer/types'
+import { type FileMetadata, isPastedTextFileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import { EditorContent } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FileComposerToken } from '../tokens'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import { getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
-import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
+import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import {
   createPromptVariableContent,
   createPromptVariableInlineContent,
@@ -380,6 +381,7 @@ export default function ComposerSurface({
   const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
   const managedTokenSignatureRef = useRef('')
+  const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const onSendDraftRef = useRef(onSendDraft)
@@ -404,6 +406,10 @@ export default function ComposerSurface({
   useEffect(() => {
     onSendDraftRef.current = onSendDraft
   }, [onSendDraft])
+
+  useEffect(() => {
+    tokenByIdRef.current = new Map(tokens.map((token) => [token.id, token]))
+  }, [tokens])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) {
@@ -545,6 +551,47 @@ export default function ComposerSurface({
     removeComposerTokens(editor, (token) => token.id === tokenId)
     editor.commands.focus()
   }, [])
+
+  const handleShowPastedTextFileInInput = useCallback(
+    async (token: ComposerDraftToken, nodeViewProps: NodeViewProps) => {
+      const file = isPastedTextFileMetadata(token.payload) ? token.payload : undefined
+      const editor = editorRef.current
+      if (!file || !editor || editor.isDestroyed) return
+
+      try {
+        const fileText = await window.api.fs.readText(file.path)
+        const currentText = serializeComposerDocument(editor).text
+        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
+        const content = textToInsert
+          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+          : []
+
+        if (typeof position === 'number') {
+          const chain = editor
+            .chain()
+            .focus()
+            .deleteRange({ from: position, to: position + nodeViewProps.node.nodeSize })
+          if (content.length > 0) {
+            chain.insertContent(content)
+          }
+          chain.run()
+        } else {
+          removeComposerTokens(editor, (candidate) => candidate.id === token.id)
+          if (content.length > 0) {
+            editor.chain().focus().insertContent(content).run()
+          } else {
+            editor.commands.focus()
+          }
+        }
+
+        setFiles((prev) => prev.filter((candidate) => candidate.id !== file.id || candidate.path !== file.path))
+      } catch {
+        window.toast?.error(t('chat.input.file_error'))
+      }
+    },
+    [setFiles, t]
+  )
 
   const insertToken = useCallback((token: ComposerDraftToken) => {
     const editor = editorRef.current
@@ -736,9 +783,49 @@ export default function ComposerSurface({
     [quickPanelEnabled, rootSuggestionSource, quickPanelSuggestionSources]
   )
 
+  const renderComposerToken = useCallback<ComposerTokenRenderer>(
+    (token, { selected, nodeViewProps }) => {
+      const currentToken = tokenByIdRef.current.get(token.id) ?? token
+      if (currentToken.kind !== 'file' || !isPastedTextFileMetadata(currentToken.payload)) return undefined
+
+      const pastedTextToken = currentToken as ComposerDraftToken & { kind: 'file' }
+      return (
+        <FileComposerToken
+          token={pastedTextToken}
+          selected={selected}
+          tooltipMetadataLayout="split"
+          tooltipActions={
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+              onMouseDown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                void handleShowPastedTextFileInInput(pastedTextToken, nodeViewProps)
+              }}>
+              {t('chat.input.paste_text_file')}
+            </Button>
+          }
+        />
+      )
+    },
+    [handleShowPastedTextFileInInput, t]
+  )
+
   const editorExtensions = useMemo(
-    () => createComposerEditorPreset({ placeholder, suggestionSources: activeSuggestionSources }),
-    [activeSuggestionSources, placeholder]
+    () =>
+      createComposerEditorPreset({
+        placeholder,
+        renderToken: renderComposerToken,
+        suggestionSources: activeSuggestionSources
+      }),
+    [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
   const editor = useRichTextEditorKernel({
