@@ -6,11 +6,12 @@ import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
 
-import type { FileTreeNode, FileTreeRenameSlot } from './types'
+import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
 interface FileTreeRowProps {
   args: RenderRowArgs<FileTreeNode>
   renameSlot?: FileTreeRenameSlot
+  animationSlot?: FileTreeAnimationSlot
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
   getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
   fileIcon?: (node: FileTreeNode) => React.ReactNode
@@ -24,13 +25,21 @@ const CHEVRON_SIZE_PX = 11
 const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
 
 export function FileTreeRow(props: FileTreeRowProps) {
-  const { args, renameSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
+  const { args, renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
   const isFolder = node.kind === 'folder'
   const isRenaming = renameSlot ? renameSlot.isRenaming(node) : false
   const effectiveDragHandleProps = isRenaming ? { ...dragHandleProps, draggable: false } : dragHandleProps
+
+  const nameAnimationClassName = animationSlot
+    ? animationSlot.isAnimating(node)
+      ? 'animation-shimmer'
+      : animationSlot.isNewlyRenamed(node)
+        ? 'animation-reveal'
+        : ''
+    : ''
 
   const renderIcon = () => {
     if (isFolder) {
@@ -122,7 +131,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
           autoFocus
         />
       ) : (
-        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate', nameAnimationClassName)}>{node.name}</span>
       )}
 
       {renderRowExtras ? (

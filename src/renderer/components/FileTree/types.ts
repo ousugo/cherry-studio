@@ -22,6 +22,13 @@ export interface FileTreeRenameSlot {
   inputProps: React.InputHTMLAttributes<HTMLInputElement>
 }
 
+export interface FileTreeAnimationSlot {
+  /** Whether the node is currently being auto-renamed (e.g. AI generation in progress). */
+  isAnimating: (node: FileTreeNode) => boolean
+  /** Whether the node was just auto-renamed (brief post-completion reveal window). */
+  isNewlyRenamed: (node: FileTreeNode) => boolean
+}
+
 export interface FileTreeProps {
   nodes: FileTreeNode[]
 
@@ -38,6 +45,9 @@ export interface FileTreeProps {
 
   /** When omitted, inline rename is disabled. */
   renameSlot?: FileTreeRenameSlot
+
+  /** When provided, applies shimmer/reveal animations to row names during auto-rename. */
+  animationSlot?: FileTreeAnimationSlot
 
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode

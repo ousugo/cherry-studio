@@ -95,9 +95,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
   const hasSearchKeyword = trimmedSearchKeyword.length > 0
 
-  const { editingNodeId, renamingNodeIds, inPlaceEdit, handleStartEdit, handleAutoRename } = useNotesEditing({
-    onRenameNode
-  })
+  const { editingNodeId, renamingNodeIds, newlyRenamedNodeIds, inPlaceEdit, handleStartEdit, handleAutoRename } =
+    useNotesEditing({
+      onRenameNode
+    })
 
   const { handleDropFiles, handleSelectFiles, handleSelectFolder } = useNotesFileUpload({
     onUploadFiles,
@@ -241,6 +242,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [editingNodeId, inPlaceEdit.isEditing, inPlaceEdit.inputProps]
   )
 
+  const animationSlot = useMemo(
+    () => ({
+      isAnimating: (node: FileTreeNode) => renamingNodeIds.has(node.id),
+      isNewlyRenamed: (node: FileTreeNode) => newlyRenamedNodeIds.has(node.id)
+    }),
+    [renamingNodeIds, newlyRenamedNodeIds]
+  )
+
   const renderRowExtras = useCallback(
     (node: FileTreeNode) => {
       if (!isShowSearch) return null
@@ -373,6 +382,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
                 renameSlot={renameSlot}
+                animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}
                 getMenuItems={getTreeNodeMenuItems}
               />
