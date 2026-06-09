@@ -45,12 +45,6 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getMessageTitle: vi.fn()
 }))
 
-vi.mock('@renderer/components/Popups/InspectMessagePopup', () => ({
-  default: {
-    show: vi.fn()
-  }
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',

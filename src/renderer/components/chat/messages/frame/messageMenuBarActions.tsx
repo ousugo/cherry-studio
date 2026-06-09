@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
-import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import {
   DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
   type MessageMenuBarButtonId,
@@ -19,7 +18,6 @@ import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
   AtSign,
-  Bug,
   Check,
   CirclePause,
   FilePenLine,
@@ -171,14 +169,6 @@ registerCommand('message.delete', async ({ actions, message }) => {
   await actions.abortMessageTranslation?.(message.id)
   await actions.deleteMessage?.(message.id, {
     modelName: getMessageListItemModelName(message) || undefined
-  })
-})
-
-registerCommand('message.inspect', ({ message, messageForExport, messageParts }) => {
-  void InspectMessagePopup.show({
-    title: `Message: ${message.id}`,
-    message: messageForExport,
-    parts: messageParts
   })
 })
 
@@ -378,14 +368,6 @@ registerToolbarAction({
         }
       : undefined,
   availability: toolbarAvailability('delete', ({ actions }) => !!actions.deleteMessage)
-})
-
-registerToolbarAction({
-  id: 'inspect-data',
-  commandId: 'message.inspect',
-  label: 'Inspect Data (Dev)',
-  icon: <Bug size={15} />,
-  availability: toolbarAvailability('inspect-data', ({ menuConfig }) => menuConfig.enableDeveloperMode)
 })
 
 registerToolbarAction({
