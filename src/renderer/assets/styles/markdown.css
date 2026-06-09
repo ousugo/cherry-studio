@@ -228,9 +228,15 @@
 
 .markdown a,
 .markdown .link {
-  color: var(--color-link);
+  color: var(--color-primary);
   text-decoration: none;
   cursor: pointer;
+}
+
+.markdown .markdown-link-favicon img {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
 }
 
 .markdown a:hover,
@@ -313,7 +319,7 @@
 }
 
 .footnotes a {
-  color: var(--color-link);
+  color: var(--color-primary);
 }
 
 .footnotes ol {

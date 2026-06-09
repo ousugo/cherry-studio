@@ -7,6 +7,9 @@ import Link from '../Link'
 const mocks = vi.hoisted(() => ({
   parseJSON: vi.fn(),
   findCitationInChildren: vi.fn(),
+  Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
+    <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
+  ),
   CitationTooltip: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="citation-tooltip">{children}</div>
   ),
@@ -26,6 +29,11 @@ vi.mock('@renderer/utils/json', () => ({
 
 vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: mocks.findCitationInChildren
+}))
+
+vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+  __esModule: true,
+  default: mocks.Favicon
 }))
 
 vi.mock('../CitationTooltip', () => ({
@@ -74,6 +82,8 @@ describe('Link', () => {
     expect(anchor).not.toBeNull()
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
+    expect(anchor).toHaveClass('text-primary')
+    expect(anchor).not.toHaveClass('inline-flex')
 
     fireEvent.click(anchor)
     expect(onParentClick).not.toHaveBeenCalled()
@@ -108,6 +118,24 @@ describe('Link', () => {
     expect(anchor.getAttribute('href')).toBe('https://domain.com/path')
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
+    expect(anchor).toHaveClass('text-primary', 'hover:underline')
+    expect(anchor).not.toHaveClass('inline-flex')
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
+    expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'mr-1')
+  })
+
+  it('should not inject another favicon when children already include one', () => {
+    const ExistingFavicon = mocks.Favicon
+    render(
+      <Link href="https://domain.com/path" className="flex items-center gap-2">
+        <ExistingFavicon hostname="domain.com" alt="Domain" />
+        <span>Domain</span>
+      </Link>
+    )
+
+    expect(screen.getAllByTestId('favicon')).toHaveLength(1)
+    expect(screen.getByRole('link')).toHaveClass('text-primary', 'flex', 'gap-2')
+    expect(screen.getByRole('link')).not.toHaveClass('hover:underline')
   })
 
   it('should omit empty href for citation link (no href attribute when href="")', () => {
