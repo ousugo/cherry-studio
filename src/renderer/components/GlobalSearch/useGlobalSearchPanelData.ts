@@ -1,8 +1,9 @@
-import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
+import { useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
+import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 import dayjs from 'dayjs'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   buildGlobalMessageSearchGroups,
@@ -12,6 +13,7 @@ import {
   GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
   type GlobalMessageSearchPanelGroup,
   type GlobalMessageSearchPanelItem,
+  type GlobalMessageSearchResult,
   type GlobalMessageSearchSourceFilter,
   type GlobalSearchFilter,
   type GlobalSearchPanelGroup,
@@ -21,6 +23,24 @@ import {
 
 export type GlobalSearchPanelMode = 'search' | 'message-search'
 export type GlobalSearchTimeFilter = 'any' | 'today' | 'week' | 'month' | 'quarter'
+
+type ContentSearchCursorMap = Partial<Record<ContentSearchSourceType, string>>
+
+type ContentSearchState = {
+  baseKey: string
+  items: GlobalMessageSearchResult[]
+  requestedCursors: ContentSearchCursorMap
+  nextCursors: ContentSearchCursorMap
+}
+
+function createContentSearchState(baseKey: string): ContentSearchState {
+  return {
+    baseKey,
+    items: [],
+    requestedCursors: {},
+    nextCursors: {}
+  }
+}
 
 function getUpdatedAtFromForTimeFilter(filter: GlobalSearchTimeFilter): string | undefined {
   if (filter === 'any') return undefined
@@ -35,6 +55,81 @@ function getUpdatedAtFromForTimeFilter(filter: GlobalSearchTimeFilter): string |
     case 'quarter':
       return dayjs().subtract(3, 'month').toISOString()
   }
+}
+
+function toContentSearchSource(source: 'topic' | 'session'): ContentSearchSourceType {
+  return source === 'topic' ? 'topic-message' : 'session-message'
+}
+
+function getContentSearchSources({
+  shouldSearchSessionMessages,
+  shouldSearchTopicMessages
+}: {
+  shouldSearchSessionMessages: boolean
+  shouldSearchTopicMessages: boolean
+}): ContentSearchSourceType[] {
+  return [
+    ...(shouldSearchTopicMessages ? [toContentSearchSource('topic')] : []),
+    ...(shouldSearchSessionMessages ? [toContentSearchSource('session')] : [])
+  ]
+}
+
+function getContentSearchStateKey({
+  deferredQuery,
+  messageSearchLimit,
+  sources,
+  updatedAtFrom
+}: {
+  deferredQuery: string
+  messageSearchLimit: number
+  sources: readonly ContentSearchSourceType[]
+  updatedAtFrom?: string
+}) {
+  return JSON.stringify({
+    q: deferredQuery,
+    sources,
+    createdAtFrom: updatedAtFrom,
+    limitPerSource: messageSearchLimit
+  })
+}
+
+function mapContentSearchGroup(group: ContentSearchGroup): GlobalMessageSearchResult[] {
+  if (group.sourceType === 'topic-message') {
+    return group.items.map((item) => ({
+      ...item,
+      sourceType: 'topic' as const
+    }))
+  }
+
+  return group.items.map((item) => ({
+    ...item,
+    sourceType: 'session' as const
+  }))
+}
+
+function getMessageSearchResultId(result: GlobalMessageSearchResult) {
+  return result.sourceType === 'topic'
+    ? `topic:${result.topicId}:${result.messageId}`
+    : `session:${result.sessionId}:${result.messageId}`
+}
+
+function getContentSearchNextCursors(groups: readonly ContentSearchGroup[]): ContentSearchCursorMap {
+  return Object.fromEntries(
+    groups.flatMap((group) => (group.nextCursor ? [[group.sourceType, group.nextCursor] as const] : []))
+  )
+}
+
+function areContentSearchCursorsEqual(a: ContentSearchCursorMap, b: ContentSearchCursorMap) {
+  const aEntries = Object.entries(a)
+  const bEntries = Object.entries(b)
+  return (
+    aEntries.length === bEntries.length &&
+    aEntries.every(([source, cursor]) => b[source as ContentSearchSourceType] === cursor)
+  )
+}
+
+function areMessageSearchItemsEqual(a: readonly GlobalMessageSearchResult[], b: readonly GlobalMessageSearchResult[]) {
+  return a.length === b.length && a.every((item, index) => JSON.stringify(item) === JSON.stringify(b[index]))
 }
 
 export function useGlobalSearchPanelData({
@@ -67,12 +162,43 @@ export function useGlobalSearchPanelData({
     shouldShowGlobalMessagePreview || (isMessageSearchMode && messageSearchSources.includes('session'))
   const updatedAtFrom = useMemo(() => getUpdatedAtFromForTimeFilter(timeFilter), [timeFilter])
   const messageSearchLimit = shouldShowGlobalMessagePreview ? GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT : 50
-  const messageSearchQuery = useMemo(
+  const contentSearchSources = useMemo(
+    () =>
+      getContentSearchSources({
+        shouldSearchSessionMessages,
+        shouldSearchTopicMessages
+      }),
+    [shouldSearchSessionMessages, shouldSearchTopicMessages]
+  )
+  const contentSearchStateKey = useMemo(
+    () =>
+      getContentSearchStateKey({
+        deferredQuery,
+        messageSearchLimit,
+        sources: contentSearchSources,
+        updatedAtFrom
+      }),
+    [contentSearchSources, deferredQuery, messageSearchLimit, updatedAtFrom]
+  )
+  const [contentSearchState, setContentSearchState] = useState(() => createContentSearchState(contentSearchStateKey))
+  const activeContentSearchState =
+    contentSearchState.baseKey === contentSearchStateKey
+      ? contentSearchState
+      : createContentSearchState(contentSearchStateKey)
+  const requestedContentSearchCursors = activeContentSearchState.requestedCursors
+  const requestedContentSearchSources = useMemo(() => {
+    const cursorSources = contentSearchSources.filter((source) => requestedContentSearchCursors[source])
+    return cursorSources.length > 0 ? cursorSources : contentSearchSources
+  }, [contentSearchSources, requestedContentSearchCursors])
+  const contentSearchQuery = useMemo(
     () => ({
       q: deferredQuery,
+      sources: requestedContentSearchSources,
+      limitPerSource: messageSearchLimit,
+      ...(Object.keys(requestedContentSearchCursors).length > 0 ? { cursors: requestedContentSearchCursors } : {}),
       ...(updatedAtFrom ? { createdAtFrom: updatedAtFrom } : {})
     }),
-    [deferredQuery, updatedAtFrom]
+    [deferredQuery, messageSearchLimit, requestedContentSearchCursors, requestedContentSearchSources, updatedAtFrom]
   )
   const searchQuery = useMemo(
     () => ({
@@ -83,85 +209,88 @@ export function useGlobalSearchPanelData({
     [deferredQuery, searchTypes, updatedAtFrom]
   )
 
+  useEffect(() => {
+    setContentSearchState((state) =>
+      state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
+    )
+  }, [contentSearchStateKey])
+
   const {
-    pages: topicMessagePages,
-    isLoading: isTopicMessageLoading,
-    isRefreshing: isTopicMessageRefreshing,
-    error: topicMessageError,
-    hasNext: hasNextTopicMessagePage,
-    loadNext: loadNextTopicMessagePage
-  } = useInfiniteQuery('/messages/search', {
-    enabled: hasQuery && shouldSearchTopicMessages,
-    query: messageSearchQuery,
-    limit: messageSearchLimit
+    data: contentSearchData,
+    isLoading: isContentSearchLoading,
+    isRefreshing: isContentSearchRefreshing,
+    error: contentSearchError
+  } = useQuery('/search/contents', {
+    enabled: hasQuery && contentSearchSources.length > 0,
+    query: contentSearchQuery
   })
-  const {
-    pages: sessionMessagePages,
-    isLoading: isSessionMessageLoading,
-    isRefreshing: isSessionMessageRefreshing,
-    error: sessionMessageError,
-    hasNext: hasNextSessionMessagePage,
-    loadNext: loadNextSessionMessagePage
-  } = useInfiniteQuery('/agent-sessions/messages/search', {
-    enabled: hasQuery && shouldSearchSessionMessages,
-    query: messageSearchQuery,
-    limit: messageSearchLimit
-  })
-  const topicMessageItems = useInfiniteFlatItems(topicMessagePages)
-  const sessionMessageItems = useInfiniteFlatItems(sessionMessagePages)
-  const isMessageLoading =
-    isMessageSearchMode &&
-    ((shouldSearchTopicMessages && isTopicMessageLoading) || (shouldSearchSessionMessages && isSessionMessageLoading))
-  const messageError = topicMessageError ?? sessionMessageError
-  const hasMoreMessageResults =
-    isMessageSearchMode &&
-    ((shouldSearchTopicMessages && hasNextTopicMessagePage) ||
-      (shouldSearchSessionMessages && hasNextSessionMessagePage))
+
+  useEffect(() => {
+    if (!contentSearchData || contentSearchData.query !== deferredQuery) return
+
+    setContentSearchState((state) => {
+      const current = state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
+      const itemsById = new Map(current.items.map((item) => [getMessageSearchResultId(item), item] as const))
+
+      for (const group of contentSearchData.groups) {
+        for (const item of mapContentSearchGroup(group)) {
+          itemsById.set(getMessageSearchResultId(item), item)
+        }
+      }
+
+      const nextItems = Array.from(itemsById.values())
+      const nextCursors = getContentSearchNextCursors(contentSearchData.groups)
+
+      if (
+        areMessageSearchItemsEqual(current.items, nextItems) &&
+        areContentSearchCursorsEqual(current.nextCursors, nextCursors)
+      ) {
+        return current
+      }
+
+      return {
+        ...current,
+        items: nextItems,
+        nextCursors
+      }
+    })
+  }, [contentSearchData, contentSearchStateKey, deferredQuery])
+
+  const hasMoreMessageResults = isMessageSearchMode && Object.keys(activeContentSearchState.nextCursors).length > 0
   const isLoadingMoreMessageResults =
     isMessageSearchMode &&
-    ((shouldSearchTopicMessages && isTopicMessageRefreshing && topicMessagePages.length > 0) ||
-      (shouldSearchSessionMessages && isSessionMessageRefreshing && sessionMessagePages.length > 0))
-  const messageLoadMoreCount =
-    (shouldSearchTopicMessages && hasNextTopicMessagePage ? messageSearchLimit : 0) +
-    (shouldSearchSessionMessages && hasNextSessionMessagePage ? messageSearchLimit : 0)
+    Object.keys(activeContentSearchState.requestedCursors).length > 0 &&
+    isContentSearchRefreshing
+  const isMessageLoading = isMessageSearchMode && activeContentSearchState.items.length === 0 && isContentSearchLoading
+  const messageError = contentSearchError
+  const messageLoadMoreCount = Object.keys(activeContentSearchState.nextCursors).length * messageSearchLimit
   const loadMoreMessageResults = useCallback(() => {
-    if (shouldSearchTopicMessages && hasNextTopicMessagePage) {
-      loadNextTopicMessagePage()
-    }
-    if (shouldSearchSessionMessages && hasNextSessionMessagePage) {
-      loadNextSessionMessagePage()
-    }
-  }, [
-    hasNextSessionMessagePage,
-    hasNextTopicMessagePage,
-    loadNextSessionMessagePage,
-    loadNextTopicMessagePage,
-    shouldSearchSessionMessages,
-    shouldSearchTopicMessages
-  ])
+    setContentSearchState((state) => {
+      const current = state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
+      if (Object.keys(current.nextCursors).length === 0) return current
 
-  const { data, isLoading, error } = useQuery('/global-search', {
+      return {
+        ...current,
+        requestedCursors: current.nextCursors
+      }
+    })
+  }, [contentSearchStateKey])
+
+  const { data, isLoading, error } = useQuery('/search/entities', {
     enabled: hasQuery && panelMode === 'search',
     query: searchQuery
   })
 
   const messageSearchItems = useMemo(
     () =>
-      [
-        ...(shouldSearchTopicMessages
-          ? topicMessageItems.map((item) => ({ ...item, sourceType: 'topic' as const }))
-          : []),
-        ...(shouldSearchSessionMessages
-          ? sessionMessageItems.map((item) => ({ ...item, sourceType: 'session' as const }))
-          : [])
-      ].sort((a, b) => {
+      [...activeContentSearchState.items].sort((a, b) => {
         const timeA = dayjs(a.createdAt).valueOf() || 0
         const timeB = dayjs(b.createdAt).valueOf() || 0
         if (timeA !== timeB) return timeB - timeA
         if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
         return b.messageId.localeCompare(a.messageId)
       }),
-    [sessionMessageItems, shouldSearchSessionMessages, shouldSearchTopicMessages, topicMessageItems]
+    [activeContentSearchState.items]
   )
 
   const groups = useMemo(

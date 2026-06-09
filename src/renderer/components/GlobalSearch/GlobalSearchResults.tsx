@@ -2,8 +2,8 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
 import { cn } from '@renderer/utils'
 import { formatRelativeTime } from '@renderer/utils/time'
-import type { AgentSessionSearchMessageResult } from '@shared/data/api/schemas/agentSessions'
-import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 import {
   ArrowRight,
   Bot,
@@ -26,7 +26,7 @@ import type {
   GlobalSearchPanelItem
 } from './globalSearchGroups'
 
-const RESULT_ICONS: Record<GlobalSearchItem['type'], typeof MessageSquare> = {
+const RESULT_ICONS: Record<EntitySearchItem['type'], typeof MessageSquare> = {
   topic: MessageSquare,
   session: MousePointerClick,
   assistant: Sparkles,
@@ -50,7 +50,7 @@ const GROUP_LABEL_KEYS: Record<GlobalSearchGroupId, string> = {
   'knowledge-base': 'globalSearch.groups.knowledge-base'
 }
 
-const RESULT_TYPE_LABEL_KEYS: Record<GlobalSearchItem['type'], string> = {
+const RESULT_TYPE_LABEL_KEYS: Record<EntitySearchItem['type'], string> = {
   topic: 'globalSearch.resultTypes.topic',
   session: 'globalSearch.resultTypes.session',
   assistant: 'globalSearch.resultTypes.assistant',
@@ -58,10 +58,9 @@ const RESULT_TYPE_LABEL_KEYS: Record<GlobalSearchItem['type'], string> = {
   'knowledge-base': 'common.knowledge_base'
 }
 
-const MESSAGE_ROLE_LABEL_KEYS: Record<NonNullable<AgentSessionSearchMessageResult['role']>, string> = {
+const MESSAGE_ROLE_LABEL_KEYS: Record<AgentSessionMessageSearchRole, string> = {
   assistant: 'globalSearch.messageSearch.roles.assistant',
   system: 'globalSearch.messageSearch.roles.system',
-  tool: 'globalSearch.messageSearch.roles.tool',
   user: 'globalSearch.messageSearch.roles.user'
 }
 
@@ -69,11 +68,11 @@ function getGroupLabelKey(groupId: GlobalSearchGroupId) {
   return GROUP_LABEL_KEYS[groupId]
 }
 
-function getResultTypeLabelKey(type: GlobalSearchItem['type']) {
+function getResultTypeLabelKey(type: EntitySearchItem['type']) {
   return RESULT_TYPE_LABEL_KEYS[type]
 }
 
-function getMessageRoleLabelKey(role: NonNullable<AgentSessionSearchMessageResult['role']>) {
+function getMessageRoleLabelKey(role: AgentSessionMessageSearchRole) {
   return MESSAGE_ROLE_LABEL_KEYS[role]
 }
 
@@ -89,7 +88,7 @@ function getMessageActorLabel(
   return t(getMessageRoleLabelKey(result.result.role))
 }
 
-function getResultSubtitle(result: GlobalSearchItem, t: (key: string) => string) {
+function getResultSubtitle(result: EntitySearchItem, t: (key: string) => string) {
   if (result.type === 'topic' || result.type === 'session') {
     return result.subtitle
   }

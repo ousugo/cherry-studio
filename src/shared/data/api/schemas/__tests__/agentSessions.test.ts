@@ -5,7 +5,6 @@ import {
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
   ListAgentSessionsQuerySchema,
-  SearchAgentSessionMessagesQuerySchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
@@ -70,34 +69,6 @@ describe('ListAgentSessionsQuerySchema', () => {
 
   it('rejects blank search', () => {
     expect(() => ListAgentSessionsQuerySchema.parse({ search: '   ' })).toThrow()
-  })
-})
-
-describe('SearchSessionMessagesQuerySchema', () => {
-  it('normalizes session message search queries', () => {
-    expect(SearchAgentSessionMessagesQuerySchema.parse({ q: '  deploy  ' })).toEqual({
-      q: 'deploy'
-    })
-  })
-
-  it('accepts session filter and pagination', () => {
-    expect(
-      SearchAgentSessionMessagesQuerySchema.parse({
-        q: 'plan',
-        sessionId: 'session-1',
-        limit: '20',
-        createdAtFrom: '2026-05-01T00:00:00.000Z'
-      })
-    ).toEqual({
-      q: 'plan',
-      sessionId: 'session-1',
-      limit: 20,
-      createdAtFrom: '2026-05-01T00:00:00.000Z'
-    })
-  })
-
-  it('rejects invalid createdAtFrom', () => {
-    expect(() => SearchAgentSessionMessagesQuerySchema.parse({ q: 'plan', createdAtFrom: 'today' })).toThrow()
   })
 })
 

@@ -21,7 +21,7 @@ import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
-import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { Message as DbMessage } from '@shared/data/types/message'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
@@ -108,23 +108,23 @@ function getMessageSourceFilterLabelKey(filter: GlobalMessageSearchSourceFilter)
   return MESSAGE_SOURCE_FILTER_LABEL_KEYS[filter]
 }
 
-function getAssistantTargetId(target: GlobalSearchItem['target']) {
+function getAssistantTargetId(target: EntitySearchItem['target']) {
   return 'assistantId' in target && typeof target.assistantId === 'string' ? target.assistantId : undefined
 }
 
-function getAgentTargetId(target: GlobalSearchItem['target']) {
+function getAgentTargetId(target: EntitySearchItem['target']) {
   return 'agentId' in target && typeof target.agentId === 'string' ? target.agentId : undefined
 }
 
-function getTopicTargetId(target: GlobalSearchItem['target']) {
+function getTopicTargetId(target: EntitySearchItem['target']) {
   return 'topicId' in target && typeof target.topicId === 'string' ? target.topicId : undefined
 }
 
-function getSessionTargetId(target: GlobalSearchItem['target']) {
+function getSessionTargetId(target: EntitySearchItem['target']) {
   return 'sessionId' in target && typeof target.sessionId === 'string' ? target.sessionId : undefined
 }
 
-function getKnowledgeBaseTargetId(target: GlobalSearchItem['target']) {
+function getKnowledgeBaseTargetId(target: EntitySearchItem['target']) {
   return 'knowledgeBaseId' in target && typeof target.knowledgeBaseId === 'string' ? target.knowledgeBaseId : undefined
 }
 

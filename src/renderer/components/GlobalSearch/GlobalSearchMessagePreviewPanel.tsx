@@ -9,7 +9,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/messageUtils/messageProjection'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { buildKeywordUnionRegex, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -148,6 +148,16 @@ function highlightPreviewMatches(root: HTMLElement, regex: RegExp) {
   }
 }
 
+function buildPreviewHighlightRegex(searchQuery: string): RegExp | undefined {
+  const regexes = buildKeywordRegexes(splitKeywordsToTerms(searchQuery), {
+    matchMode: PREVIEW_MATCH_MODE,
+    flags: 'gi'
+  })
+  if (regexes.length === 0) return undefined
+
+  return new RegExp(regexes.map((regex) => `(?:${regex.source})`).join('|'), regexes[0].flags)
+}
+
 export function GlobalSearchMessagePreviewPanel({
   className,
   searchQuery,
@@ -249,10 +259,7 @@ export function GlobalSearchMessagePreviewPanel({
 
     unwrapPreviewHighlights(content)
 
-    const regex = buildKeywordUnionRegex(splitKeywordsToTerms(searchQuery), {
-      matchMode: PREVIEW_MATCH_MODE,
-      flags: 'gi'
-    })
+    const regex = buildPreviewHighlightRegex(searchQuery)
     if (!regex) return
 
     highlightPreviewMatches(content, regex)

@@ -1,6 +1,11 @@
-import type { AgentSessionEntity, AgentSessionSearchMessageResult } from '@shared/data/api/schemas/agentSessions'
-import type { GlobalSearchItem, GlobalSearchResponse, GlobalSearchType } from '@shared/data/api/schemas/globalSearch'
-import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type {
+  EntitySearchItem,
+  EntitySearchResponse,
+  EntitySearchType,
+  SessionMessageContentSearchItem,
+  TopicMessageContentSearchItem
+} from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { Topic } from '@types'
 import dayjs from 'dayjs'
@@ -13,8 +18,8 @@ export const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
 
 export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
-export type GlobalTopicMessageSearchResult = SearchMessageResult & { sourceType: 'topic' }
-export type GlobalSessionMessageSearchResult = AgentSessionSearchMessageResult & { sourceType: 'session' }
+export type GlobalTopicMessageSearchResult = TopicMessageContentSearchItem & { sourceType: 'topic' }
+export type GlobalSessionMessageSearchResult = SessionMessageContentSearchItem & { sourceType: 'session' }
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
@@ -62,7 +67,7 @@ export type GlobalSearchPanelItem =
   | {
       kind: 'result'
       id: string
-      result: GlobalSearchItem
+      result: EntitySearchItem
     }
 
 export type GlobalSearchPanelGroupFooter =
@@ -82,7 +87,7 @@ export type GlobalSearchPanelGroup = {
   footer?: GlobalSearchPanelGroupFooter
 }
 
-const FILTER_TYPES: Record<GlobalSearchFilter, GlobalSearchType[]> = {
+const FILTER_TYPES: Record<GlobalSearchFilter, EntitySearchType[]> = {
   all: ['topic', 'session', 'assistant', 'agent', 'knowledge-base'],
   topic: ['topic'],
   session: ['session'],
@@ -94,7 +99,7 @@ const FILTER_TYPES: Record<GlobalSearchFilter, GlobalSearchType[]> = {
 const INTERNAL_ROUTE_PREFIXES = ['/app/', '/settings']
 const COARSE_ENTITY_ROUTE_PATHS = new Set(['/app/chat', '/app/agents'])
 
-export function getGlobalSearchTypes(filter: GlobalSearchFilter): GlobalSearchType[] {
+export function getGlobalSearchTypes(filter: GlobalSearchFilter): EntitySearchType[] {
   return FILTER_TYPES[filter]
 }
 
@@ -254,7 +259,7 @@ export function buildGlobalSearchGroups({
   query: string
   filter: GlobalSearchFilter
   recentItems: readonly GlobalSearchRecentEntry[]
-  response?: GlobalSearchResponse
+  response?: EntitySearchResponse
 }): GlobalSearchPanelGroup[] {
   if (!query.trim()) {
     const panelItems = getDisplayGlobalSearchRecentEntries(recentItems).map<GlobalSearchPanelItem>((recent) => ({
@@ -266,7 +271,7 @@ export function buildGlobalSearchGroups({
     return panelItems.length > 0 ? [{ id: 'recent', items: panelItems }] : []
   }
 
-  const itemsByType = new Map<GlobalSearchType, GlobalSearchItem[]>()
+  const itemsByType = new Map<EntitySearchType, EntitySearchItem[]>()
   for (const group of response?.groups ?? []) {
     itemsByType.set(group.type, group.items)
   }

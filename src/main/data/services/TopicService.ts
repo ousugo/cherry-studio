@@ -559,6 +559,26 @@ export class TopicService {
     }))
   }
 
+  async listRecentSearchMatches(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<Topic[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = [isNull(topicTable.deletedAt)]
+    const search = buildSearchPredicate(query.q)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(topicTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select()
+      .from(topicTable)
+      .where(and(...filters))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(limit)
+
+    return rows.map(rowToTopic)
+  }
+
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {

@@ -111,6 +111,12 @@ export const ListAssistantsQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   /** Return assistants bound to ANY of these tag ids (union) */
   tagIds: z.array(TagIdSchema).min(1).optional(),
+  /** Filter by assistant updatedAt timestamp (milliseconds). */
+  updatedAtFrom: z.coerce.number().int().optional(),
+  /** Sort field. Defaults to orderKey for library/resource ordering. */
+  sortBy: z.enum(['createdAt', 'updatedAt', 'name', 'orderKey']).optional(),
+  /** Sort direction. */
+  orderBy: z.enum(['asc', 'desc']).optional(),
   /** Positive integer, defaults to {@link ASSISTANTS_DEFAULT_PAGE} */
   page: z.int().positive().default(ASSISTANTS_DEFAULT_PAGE),
   /** Positive integer, max {@link ASSISTANTS_MAX_LIMIT}, defaults to {@link ASSISTANTS_DEFAULT_LIMIT} */
