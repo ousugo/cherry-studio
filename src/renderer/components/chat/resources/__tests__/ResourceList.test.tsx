@@ -1422,15 +1422,17 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    expect(screen.getAllByRole('button', { name: 'Group more' })[0]).toHaveClass(
-      'size-6',
-      'min-h-6',
-      'min-w-6',
-      'rounded-md',
-      'p-0',
-      '[&_svg]:size-3!'
+    const groupActionButton = screen.getAllByRole('button', { name: 'Group more' })[0]
+    const groupActionWrapper = groupActionButton.parentElement
+
+    expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
+    expect(groupActionButton).not.toHaveClass('min-h-7.5')
+    expect(groupActionWrapper).toHaveClass(
+      'hidden',
+      'group-hover/resource-list-group:flex',
+      'group-focus-within/resource-list-group:flex',
+      'has-[[data-state=open]]:flex'
     )
-    expect(screen.getAllByRole('button', { name: 'Group more' })[0]).not.toHaveClass('min-h-7.5')
   })
 
   it('opens group header context menus from the group header trigger', () => {
