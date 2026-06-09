@@ -2,7 +2,7 @@
  * Web search / fetch core — runtime-agnostic.
  *
  * Single source of truth for "look something up on the web" shared by the
- * AI-SDK builtin tools (`web__search` / `web__fetch`) and the Claude Code
+ * AI-SDK builtin tools (`web_search` / `web_fetch`) and the Claude Code
  * in-process MCP bridge. Both runtimes are thin formatters over these
  * functions; the provider is resolved inside `WebSearchService` from the
  * user's configured default for each capability.
@@ -42,11 +42,11 @@ Cite sources by [id] in your final answer.`
 export const WEB_FETCH_DESCRIPTION = `Fetch the readable content from one or more known web page URLs.
 
 Use this when:
-- You already have specific URLs from the user, prior context, or web__search
+- You already have specific URLs from the user, prior context, or web_search
 - You need page content from an article, documentation page, or reference URL
 - Search snippets are not enough and you need the source page text
 
-Don't use this when you only have a topic or question; call web__search first.
+Don't use this when you only have a topic or question; call web_search first.
 
 Cite sources by [id] in your final answer.`
 

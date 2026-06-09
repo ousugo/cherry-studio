@@ -45,7 +45,7 @@ function callExecute(
   } as ToolExecutionOptions)
 }
 
-describe('kb__search', () => {
+describe('kb_search', () => {
   beforeEach(() => {
     orchestratorSearch.mockReset()
   })
@@ -134,7 +134,7 @@ describe('kb__search', () => {
   })
 
   describe('toModelOutput', () => {
-    it('returns a hint pointing the model at kb__list when output is empty', () => {
+    it('returns a hint pointing the model at kb_list when output is empty', () => {
       const toModelOutput = entry.tool.toModelOutput as (opts: {
         toolCallId: string
         input: { query: string; baseIds: string[] }
@@ -146,7 +146,7 @@ describe('kb__search', () => {
         output: []
       })
       expect(result.type).toBe('text')
-      expect(result.value).toMatch(/kb__list/)
+      expect(result.value).toMatch(/kb_list/)
     })
 
     it('passes the array through as json when results are present', () => {

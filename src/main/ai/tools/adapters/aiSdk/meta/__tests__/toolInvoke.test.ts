@@ -190,7 +190,7 @@ describe('tool_invoke meta-tool', () => {
     function zodRegistry(): ToolRegistry {
       const reg = new ToolRegistry()
       reg.register({
-        name: 'web__search',
+        name: 'web_search',
         namespace: 'web',
         description: 'search',
         defer: 'auto',
@@ -207,20 +207,20 @@ describe('tool_invoke meta-tool', () => {
     it('rejects params that do not match the schema, with the signature, and skips execute', async () => {
       innerExecute.mockReset().mockResolvedValue('ok')
       const reg = zodRegistry()
-      const tool = createToolInvokeTool(reg, allowAll('web__search'), inspected('web__search'))
+      const tool = createToolInvokeTool(reg, allowAll('web_search'), inspected('web_search'))
       // `query` is required and must be a string.
-      await expect(callInvoke(tool, { name: 'web__search', params: { query: 123 } })).rejects.toThrow(
-        /Invalid params for "web__search"/
+      await expect(callInvoke(tool, { name: 'web_search', params: { query: 123 } })).rejects.toThrow(
+        /Invalid params for "web_search"/
       )
-      await expect(callInvoke(tool, { name: 'web__search', params: {} })).rejects.toThrow(/function web__search/)
+      await expect(callInvoke(tool, { name: 'web_search', params: {} })).rejects.toThrow(/function web_search/)
       expect(innerExecute).not.toHaveBeenCalled()
     })
 
     it('passes the parsed value (schema defaults applied) to execute on valid params', async () => {
       innerExecute.mockReset().mockResolvedValue('ok')
       const reg = zodRegistry()
-      const tool = createToolInvokeTool(reg, allowAll('web__search'), inspected('web__search'))
-      await callInvoke(tool, { name: 'web__search', params: { query: 'mcp' } })
+      const tool = createToolInvokeTool(reg, allowAll('web_search'), inspected('web_search'))
+      await callInvoke(tool, { name: 'web_search', params: { query: 'mcp' } })
       expect(innerExecute).toHaveBeenCalledTimes(1)
       expect(innerExecute.mock.calls[0][0]).toEqual({ query: 'mcp', limit: 10 })
     })

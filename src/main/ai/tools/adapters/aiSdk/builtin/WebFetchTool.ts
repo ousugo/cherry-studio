@@ -1,7 +1,7 @@
 /**
  * Web fetch tool — agentic.
  *
- * The model supplies known page URLs (often from a prior `web__search`) and
+ * The model supplies known page URLs (often from a prior `web_search`) and
  * gets back their readable content. The lookup itself lives in the shared
  * `webLookup` core so the Claude Code MCP bridge runs identical logic; this
  * file is just the AI-SDK `tool()` wrapper.

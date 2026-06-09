@@ -30,7 +30,8 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
-  allowedTools: string[]
+  /** Opt-out list of disabled tool names (empty = all enabled). */
+  disabledTools: string[]
 
   // configuration.* derived fields we edit in the library UI.
   avatar: string
@@ -104,7 +105,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
-    allowedTools: [...(agent?.allowedTools ?? [])],
+    disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
@@ -186,8 +187,8 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
-  if (!arraysEqual(baseline.allowedTools, next.allowedTools)) {
-    dto.allowedTools = next.allowedTools
+  if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
+    dto.disabledTools = next.disabledTools
     dirty = true
   }
 

@@ -6,11 +6,9 @@ import {
 } from '@renderer/components/chat/composer/tools/types'
 import { permissionModeCards } from '@renderer/config/agent'
 import { defaultConfiguration } from '@renderer/hooks/agents/agentConfiguration'
-import { computeModeDefaults } from '@renderer/hooks/agents/permissionMode'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import type { PermissionMode } from '@renderer/types'
-import { uniq } from 'lodash'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -38,23 +36,15 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
 
-  // Permission mode, allowedTools, and the tool catalog all live on the agent
-  // — sessions are pure instances. UI writes the agent record directly.
+  // Permission mode lives on the agent — sessions are pure instances. Approval is governed
+  // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
-  const availableTools = useMemo(() => agent?.tools ?? [], [agent?.tools])
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
       if (!agentId || !agent || nextMode === currentMode) return
 
       const configuration = agent.configuration ?? defaultConfiguration
-      const currentAutoToolIds = computeModeDefaults(currentMode, availableTools)
-      const nextAutoToolIds = computeModeDefaults(nextMode, availableTools)
-
-      const currentAllowed = agent.allowedTools ?? []
-      const userAddedIds = currentAllowed.filter((id) => !currentAutoToolIds.includes(id))
-      const mergedAllowed = uniq([...nextAutoToolIds, ...userAddedIds])
-
       const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
       // Disable soul mode when switching away from bypassPermissions
@@ -62,16 +52,9 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         updatedConfiguration.soul_enabled = false
       }
 
-      void updateAgent(
-        {
-          id: agentId,
-          configuration: updatedConfiguration,
-          allowedTools: mergedAllowed
-        },
-        { showSuccessToast: false }
-      )
+      void updateAgent({ id: agentId, configuration: updatedConfiguration }, { showSuccessToast: false })
     },
-    [currentMode, agent, agentId, availableTools, updateAgent]
+    [currentMode, agent, agentId, updateAgent]
   )
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)

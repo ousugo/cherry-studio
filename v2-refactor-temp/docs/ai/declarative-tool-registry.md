@@ -115,9 +115,9 @@ Approval = `permission_mode` cards + read-only default-safe set. **Round-trip un
 ### In-process MCP (`kind:'mcp'`)
 | Tool (wire) | server | category | exposure | note |
 |---|---|---|---|---|
-| web__search / web__fetch | cherry-tools | context | user | replaces native Web* |
-| kb__search | cherry-tools | context | user | |
-| kb__list | cherry-tools | context | internal | |
+| web_search / web_fetch | cherry-tools | context | user | replaces native Web* |
+| kb_search | cherry-tools | context | user | |
+| kb_list | cherry-tools | context | internal | |
 | memory | agent-memory | context | user | cross-session FACT.md/JOURNAL |
 | skills | skills | context | internal | newly wired (currently injected nowhere) |
 | cron | claw | orchestration | user | app scheduler (≠ SDK Cron*) |

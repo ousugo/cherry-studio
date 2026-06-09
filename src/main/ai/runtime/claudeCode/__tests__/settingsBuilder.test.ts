@@ -45,7 +45,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     findBySessionId: mocks.findBySessionId,
-    listChannels: vi.fn()
+    listChannels: vi.fn(async () => [])
   }
 }))
 
@@ -194,5 +194,6 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 })

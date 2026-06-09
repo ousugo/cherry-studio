@@ -168,7 +168,7 @@ function callExecute(
   } as ToolExecutionOptions)
 }
 
-describe('kb__list', () => {
+describe('kb_list', () => {
   beforeEach(() => {
     orchestratorListBases.mockReset()
     orchestratorListRootItems.mockReset()

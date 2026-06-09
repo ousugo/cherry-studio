@@ -15,18 +15,14 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { permissionModeCards } from '@renderer/config/agent'
-import {
-  computeModeDefaults,
-  mergeAutoApprovedTools,
-  normalizeAllowedToolRules,
-  normalizePermissionMode
-} from '@renderer/hooks/agents/permissionMode'
-import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useAgentMutationsById } from '@renderer/pages/library/adapters/agentAdapter'
 import type { AgentDetail } from '@renderer/pages/library/types'
-import type { Tool } from '@shared/ai/tool'
+import {
+  CLAUDE_TOOL_CATEGORIES,
+  type ClaudeToolCategory,
+  claudeUserFacingTools
+} from '@shared/ai/claudecode/toolRegistry'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -68,7 +64,7 @@ type AgentEditFormValues = {
   smallModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
-  allowedTools: string[]
+  disabledTools: string[]
   permissionMode: string
   envVarsText: string
   soulEnabled: boolean
@@ -87,6 +83,23 @@ const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], stri
   plan: 'library.config.agent.field.permission_mode.option.plan'
 }
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
+
+const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
+  file: 'library.config.agent.section.tools.category.file',
+  shell: 'library.config.agent.section.tools.category.shell',
+  search: 'library.config.agent.section.tools.category.search',
+  context: 'library.config.agent.section.tools.category.context',
+  orchestration: 'library.config.agent.section.tools.category.orchestration',
+  media: 'library.config.agent.section.tools.category.media'
+}
+const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
+  file: 'File',
+  shell: 'Shell',
+  search: 'Search',
+  context: 'Context',
+  orchestration: 'Orchestration',
+  media: 'Media'
+}
 
 function isToolTab(value: string): value is ToolTab {
   return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.skills'
@@ -107,7 +120,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     smallModelId: form.smallModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
-    allowedTools: [...form.allowedTools],
+    disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
     soulEnabled: form.soulEnabled,
@@ -135,7 +148,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
     mcps: values.mcps,
-    allowedTools: values.allowedTools,
+    disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     soulEnabled: values.soulEnabled,
@@ -149,7 +162,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
-  form.setValue('allowedTools', next.allowedTools, { shouldDirty: true })
+  form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('soulEnabled', next.soulEnabled, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
@@ -193,16 +206,6 @@ function AgentEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
-  const agentToolSource = useMemo(
-    () => ({
-      type: resource.type,
-      mcps: values.mcps,
-      allowedTools: values.allowedTools,
-      permissionMode: values.permissionMode
-    }),
-    [resource.type, values.allowedTools, values.mcps, values.permissionMode]
-  )
-  const { tools: agentTools } = useAgentTools(agentToolSource)
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
   const saveIntent = useMemo(() => {
@@ -304,7 +307,6 @@ function AgentEditDialogContent({
           <AgentToolsFields
             agent={resource}
             form={form}
-            tools={agentTools}
             activeToolTab={activeTab}
             portalContainer={dialogContentElement}
           />
@@ -586,70 +588,46 @@ function AgentPromptField({
 function AgentToolsFields({
   agent,
   form,
-  tools,
   activeToolTab,
   portalContainer
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
-  tools: Tool[]
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const permissionMode = normalizePermissionMode(form.watch('permissionMode'))
-  const allowedTools = form.watch('allowedTools')
+  const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
   const canManageSkills = Boolean(agent.id)
 
-  const selectedModeCard = useMemo(
-    () => permissionModeCards.find((card) => card.mode === permissionMode),
-    [permissionMode]
+  // Built-in catalog: registry user-facing tools grouped into category sections.
+  // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
+  // (empty = all enabled); approval is governed solely by the permission-mode cards.
+  const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
+  const builtinSections = useMemo(() => {
+    const tools = claudeUserFacingTools()
+    return CLAUDE_TOOL_CATEGORIES.map((category) => ({
+      category,
+      label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
+      items: tools
+        .filter((tool) => tool.category === category)
+        .map<CatalogItem>((tool) => ({
+          id: tool.name,
+          name: t(`agent.tools.builtin.${tool.key}.label`, tool.label),
+          description: t(`agent.tools.builtin.${tool.key}.description`, tool.description),
+          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
+        }))
+    })).filter((section) => section.items.length > 0)
+  }, [t])
+  const enabledToolIds = useMemo<ReadonlySet<string>>(
+    () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
+    [builtinSections, disabledSet]
   )
-  const explicitToolIds = useMemo(() => normalizeAllowedToolRules(allowedTools, tools), [allowedTools, tools])
-  const autoToolIds = useMemo(
-    () => computeModeDefaults(permissionMode, tools).filter((id) => !explicitToolIds.includes(id)),
-    [explicitToolIds, permissionMode, tools]
-  )
-  const builtinCatalog = useMemo<CatalogItem[]>(
-    () =>
-      tools
-        .filter((tool) => tool.origin !== 'mcp')
-        .map((tool) => {
-          const isAuto = autoToolIds.includes(tool.id)
-          const modeName = selectedModeCard
-            ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
-            : permissionMode
-          return {
-            id: tool.id,
-            name: tool.name,
-            description: tool.description,
-            icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />,
-            statusBadge: isAuto ? t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode') : undefined,
-            statusBadgeClassName: isAuto ? 'bg-success/10 text-success' : undefined,
-            disableToggle: isAuto,
-            disabledReason: isAuto
-              ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', { mode: modeName })
-              : undefined
-          }
-        }),
-    [autoToolIds, permissionMode, selectedModeCard, t, tools]
-  )
-  const approvedToolIds = useMemo(
-    () => mergeAutoApprovedTools(allowedTools, permissionMode, tools),
-    [allowedTools, permissionMode, tools]
-  )
-  const allowedIds = useMemo(() => new Set(approvedToolIds), [approvedToolIds])
-  const enableBuiltin = (id: string) =>
-    form.setValue('allowedTools', Array.from(new Set([...explicitToolIds, id])), { shouldDirty: true })
-  const disableBuiltin = (id: string) => {
-    if (autoToolIds.includes(id)) return
-    form.setValue(
-      'allowedTools',
-      explicitToolIds.filter((toolId) => toolId !== id),
-      { shouldDirty: true }
-    )
-  }
+  const setToolEnabled = (name: string, enabled: boolean) =>
+    form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
+      shouldDirty: true
+    })
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })
@@ -686,13 +664,20 @@ function AgentToolsFields({
   return (
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
-        <CatalogToggleGrid
-          items={builtinCatalog}
-          enabledIds={allowedIds}
-          onToggle={(id, enabled) => (enabled ? enableBuiltin(id) : disableBuiltin(id))}
-          emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-          portalContainer={portalContainer}
-        />
+        <div className="grid gap-5">
+          {builtinSections.map((section) => (
+            <div key={section.category} className="grid gap-2">
+              <div className="font-medium text-foreground/55 text-xs">{section.label}</div>
+              <CatalogToggleGrid
+                items={section.items}
+                enabledIds={enabledToolIds}
+                onToggle={setToolEnabled}
+                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+                portalContainer={portalContainer}
+              />
+            </div>
+          ))}
+        </div>
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
         <McpServerCatalogGrid

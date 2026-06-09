@@ -5,8 +5,8 @@
  * so Claude Code's web search/fetch and knowledge-base tools run identical
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
- * these as `mcp__cherry-tools__web__search`, `…__web__fetch`, `…__kb__search`,
- * `…__kb__list`.
+ * these as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
+ * `…__kb_list`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases.
@@ -40,6 +40,9 @@ import {
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
   kbSearchInputSchema,
+  REPORT_ARTIFACTS_DESCRIPTION,
+  REPORT_ARTIFACTS_TOOL_NAME,
+  reportArtifactsInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema,
@@ -91,6 +94,16 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const input = kbListInputSchema.parse(args)
       return kbListModelOutput(await listKb(input.query, input.groupId, KB_ALLOWED_IDS), input)
+    }
+  },
+  // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
+  // tool *input* (which the renderer reads to render the artifacts card); the handler only confirms.
+  [REPORT_ARTIFACTS_TOOL_NAME]: {
+    description: REPORT_ARTIFACTS_DESCRIPTION,
+    inputSchema: reportArtifactsInputSchema,
+    run: async (args) => {
+      const { artifacts } = reportArtifactsInputSchema.parse(args)
+      return { type: 'text', value: `Recorded ${artifacts.length} artifact(s).` }
     }
   }
 }

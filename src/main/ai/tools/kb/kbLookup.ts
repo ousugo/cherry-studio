@@ -1,8 +1,8 @@
 /**
  * Knowledge base search / list core — runtime-agnostic.
  *
- * Single source of truth shared by the AI-SDK builtin tools (`kb__search` /
- * `kb__list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
+ * Single source of truth shared by the AI-SDK builtin tools (`kb_search` /
+ * `kb_list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
  * which bases are reachable: in the AI-SDK path it is the assistant's
  * `knowledgeBaseIds`; an empty array means "no scope" (all user bases),
  * which is what the Claude Code agent path passes since agents have no
@@ -26,11 +26,11 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb__list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
 
 export const KB_LIST_DESCRIPTION = `Browse the user's available knowledge bases before searching.
 
-Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb__search with the chosen baseIds.`
+Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb_search with the chosen baseIds.`
 
 export async function searchKb(query: string, baseIds: string[], allowedIds: string[]): Promise<KbSearchOutput> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
@@ -84,7 +84,7 @@ export function kbSearchModelOutput(
     return {
       type: 'text',
       value:
-        'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb__list first to inspect available bases and their sample sources, then retry kb__search with refined baseIds or query.'
+        'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb_list first to inspect available bases and their sample sources, then retry kb_search with refined baseIds or query.'
     }
   }
   return { type: 'json', value: output }
@@ -102,7 +102,7 @@ export async function listKb(
   const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
   // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent
-  // listRootItems queries against SQLite + the vector store on every kb__list
+  // listRootItems queries against SQLite + the vector store on every kb_list
   // call. 8 in-flight is enough to keep the agent loop responsive without
   // overwhelming the orchestrator.
   const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>

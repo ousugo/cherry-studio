@@ -65,7 +65,6 @@ export type BaseAgentForm = {
   model: UniqueModelId
   planModel?: UniqueModelId
   smallModel?: UniqueModelId
-  allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
 }

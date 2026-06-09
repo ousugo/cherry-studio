@@ -1,7 +1,7 @@
 /**
  * Knowledge base search tool — agentic.
  *
- * The model picks the query and target `baseIds` (typically after `kb__list`).
+ * The model picks the query and target `baseIds` (typically after `kb_list`).
  * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext and
  * scopes which base IDs are accepted. The search itself lives in the shared
  * `kbLookup` core so the Claude Code MCP bridge runs identical logic; this

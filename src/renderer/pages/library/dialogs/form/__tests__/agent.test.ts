@@ -19,7 +19,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     modelName: null,
     instructions: '',
     mcps: [],
-    allowedTools: [],
     configuration: {},
     orderKey: 'k',
     createdAt: '2026-04-20T00:00:00.000Z',
@@ -37,8 +36,7 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1::p-1',
       smallModel: 'p-1::s-1',
       instructions: 'hi',
-      mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      mcps: ['mcp-1']
     })
     const state = buildInitialAgentFormState(agent)
     expect(state).toMatchObject({
@@ -48,8 +46,7 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1::p-1',
       smallModel: 'p-1::s-1',
       instructions: 'hi',
-      mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      mcps: ['mcp-1']
     })
   })
 
@@ -85,13 +82,12 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
-  it('preserves explicit allowed tools when permission mode changes', () => {
+  it('switching permission mode does not enable soul mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
 
     expect(next.permissionMode).toBe('acceptEdits')
     expect(next.soulEnabled).toBe(false)
-    expect(next.allowedTools).toEqual([])
   })
 
   it('switching to bypass permissions does not enable soul mode', () => {
@@ -100,34 +96,19 @@ describe('applyAgentFormPatch', () => {
 
     expect(next.permissionMode).toBe('bypassPermissions')
     expect(next.soulEnabled).toBe(false)
-    expect(next.allowedTools).toEqual([])
   })
 
-  it('enabling soul mode switches to bypass permissions without mutating explicit tool approvals', () => {
+  it('enabling soul mode switches to bypass permissions', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { soulEnabled: true })
 
     expect(next.soulEnabled).toBe(true)
     expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.allowedTools).toEqual([])
-  })
-
-  it('keeps user-added tools unchanged when switching modes', () => {
-    const draft = buildInitialAgentFormState(
-      createAgent({
-        allowedTools: ['Read', 'CustomDanger'],
-        configuration: { permission_mode: 'default' }
-      })
-    )
-    const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
-
-    expect(next.allowedTools).toEqual(['Read', 'CustomDanger'])
   })
 
   it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
     const draft = buildInitialAgentFormState(
       createAgent({
-        allowedTools: ['Read', 'Glob', 'Edit'],
         configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
       })
     )

@@ -50,6 +50,20 @@
       "when": 1780893015306,
       "tag": "0006_overconfident_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1780899043638,
+      "tag": "0007_outgoing_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1780903302064,
+      "tag": "0008_tense_king_cobra",
+      "breakpoints": true
     }
   ]
 }

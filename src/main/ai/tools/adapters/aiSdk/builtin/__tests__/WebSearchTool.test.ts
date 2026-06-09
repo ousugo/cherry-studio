@@ -57,7 +57,7 @@ function callFetchExecute(args: { urls: string[] }, abortSignal?: AbortSignal): 
   return execute(args, makeOptions(abortSignal))
 }
 
-describe('web__search', () => {
+describe('web_search', () => {
   beforeEach(() => {
     fetchUrls.mockReset()
     searchKeywords.mockReset()
@@ -132,7 +132,7 @@ describe('web__search', () => {
   })
 })
 
-describe('web__fetch', () => {
+describe('web_fetch', () => {
   beforeEach(() => {
     fetchUrls.mockReset()
     searchKeywords.mockReset()
