@@ -8,7 +8,7 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
-import { normalizeInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
@@ -73,7 +73,7 @@ const isAbsoluteFilePath = (path: string): boolean => {
 }
 
 const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): string => {
-  const normalizedPath = normalizeInlineFilePath(rawPath)
+  const normalizedPath = normalizeInlineFilePath(resolveInlineFilePath(rawPath))
   if (!workspacePath || isAbsoluteFilePath(normalizedPath)) return normalizedPath
 
   const cleanWorkspacePath = workspacePath.replace(/[\\/]+$/g, '')

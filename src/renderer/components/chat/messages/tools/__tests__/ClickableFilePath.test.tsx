@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
+import { setInlineFilePathHomePath } from '../../utils/filePath'
 import { ClickableFilePath } from '../agent/ClickableFilePath'
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
@@ -66,6 +67,7 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setInlineFilePathHomePath(undefined)
   })
 
   it('should render the path as text', () => {
@@ -97,6 +99,19 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: 'src/renderer/index.tsx' }))
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
+    })
+  })
+
+  it('should keep home-relative paths readable and open the resolved file path', async () => {
+    setInlineFilePathHomePath('/Users/foo')
+    renderWithProvider(<ClickableFilePath path="~/Desktop/report.html" />, {
+      openArtifactFile: mockOpenArtifactFile
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '~/Desktop/report.html' }))
+
+    await waitFor(() => {
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/Desktop/report.html')
     })
   })
 

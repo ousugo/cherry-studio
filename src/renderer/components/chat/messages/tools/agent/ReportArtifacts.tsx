@@ -8,7 +8,7 @@ import { type MouseEvent, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { normalizeInlineFilePath } from '../../utils/filePath'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '../../utils/filePath'
 
 export type ReportArtifactsToolResponse = McpToolResponse | NormalToolResponse
 
@@ -66,26 +66,27 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   const openArtifactFile = actions?.openArtifactFile
   const openPath = actions?.openPath
   const notifyError = actions?.notifyError
-  const normalizedPath = useMemo(() => normalizeInlineFilePath(artifact.path), [artifact.path])
-  const fileName = useMemo(() => getArtifactFileName(normalizedPath), [normalizedPath])
-  const iconName = useMemo(() => getFileIconName(normalizedPath), [normalizedPath])
+  const displayPath = useMemo(() => normalizeInlineFilePath(artifact.path), [artifact.path])
+  const targetPath = useMemo(() => resolveInlineFilePath(artifact.path), [artifact.path])
+  const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
+  const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
 
   const handlePreview = useCallback(() => {
     if (!openArtifactFile) return
-    Promise.resolve(openArtifactFile(normalizedPath)).catch(() => {
-      notifyError?.(t('chat.input.tools.open_file_error', { path: normalizedPath }))
+    Promise.resolve(openArtifactFile(targetPath)).catch(() => {
+      notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
     })
-  }, [normalizedPath, notifyError, openArtifactFile, t])
+  }, [notifyError, openArtifactFile, t, targetPath])
 
   const handleOpenExternal = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
       if (!openPath) return
-      Promise.resolve(openPath(normalizedPath)).catch(() => {
-        notifyError?.(t('chat.input.tools.open_file_error', { path: normalizedPath }))
+      Promise.resolve(openPath(targetPath)).catch(() => {
+        notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       })
     },
-    [normalizedPath, notifyError, openPath, t]
+    [notifyError, openPath, t, targetPath]
   )
 
   return (
@@ -94,7 +95,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         type="button"
         disabled={!openArtifactFile}
         onClick={handlePreview}
-        title={normalizedPath}
+        title={displayPath}
         aria-label={`${t('common.preview')} ${fileName}`}
         className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">

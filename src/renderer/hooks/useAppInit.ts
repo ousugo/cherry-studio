@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
+import { setInlineFilePathHomePath } from '@renderer/components/chat/messages/utils/filePath'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
@@ -97,6 +98,8 @@ export function useAppInit() {
     // set files path
     void window.api.getAppInfo().then((info) => {
       cacheService.set('app.path.files', info.filesPath)
+      cacheService.set('app.path.home', info.homePath)
+      setInlineFilePathHomePath(info.homePath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })
   }, [])

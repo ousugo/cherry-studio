@@ -117,6 +117,7 @@ export type UseCacheSchema = {
   'app.user.avatar': string
 
   'app.path.files': string
+  'app.path.home': string
   'app.path.resources': string
 
   // Chat context
@@ -200,6 +201,7 @@ export const DefaultUseCache: UseCacheSchema = {
   },
   'app.user.avatar': '',
   'app.path.files': '',
+  'app.path.home': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,

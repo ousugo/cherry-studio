@@ -516,6 +516,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  homePath: string
   configPath: string
   appDataPath: string
   resourcesPath: string

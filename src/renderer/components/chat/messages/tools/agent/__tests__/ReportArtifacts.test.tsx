@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
+import { setInlineFilePathHomePath } from '../../../utils/filePath'
 import { MessageReportArtifacts } from '../ReportArtifacts'
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -47,6 +48,7 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 describe('MessageReportArtifacts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setInlineFilePathHomePath(undefined)
   })
 
   it('renders declared deliverables from tool arguments', () => {
@@ -137,6 +139,39 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open File report.md' }))
     await waitFor(() => {
       expect(openPath).toHaveBeenCalledWith('dist/report.md')
+    })
+  })
+
+  it('resolves home-relative artifact paths before previewing or opening externally', async () => {
+    const openArtifactFile = vi.fn().mockResolvedValue(undefined)
+    const openPath = vi.fn().mockResolvedValue(undefined)
+    setInlineFilePathHomePath('/Users/alice')
+
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'tool-call-1',
+            toolCallId: 'tool-call-1',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: {
+              artifacts: [{ path: '~/Desktop/report.html' }]
+            }
+          } as NormalToolResponse
+        ]}
+      />,
+      { openArtifactFile, openPath }
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview report.html' }))
+    await waitFor(() => {
+      expect(openArtifactFile).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open File report.html' }))
+    await waitFor(() => {
+      expect(openPath).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
     })
   })
 })

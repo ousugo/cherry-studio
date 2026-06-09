@@ -3,6 +3,7 @@ import { EmptyState } from '@renderer/components/chat'
 import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import ArtifactPane, {
   ArtifactFilePreview,
   resolveArtifactPaneFileSelection
@@ -208,7 +209,7 @@ function AgentRightPaneStateProvider({
   )
   const openArtifactFile = useCallback(
     (path: string) => {
-      const selection = resolveArtifactPaneFileSelection(workspacePath, path)
+      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
       if (!selection) return
       setFilePreview({
         ...selection,
