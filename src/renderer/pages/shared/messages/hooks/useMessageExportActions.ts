@@ -50,7 +50,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   }, [])
 
   const saveToKnowledge = useCallback((message: MessageExportView) => {
-    SaveToKnowledgePopup.showForMessage(message)
+    void SaveToKnowledgePopup.showForMessage(message)
   }, [])
 
   const exportMessageAsMarkdown = useCallback((message: MessageExportView, includeReasoning?: boolean) => {

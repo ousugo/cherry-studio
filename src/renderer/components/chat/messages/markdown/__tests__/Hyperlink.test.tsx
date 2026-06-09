@@ -42,6 +42,7 @@ vi.mock('@cherrystudio/ui', () => {
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
     },
     PopoverContent: ({ children, sideOffset, ...props }) => {
+      void sideOffset
       const context = React.use(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     }
@@ -66,6 +67,7 @@ vi.mock('@cherrystudio/ui', () => {
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
     },
     PopoverContent: ({ children, sideOffset, ...props }) => {
+      void sideOffset
       const context = React.use(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     }

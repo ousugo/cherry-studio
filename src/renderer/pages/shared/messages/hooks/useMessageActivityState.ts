@@ -6,8 +6,9 @@ import { useCallback } from 'react'
 
 export function useMessageActivityState(
   topicId: string,
-  _partsMap?: Record<string, CherryMessagePart[]> | null
+  partsMap?: Record<string, CherryMessagePart[]> | null
 ): (message: MessageListItem) => MessageActivityState {
+  void partsMap
   const { activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
 
   return useCallback(

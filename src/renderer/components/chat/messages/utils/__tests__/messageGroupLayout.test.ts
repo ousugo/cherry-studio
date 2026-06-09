@@ -18,11 +18,9 @@ const createMessage = (id: string, role: MessageListItem['role'] = 'assistant') 
     status: 'success'
   }) as MessageListItem
 
-const createGetMessageUiState =
-  (style?: MultiModelMessageStyle) =>
-  (_messageId: string): MessageUiState => ({
-    multiModelMessageStyle: style
-  })
+const createGetMessageUiState = (style?: MultiModelMessageStyle) => (): MessageUiState => ({
+  multiModelMessageStyle: style
+})
 
 describe('messageGroupLayout', () => {
   it('detects assistant multi-model groups', () => {

@@ -260,7 +260,7 @@ class ProviderService {
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
     if (dto.providerSettings !== undefined) {
       updates.providerSettings = {
-        ...((current.providerSettings as Partial<ProviderSettings> | null) ?? {}),
+        ...(current.providerSettings as Partial<ProviderSettings> | null),
         ...dto.providerSettings
       }
     }

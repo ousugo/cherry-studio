@@ -19,7 +19,7 @@ describe('generateImageTool', () => {
 
   it('registers generate image only for the plus menu', async () => {
     mockIsGenerateImageModel.mockReturnValue(true)
-    const registerLaunchers = vi.fn((_: ComposerToolLauncher[]) => vi.fn())
+    const registerLaunchers = vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => vi.fn())
     const Runtime = generateImageTool.composer?.runtime
 
     if (!Runtime) {

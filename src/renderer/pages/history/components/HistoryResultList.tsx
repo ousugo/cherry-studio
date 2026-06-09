@@ -866,7 +866,7 @@ function HistoryActionsCell<TContext = unknown>({
         }}
         onConfirm={async () => {
           if (!pendingDeleteAction) return
-          await handleAction(pendingDeleteAction)
+          handleAction(pendingDeleteAction)
           setPendingDeleteAction(undefined)
         }}
       />

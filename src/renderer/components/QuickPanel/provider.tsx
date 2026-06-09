@@ -37,7 +37,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
   const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
-  const clearTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const clearTimer = useRef<number | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
   const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)

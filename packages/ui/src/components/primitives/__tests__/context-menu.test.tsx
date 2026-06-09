@@ -130,7 +130,8 @@ describe('ContextMenu primitive', () => {
 
     it('clears the opening pointerup guard when the opening release happens outside the menu content', () => {
       let openingPointerUpListener: ((event: Event) => void) | null = null
-      const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation(((type, listener, _options) => {
+      const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation(((type, listener, options) => {
+        void options
         if (type === 'pointerup' && typeof listener === 'function') {
           openingPointerUpListener = listener as (event: Event) => void
         }

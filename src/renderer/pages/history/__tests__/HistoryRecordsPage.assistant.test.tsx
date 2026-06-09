@@ -49,11 +49,14 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Button: ({ children, loading: _loading, ...props }: { children?: ReactNode; loading?: boolean }) => (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    ),
+    Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean }) => {
+      void loading
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
     Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
       <button
         {...props}
@@ -114,11 +117,14 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
-    DialogContent: ({ children, showCloseButton: _showCloseButton, ...props }: any) => (
-      <div role="dialog" {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({ children, showCloseButton, ...props }: any) => {
+      void showCloseButton
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogFooter: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
     DialogHeader: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: { children?: ReactNode }) => <h2 {...props}>{children}</h2>,

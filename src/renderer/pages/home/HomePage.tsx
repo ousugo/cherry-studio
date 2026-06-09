@@ -160,7 +160,7 @@ const HomePage: FC = () => {
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
-  const lastVisibleTopicRef = useRef<Topic | null>(null)
+  const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const draftAssistantSelectionSnapshot = useMemo<DraftAssistantSelection | undefined>(() => {
     if (isMessageOnlyView) return undefined
     return draftAssistantSelection
@@ -169,7 +169,7 @@ const HomePage: FC = () => {
     ? routeTopic
     : draftAssistantSelectionSnapshot
       ? undefined
-      : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
+      : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const draftScopeKey = `home-draft:${draftScopeId}`
 
   useEffect(() => {
@@ -517,11 +517,14 @@ const HomePage: FC = () => {
     )
   }
 
+  const chatTopic = visibleTopic
+  if (!chatTopic) return <Container id="home-page">{historyOverlay}</Container>
+
   return (
     <Container id="home-page">
       <ContentContainer $detached={isWindowFrame}>
         <Chat
-          activeTopic={visibleTopic}
+          activeTopic={chatTopic}
           pane={pane}
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}

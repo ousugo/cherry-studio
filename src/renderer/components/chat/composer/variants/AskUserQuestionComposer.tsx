@@ -129,7 +129,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const hasAnyAnswer = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) =>
-      questions.length > 0 && questions.some((_, index) => hasAnswerAt(index, answersByIndex)),
+      questions.some((_, index) => hasAnswerAt(index, answersByIndex)),
     [hasAnswerAt, questions, selectedAnswers]
   )
 

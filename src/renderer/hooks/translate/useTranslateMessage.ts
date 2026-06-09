@@ -122,7 +122,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         if (topicId !== streamId) return
         if (status === 'success') {
           try {
-            await refresh()
+            refresh()
           } catch (err) {
             logger.warn('refresh after translation done failed', err as Error)
           }

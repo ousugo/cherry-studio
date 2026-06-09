@@ -151,7 +151,7 @@ const MessageErrorInfo: React.FC<{
   )
 
   const showErrorDetail = () => {
-    openErrorDetail?.({
+    void openErrorDetail?.({
       message,
       error,
       partId,

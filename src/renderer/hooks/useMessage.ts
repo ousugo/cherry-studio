@@ -107,7 +107,7 @@ export function useMessage(messageId: string, topic: Topic) {
       }
       await chatWrite.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
 
-      return (accumulatedText: string, _isComplete: boolean = false) => {
+      return (accumulatedText: string) => {
         const translationPart = {
           type: 'data-translation' as const,
           data: {

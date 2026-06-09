@@ -22,8 +22,9 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
 
   return {
-    Alert: ({ action, children, description, icon, message, type, showIcon: _showIcon, ...props }: MockProps) =>
-      React.createElement(
+    Alert: ({ action, children, description, icon, message, type, showIcon, ...props }: MockProps) => {
+      void showIcon
+      return React.createElement(
         'div',
         { ...props, role: type === 'error' ? 'alert' : 'status', 'data-testid': 'alert', 'data-type': type },
         icon,
@@ -31,7 +32,8 @@ vi.mock('@cherrystudio/ui', async () => {
         description ? React.createElement('span', null, description) : null,
         children,
         action
-      ),
+      )
+    },
     Badge: ({ children, ...props }: MockProps) =>
       React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Skeleton: ({ children, ...props }: MockProps) =>

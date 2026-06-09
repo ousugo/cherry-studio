@@ -8,7 +8,7 @@ export function useMessageHeaderCapabilities(): Pick<MessageListMeta, 'userProfi
   const avatar = useAvatar()
 
   const openUserProfile = useCallback<NonNullable<MessageListActions['openUserProfile']>>(() => {
-    UserPopup.show()
+    void UserPopup.show()
   }, [])
 
   return useMemo(

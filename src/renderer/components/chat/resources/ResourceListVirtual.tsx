@@ -340,11 +340,9 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
   )
-  const renderGroupHeader = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData) =>
-      header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />,
-    []
-  )
+  const renderGroupHeader = useCallback((header: ResourceListVirtualHeader) => {
+    return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
+  }, [])
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -545,11 +543,9 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDropItemMeta]
   )
-  const renderGroupHeader = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData) =>
-      header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />,
-    []
-  )
+  const renderGroupHeader = useCallback((header: ResourceListVirtualHeader) => {
+    return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
+  }, [])
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>

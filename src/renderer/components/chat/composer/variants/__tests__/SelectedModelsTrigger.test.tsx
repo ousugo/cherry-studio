@@ -23,11 +23,11 @@ vi.mock('@cherrystudio/ui', () => {
     PopoverAnchor: ({ children }: { children?: ReactNode }) => <>{children}</>,
     PopoverContent: ({
       children,
-      align: _align,
-      side: _side,
-      sideOffset: _sideOffset,
-      onOpenAutoFocus: _onOpenAutoFocus,
-      onCloseAutoFocus: _onCloseAutoFocus,
+      align,
+      side,
+      sideOffset,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
       onPointerEnter,
       onPointerLeave,
       ...props
@@ -40,12 +40,19 @@ vi.mock('@cherrystudio/ui', () => {
       onCloseAutoFocus?: () => void
       onPointerEnter?: () => void
       onPointerLeave?: () => void
-    }) =>
-      currentPopoverOpen ? (
+    }) => {
+      void align
+      void side
+      void sideOffset
+      void onOpenAutoFocus
+      void onCloseAutoFocus
+
+      return currentPopoverOpen ? (
         <div {...props} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
           {children}
         </div>
-      ) : null,
+      ) : null
+    },
     Scrollbar: ({ children, ...props }: { children?: ReactNode }) => (
       <div data-scrolling="false" {...props}>
         {children}

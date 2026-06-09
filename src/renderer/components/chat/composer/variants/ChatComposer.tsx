@@ -358,7 +358,8 @@ const ChatComposerRoot = ({
   )
 }
 
-interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic'> {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
+  scopeKey: string
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
 }
