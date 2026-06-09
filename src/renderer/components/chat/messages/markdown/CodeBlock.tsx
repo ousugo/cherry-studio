@@ -57,6 +57,20 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     [actions, blockId, id]
   )
 
+  // A plain text fence may be the model's way to present a single generated file or directory path.
+  if (
+    !isWin &&
+    (language === null || language === 'text') &&
+    typeof children === 'string' &&
+    isInlineFilePath(children)
+  ) {
+    return (
+      <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
+        <ClickableFilePath path={normalizeInlineFilePath(children)} />
+      </code>
+    )
+  }
+
   if (language !== null) {
     // Fancy code block
     if (codeFancyBlock) {
@@ -76,15 +90,6 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
       <CodeBlockView language={language} onSave={handleSave} editable={canSaveCodeBlock}>
         {children}
       </CodeBlockView>
-    )
-  }
-
-  // Detect inline code that looks like an agent workspace file path.
-  if (!isWin && typeof children === 'string' && isInlineFilePath(children)) {
-    return (
-      <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={normalizeInlineFilePath(children)} />
-      </code>
     )
   }
 

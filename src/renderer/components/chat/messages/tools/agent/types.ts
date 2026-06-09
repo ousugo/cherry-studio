@@ -77,6 +77,9 @@ export const AgentToolsType = {
   TaskGet: 'TaskGet',
   TaskUpdate: 'TaskUpdate',
   TaskList: 'TaskList',
+  SendMessage: 'SendMessage',
+  TeamCreate: 'TeamCreate',
+  TeamDelete: 'TeamDelete',
   EnterWorktree: 'EnterWorktree',
   ExitWorktree: 'ExitWorktree'
 } as const
@@ -249,6 +252,14 @@ export type EnterWorktreeToolOutput = EnterWorktreeOutput | string
 export type ExitWorktreeToolInput = ExitWorktreeInput
 export type ExitWorktreeToolOutput = ExitWorktreeOutput | string
 
+// Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
+export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
+export type SendMessageToolOutput = string
+export type TeamCreateToolInput = Record<string, unknown>
+export type TeamCreateToolOutput = string
+export type TeamDeleteToolInput = Record<string, unknown>
+export type TeamDeleteToolOutput = string
+
 export type ToolInput =
   | SkillToolInput
   | AgentToolInput
@@ -276,6 +287,9 @@ export type ToolInput =
   | TaskGetToolInput
   | TaskUpdateToolInput
   | TaskListToolInput
+  | SendMessageToolInput
+  | TeamCreateToolInput
+  | TeamDeleteToolInput
   | EnterWorktreeToolInput
   | ExitWorktreeToolInput
 
@@ -340,6 +354,9 @@ export interface ToolInputMap {
   [AgentToolsType.TaskGet]: TaskGetToolInput
   [AgentToolsType.TaskUpdate]: TaskUpdateToolInput
   [AgentToolsType.TaskList]: TaskListToolInput
+  [AgentToolsType.SendMessage]: SendMessageToolInput
+  [AgentToolsType.TeamCreate]: TeamCreateToolInput
+  [AgentToolsType.TeamDelete]: TeamDeleteToolInput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolInput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolInput
 }
@@ -372,6 +389,9 @@ export interface ToolOutputMap {
   [AgentToolsType.TaskGet]: TaskGetToolOutput
   [AgentToolsType.TaskUpdate]: TaskUpdateToolOutput
   [AgentToolsType.TaskList]: TaskListToolOutput
+  [AgentToolsType.SendMessage]: SendMessageToolOutput
+  [AgentToolsType.TeamCreate]: TeamCreateToolOutput
+  [AgentToolsType.TeamDelete]: TeamDeleteToolOutput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolOutput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolOutput
 }

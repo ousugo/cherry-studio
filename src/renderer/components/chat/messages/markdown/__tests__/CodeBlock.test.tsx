@@ -163,14 +163,26 @@ describe('CodeBlock', () => {
       '/tmp/test.log',
       '/var/log/app.log',
       '/etc/nginx/nginx.conf',
+      '/path with spaces/file.ts',
+      '/Users/suyao/Library/Application Support/CherryStudioDev/.claude/skills/guizang-ppt-skill/',
       './src/index.ts',
-      '../packages/ui/src/button.tsx'
+      '../packages/ui/src/button.tsx',
+      '../packages/ui/src/'
     ])('should detect %s as a file path', (path) => {
       render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
     })
 
-    it.each(['inline code', '/single-segment', '//comment style', 'not/absolute/path', '/path with spaces/file.ts'])(
+    it('should render ClickableFilePath for text code fences containing a single path', () => {
+      const path = '/Users/suyao/Library/Application Support/CherryStudioDev/.claude/skills/guizang-ppt-skill/'
+      render(<CodeBlock {...defaultProps} className="language-text" children={path} />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText(path)).toBeInTheDocument()
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+    })
+
+    it.each(['inline code', '/single-segment', '//comment style', 'not/absolute/path'])(
       'should NOT detect %s as a file path',
       (text) => {
         render(<CodeBlock {...defaultProps} className={undefined} children={text} />)

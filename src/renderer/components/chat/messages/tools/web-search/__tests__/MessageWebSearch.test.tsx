@@ -1,5 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -20,25 +20,22 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    Search: ({ className, size }: { className?: string; size?: number | string }) => (
-      <span data-testid="search-icon" data-size={size} className={className} />
-    )
-  }
-})
+// Favicon fetches remote icons on mount; stub it so the test stays offline and we can assert the hostname.
+vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+  default: ({ hostname, alt }: { hostname: string; alt: string }) => (
+    <span data-testid="favicon" data-hostname={hostname} aria-label={alt} />
+  )
+}))
 
 describe('MessageWebSearchToolTitle', () => {
-  it('uses the compact tool-row style for an empty-result label', () => {
+  it('shows the query and an empty-result label without a disclosure', () => {
     render(
       <MessageWebSearchToolTitle
         toolResponse={
           {
             id: 'tool-call-1',
             toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web__search', type: 'builtin' },
+            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
             status: 'done',
             arguments: { query: 'Cherry Studio' },
             response: []
@@ -47,12 +44,9 @@ describe('MessageWebSearchToolTitle', () => {
       />
     )
 
-    const title = screen.getByText('No search results found').closest('span')
-    expect(title).toHaveClass('flex items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-secondary')
-    expect(title).not.toHaveClass('p-1.25')
-    expect(title).not.toHaveClass('py-1.25 text-sm')
-    expect(screen.getByTestId('search-icon')).toHaveAttribute('data-size', '14')
-    expect(screen.getByTestId('search-icon')).toHaveClass('shrink-0 text-foreground-muted')
+    expect(screen.getByText('Cherry Studio')).toBeInTheDocument()
+    expect(screen.getByText('No search results found')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('uses the compact tool-row text while searching', () => {
@@ -62,7 +56,7 @@ describe('MessageWebSearchToolTitle', () => {
           {
             id: 'tool-call-1',
             toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web__search', type: 'builtin' },
+            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
             status: 'invoking',
             arguments: { query: 'Cherry Studio' },
             response: []
@@ -73,30 +67,38 @@ describe('MessageWebSearchToolTitle', () => {
 
     const searchingText = screen.getByText('message.searching').closest('span')
     expect(searchingText).toHaveClass('py-0.5 text-[13px] leading-5')
-    expect(searchingText).not.toHaveClass('py-1.25 text-sm')
     expect(screen.getByText('Cherry Studio')).toHaveClass('truncate')
   })
 
-  it('wraps result details in the shared disclosure container', async () => {
+  it('shows the query in the header and renders each result as a link with favicon and domain', async () => {
     render(
       <MessageWebSearchToolTitle
         toolResponse={
           {
             id: 'tool-call-1',
             toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web__search', type: 'builtin' },
+            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
             status: 'done',
             arguments: { query: 'Cherry Studio' },
-            response: [{ id: 1, title: 'Cherry Studio', url: 'https://cherry-ai.com', content: 'Cherry Studio' }]
+            response: [
+              { id: 1, title: 'Cherry Studio', url: 'https://www.cherry-ai.com/blog', content: 'Cherry Studio' }
+            ]
           } as NormalToolResponse
         }
       />
     )
 
-    expect(screen.getByText('1 search results')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button'))
+    // Header shows the query + the result count (collapse body is not rendered yet).
+    const header = screen.getByRole('button')
+    expect(within(header).getByText('Cherry Studio')).toBeInTheDocument()
+    expect(within(header).getByText('1 search results')).toBeInTheDocument()
+
+    fireEvent.click(header)
 
     expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')
-    expect(await screen.findByRole('link', { name: 'Cherry Studio' })).toHaveAttribute('href', 'https://cherry-ai.com')
+    const link = await screen.findByRole('link')
+    expect(link).toHaveAttribute('href', 'https://www.cherry-ai.com/blog')
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')
+    expect(screen.getByText('cherry-ai.com')).toBeInTheDocument()
   })
 })

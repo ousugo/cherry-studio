@@ -12,6 +12,7 @@ import {
   NotebookPen,
   PencilRuler,
   Search,
+  Send,
   ShieldCheck,
   Terminal,
   Wrench
@@ -49,90 +50,47 @@ export interface ToolHeaderProps {
   variant?: 'standalone' | 'collapse-label'
 }
 
-const getAgentToolIcon = (toolName: string): ReactNode => {
-  switch (toolName) {
-    case AgentToolsType.Agent:
-      return <Bot size={14} />
-    case AgentToolsType.Read:
-      return <FileText size={14} />
-    case AgentToolsType.Task:
-    case AgentToolsType.TaskCreate:
-    case AgentToolsType.TaskGet:
-    case AgentToolsType.TaskUpdate:
-    case AgentToolsType.TaskList:
-    case AgentToolsType.TaskOutput:
-    case AgentToolsType.TaskStop:
-      return <Bot size={14} />
-    case AgentToolsType.Bash:
-    case AgentToolsType.BashOutput:
-      return <Terminal size={14} />
-    case AgentToolsType.Search:
-      return <Search size={14} />
-    case AgentToolsType.Glob:
-      return <FolderSearch size={14} />
-    case AgentToolsType.Grep:
-      return <FileSearch size={14} />
-    case AgentToolsType.Write:
-      return <FileText size={14} />
-    case AgentToolsType.Edit:
-      return <FileEdit size={14} />
-    case AgentToolsType.MultiEdit:
-      return <FileText size={14} />
-    case AgentToolsType.WebSearch:
-    case AgentToolsType.WebFetch:
-      return <Globe size={14} />
-    case AgentToolsType.NotebookEdit:
-      return <NotebookPen size={14} />
-    case AgentToolsType.TodoWrite:
-      return <ListTodo size={14} />
-    case AgentToolsType.ExitPlanMode:
-    case AgentToolsType.EnterWorktree:
-    case AgentToolsType.ExitWorktree:
-      return <DoorOpen size={14} />
-    case AgentToolsType.Skill:
-      return <PencilRuler size={14} />
-    default:
-      return <Wrench size={14} />
-  }
+/**
+ * Per-tool chat-header display: icon + (optional) i18n label key. Table-driven (replaces the
+ * former icon/label switches). Tools absent here fall back to a generic wrench icon + the raw
+ * tool name.
+ */
+export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
+  [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
+  [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
+  [AgentToolsType.Task]: { icon: <Bot size={14} />, labelKey: 'message.tools.labels.task' },
+  [AgentToolsType.TaskCreate]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TaskGet]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TaskUpdate]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TaskList]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TaskOutput]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TaskStop]: { icon: <Bot size={14} /> },
+  [AgentToolsType.Bash]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' },
+  [AgentToolsType.BashOutput]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' },
+  [AgentToolsType.Search]: { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' },
+  [AgentToolsType.Glob]: { icon: <FolderSearch size={14} />, labelKey: 'message.tools.labels.glob' },
+  [AgentToolsType.Grep]: { icon: <FileSearch size={14} />, labelKey: 'message.tools.labels.grep' },
+  [AgentToolsType.Write]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.write' },
+  [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
+  [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
+  [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
+  [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
+  [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
+  [AgentToolsType.ExitPlanMode]: { icon: <DoorOpen size={14} />, labelKey: 'message.tools.labels.exitPlanMode' },
+  [AgentToolsType.SendMessage]: { icon: <Send size={14} /> },
+  [AgentToolsType.TeamCreate]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
+  [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.Skill]: { icon: <PencilRuler size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
+const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
+
 const getAgentToolLabel = (toolName: string, t: Translate): string => {
-  switch (toolName) {
-    case AgentToolsType.Read:
-      return t('message.tools.labels.readFile')
-    case AgentToolsType.Task:
-      return t('message.tools.labels.task')
-    case AgentToolsType.Bash:
-      return t('message.tools.labels.bash')
-    case AgentToolsType.BashOutput:
-      return t('message.tools.labels.bashOutput')
-    case AgentToolsType.Search:
-      return t('message.tools.labels.search')
-    case AgentToolsType.Glob:
-      return t('message.tools.labels.glob')
-    case AgentToolsType.Grep:
-      return t('message.tools.labels.grep')
-    case AgentToolsType.Write:
-      return t('message.tools.labels.write')
-    case AgentToolsType.Edit:
-      return t('message.tools.labels.edit')
-    case AgentToolsType.MultiEdit:
-      return t('message.tools.labels.multiEdit')
-    case AgentToolsType.WebSearch:
-      return t('message.tools.labels.webSearch')
-    case AgentToolsType.WebFetch:
-      return t('message.tools.labels.webFetch')
-    case AgentToolsType.NotebookEdit:
-      return t('message.tools.labels.notebookEdit')
-    case AgentToolsType.TodoWrite:
-      return t('message.tools.labels.todoWrite')
-    case AgentToolsType.ExitPlanMode:
-      return t('message.tools.labels.exitPlanMode')
-    case AgentToolsType.Skill:
-      return t('message.tools.labels.skill')
-    default:
-      return toolName
-  }
+  const labelKey = TOOL_HEADER_UI[toolName]?.labelKey
+  return labelKey ? t(labelKey) : toolName
 }
 
 function getStringArg(args: unknown, key: string): string | undefined {

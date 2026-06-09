@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import { useMessageRenderConfig } from '../MessageListProvider'
+import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
 import { AgentToolsType } from '../tools/agent/types'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
@@ -34,6 +35,7 @@ import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolRes
 import type { MessageListItem } from '../types'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
+import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
@@ -205,6 +207,9 @@ function isSummaryMessagePart(part: CherryMessagePart): boolean {
   if (partType === 'data-compact' || partType === 'data-translation') {
     return !!(part as { data?: { content?: string } }).data?.content?.trim()
   }
+  if (partType === 'data-compaction-anchor') {
+    return true
+  }
   return false
 }
 
@@ -347,6 +352,9 @@ function renderPart(
       )
     }
 
+    case 'data-compaction-anchor':
+      return <CompactionAnchorBlock key={partId} />
+
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
@@ -470,6 +478,13 @@ function buildToolRenderItems(entries: readonly ToolGroupEntryShape[], messageId
     const id = `${messageId}-part-${e.index}`
     const toolResponse = buildToolResponseFromPart(e.part, id)
     return toolResponse && canRenderMessageTool(toolResponse) ? [{ id, toolResponse }] : []
+  })
+}
+
+function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
+  return entries.flatMap((entry) => {
+    const toolResponse = buildToolResponseFromPart(entry.part, `${messageId}-part-${entry.index}`)
+    return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
   })
 }
 
@@ -709,6 +724,10 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
     () => (renderConfig.collapseCompletedToolHistory ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
     [partEntries, message, isProcessing, renderConfig.collapseCompletedToolHistory]
   )
+  const reportArtifactToolResponses = useMemo(
+    () => getReportArtifactToolResponses(partEntries, message.id),
+    [partEntries, message.id]
+  )
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
 
   const grouped = useMemo(() => {
@@ -747,6 +766,11 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       {grouped.map((entry) => {
         return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)
       })}
+      {reportArtifactToolResponses.length > 0 && (
+        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
+          <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+        </AnimatedBlockWrapper>
+      )}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
           <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />

@@ -49,6 +49,9 @@ export const toolRenderers = {
   [AgentToolsType.TaskGet]: createStructuredAgentTool(AgentToolsType.TaskGet),
   [AgentToolsType.TaskUpdate]: createStructuredAgentTool(AgentToolsType.TaskUpdate),
   [AgentToolsType.TaskList]: createStructuredAgentTool(AgentToolsType.TaskList),
+  [AgentToolsType.SendMessage]: createStructuredAgentTool(AgentToolsType.SendMessage),
+  [AgentToolsType.TeamCreate]: createStructuredAgentTool(AgentToolsType.TeamCreate),
+  [AgentToolsType.TeamDelete]: createStructuredAgentTool(AgentToolsType.TeamDelete),
   [AgentToolsType.EnterWorktree]: createStructuredAgentTool(AgentToolsType.EnterWorktree),
   [AgentToolsType.ExitWorktree]: createStructuredAgentTool(AgentToolsType.ExitWorktree)
 }

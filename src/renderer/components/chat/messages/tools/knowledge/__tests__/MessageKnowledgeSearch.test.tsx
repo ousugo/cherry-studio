@@ -32,7 +32,7 @@ describe('MessageKnowledgeSearchToolTitle', () => {
           {
             id: 'tool-call-1',
             toolCallId: 'tool-call-1',
-            tool: { id: 'knowledge-search', name: 'kb__search', type: 'builtin' },
+            tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
             status: 'done',
             arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
             response: [{ id: 1, content: 'Cherry Studio', score: 0.9 }]
@@ -59,7 +59,7 @@ describe('MessageKnowledgeSearchToolTitle', () => {
           {
             id: 'tool-call-1',
             toolCallId: 'tool-call-1',
-            tool: { id: 'knowledge-search', name: 'kb__search', type: 'builtin' },
+            tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
             status: 'invoking',
             arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
             response: []

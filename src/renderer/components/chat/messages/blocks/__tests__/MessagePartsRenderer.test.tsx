@@ -1,6 +1,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
@@ -50,16 +51,28 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: Record<string, number>) => {
-      if (key === 'message.tools.groupHeader') {
-        return `${params?.count} tool calls`
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactI18next>()
+
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string, params?: Record<string, number>) => {
+        if (key === 'message.tools.groupHeader') {
+          return `${params?.count} tool calls`
+        }
+        if (key === 'message.tools.thinkingHeader') return 'Thinking...'
+        if (key === 'common.preview') return 'Preview'
+        if (key === 'chat.input.tools.open_file') return 'Open File'
+        if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
+        return key
       }
-      if (key === 'message.tools.thinkingHeader') return 'Thinking...'
-      return key
-    }
-  })
+    })
+  }
+})
+
+vi.mock('@iconify/react', () => ({
+  Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />
 }))
 
 // Leaf component mocks — render data-testid with key props for assertions
@@ -81,7 +94,8 @@ vi.mock('../ImageBlock', () => ({
 vi.mock('../../tools/MessageTools', () => ({
   __esModule: true,
   canRenderMessageTool: (toolResponse: any) =>
-    !(toolResponse?.tool?.type === 'provider' && toolResponse?.tool?.name === 'web__search'),
+    toolResponse?.tool?.name !== 'report_artifacts' &&
+    !(toolResponse?.tool?.type === 'provider' && toolResponse?.tool?.name === 'web_search'),
   default: ({ toolResponse }: any) => (
     <div
       data-testid="mock-message-tools"
@@ -205,7 +219,11 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
     ...overrides
   }) as MessageListItem
 
-const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
+const renderParts = (
+  parts: CherryMessagePart[],
+  message?: MessageListItem,
+  actions: MessageListProviderValue['actions'] = {}
+) => {
   const m = message ?? msg()
   const value: MessageListProviderValue = {
     state: {
@@ -224,7 +242,7 @@ const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
         isApprovalAnchor: false
       })
     },
-    actions: {},
+    actions,
     meta: { selectionLayer: false }
   }
 
@@ -293,6 +311,18 @@ describe('MessagePartsRenderer', () => {
   it('renders text part via Markdown', () => {
     renderParts([{ type: 'text', text: 'hello world' } as unknown as CherryMessagePart])
     expect(screen.getByTestId('mock-markdown').textContent).toContain('hello world')
+  })
+
+  it('renders a compaction anchor as a separator without a placeholder', () => {
+    renderParts([
+      {
+        type: 'data-compaction-anchor',
+        data: { trigger: 'auto', completedAt: '2026-06-09T12:00:00.000Z' }
+      } as unknown as CherryMessagePart
+    ])
+
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
   })
 
   // -- data-code --
@@ -424,7 +454,7 @@ describe('MessagePartsRenderer', () => {
       {
         type: 'dynamic-tool',
         toolCallId: 'hidden-web-search',
-        toolName: 'web__search',
+        toolName: 'web_search',
         toolType: 'provider',
         state: 'output-available',
         output: {}
@@ -433,6 +463,44 @@ describe('MessagePartsRenderer', () => {
     ] as unknown as CherryMessagePart[])
 
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
+  it('renders report_artifacts at the end of the full message instead of inline', () => {
+    const openArtifactFile = vi.fn()
+    const openPath = vi.fn()
+    const { container } = renderParts(
+      [
+        { type: 'text', text: 'before tool' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'report',
+          toolName: 'report_artifacts',
+          state: 'output-available',
+          input: {
+            summary: 'Created final outputs',
+            artifacts: [{ path: 'dist/report.md', description: 'Report' }]
+          },
+          output: {}
+        },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[],
+      undefined,
+      { openArtifactFile, openPath }
+    )
+
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Preview report.md' })).toBeInTheDocument()
+    expect(screen.getByText('report.md')).toBeInTheDocument()
+
+    const text = container.textContent ?? ''
+    expect(text.indexOf('final answer')).toBeGreaterThan(-1)
+    expect(text.indexOf('report.md')).toBeGreaterThan(text.indexOf('final answer'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
+    expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open File report.md' }))
+    expect(openPath).toHaveBeenCalledWith('dist/report.md')
   })
 
   it('collapses completed tool history before final result', () => {
@@ -579,7 +647,7 @@ describe('MessagePartsRenderer', () => {
       {
         type: 'dynamic-tool',
         toolCallId: 'hidden-web-search',
-        toolName: 'web__search',
+        toolName: 'web_search',
         toolType: 'provider',
         state: 'output-available',
         output: {}

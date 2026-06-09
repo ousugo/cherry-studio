@@ -1,4 +1,13 @@
-const INLINE_FILE_PATH_PATTERN = /^(?:\/|\.{1,2}\/)?(?:[^/\s`"'<>|]+\/)+[^/\s`"'<>|]+\.[^/\s`"'<>|.]+$/
+const PATH_SEGMENT_PATTERN = String.raw`[^/\n\r\`"'<>|]+`
+const ABSOLUTE_FILE_PATH_PATTERN = new RegExp(
+  String.raw`^/(?!/)(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}/?$`
+)
+const RELATIVE_EXPLICIT_PATH_PATTERN = new RegExp(
+  String.raw`^\.{1,2}/(?:${PATH_SEGMENT_PATTERN}/)*${PATH_SEGMENT_PATTERN}/?$`
+)
+const WORKSPACE_RELATIVE_FILE_PATH_PATTERN = new RegExp(
+  String.raw`^(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}\.[^/\`"'<>|.]+$`
+)
 const INLINE_FILE_PATH_LOCATION_PATTERN = /(?::\d+){1,2}$/
 
 export const normalizeInlineFilePath = (value: string) =>
@@ -8,7 +17,12 @@ export const normalizeInlineFilePath = (value: string) =>
     .replace(INLINE_FILE_PATH_LOCATION_PATTERN, '')
 
 export function isInlineFilePath(value: string): boolean {
-  return INLINE_FILE_PATH_PATTERN.test(normalizeInlineFilePath(value))
+  const normalizedPath = normalizeInlineFilePath(value)
+  return (
+    ABSOLUTE_FILE_PATH_PATTERN.test(normalizedPath) ||
+    RELATIVE_EXPLICIT_PATH_PATTERN.test(normalizedPath) ||
+    WORKSPACE_RELATIVE_FILE_PATH_PATTERN.test(normalizedPath)
+  )
 }
 
 export function containsInlineFilePath(value: string | undefined): boolean {

@@ -41,7 +41,8 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     )
   }
 
-  if (tool?.name === AgentToolsType.TodoWrite) {
+  // TodoWrite is globally disabled; old DB messages may still carry it — keep hiding them.
+  if (tool?.name === 'TodoWrite') {
     return null
   }
 

@@ -1,10 +1,21 @@
+import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
-import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import Link from '../../markdown/Link'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+
+/** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
+function parseResultUrl(url: string): { hostname: string; domain: string } {
+  try {
+    const hostname = new URL(url).hostname
+    return { hostname, domain: hostname.replace(/^www\./, '') }
+  } catch {
+    return { hostname: '', domain: url }
+  }
+}
 
 const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
@@ -17,22 +28,24 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
       ? t('message.websearch.fetch_empty')
       : t('message.websearch.fetch_complete', { count: resultCount })
 
-  return toolResponse.status !== 'done' ? (
-    <Spinner
-      text={
-        <span className="flex min-w-0 items-center gap-1 py-0.5 text-[13px] leading-5">
-          {t('message.searching')}
-          <span className="min-w-0 truncate">{query}</span>
-        </span>
-      }
-    />
-  ) : (
-    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
-      <Search
-        size={14}
-        className="shrink-0 text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary"
+  if (toolResponse.status !== 'done') {
+    return (
+      <Spinner
+        text={
+          <span className="flex min-w-0 items-center gap-1 py-0.5 text-[13px] leading-5">
+            {t('message.searching')}
+            <span className="min-w-0 truncate">{query}</span>
+          </span>
+        }
       />
-      {resultText}
+    )
+  }
+
+  // Query on the left, result count on the right (mirrors the reference layout).
+  return (
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+      <span className="min-w-0 truncate">{query || resultText}</span>
+      {query && <span className="shrink-0 text-foreground-muted">{resultText}</span>}
     </span>
   )
 }
@@ -66,14 +79,21 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
-    <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
-      {outputParse.data.map((result: WebSearchOutputItem) => (
-        <li key={result.id}>
-          <a href={result.url} target="_blank" rel="noreferrer">
-            {result.title || result.url}
-          </a>
-        </li>
-      ))}
+    <ul className="flex flex-col gap-0.5 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:p-0">
+      {outputParse.data.map((result: WebSearchOutputItem) => {
+        const { hostname, domain } = parseResultUrl(result.url)
+        return (
+          <li key={result.id}>
+            <Link
+              href={result.url}
+              className="-mx-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1 no-underline transition-colors hover:bg-foreground/5">
+              {hostname && <Favicon hostname={hostname} alt={result.title || domain} />}
+              <span className="min-w-0 flex-1 truncate text-foreground">{result.title || result.url}</span>
+              <span className="max-w-[40%] shrink-0 truncate text-foreground-muted">{domain}</span>
+            </Link>
+          </li>
+        )
+      })}
     </ul>
   )
 }
