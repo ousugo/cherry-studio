@@ -7,7 +7,6 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { assertClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { application } from '@main/core/application'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -56,11 +55,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }
-    const workspacePath = session.workspace?.path
-    if (!workspacePath) {
-      throw new Error(`Agent session ${sessionId} has no workspace configured`)
-    }
-    await assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
 
     const agentId = session.agentId
     const agent = await agentService.getAgent(agentId)

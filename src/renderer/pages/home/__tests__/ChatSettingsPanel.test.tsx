@@ -266,15 +266,15 @@ describe('Chat panels', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps navbar actions visible for a fresh temporary topic', () => {
-    const temporaryTopic = { ...activeTopic, id: 'temporary-topic', name: '' }
+  it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {
+    const emptyTopic = { ...activeTopic, id: 'empty-topic', name: '' }
 
-    render(<Chat activeTopic={temporaryTopic} onPersistTemporaryTopic={vi.fn()} onTemporaryAssistantChange={vi.fn()} />)
+    render(<Chat activeTopic={emptyTopic} />)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeDisabled()
-    expect(screen.queryByTestId('topic-right-pane-host')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('topic-right-pane-overlay')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch toggle' })).not.toBeDisabled()
+    expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'empty-topic')
+    expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'empty-topic')
   })
 
   it('does not re-render the chat shell when branch live state changes', () => {

@@ -80,7 +80,10 @@ const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground/75 shadow-none hover:bg-accent hover:text-accent-foreground active:bg-accent disabled:bg-transparent disabled:text-muted-foreground/50 [&_svg]:text-muted-foreground/60 hover:[&_svg]:text-accent-foreground'
 
 interface ChatComposerProps {
-  topic: Topic
+  topic?: Topic
+  scopeKey?: string
+  topicId?: string
+  assistantId?: string
   onSend: (
     text: string,
     options?: {
@@ -92,7 +95,7 @@ interface ChatComposerProps {
   ) => void | Promise<void>
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
-  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
 
@@ -302,13 +305,19 @@ type ChatComposerRootProps = ChatComposerProps & {
 
 const ChatComposerRoot = ({
   topic,
+  scopeKey,
+  topicId,
+  assistantId,
   onSend,
   sendDisabled,
   useMentionedModelSelector,
-  onTemporaryAssistantChange,
+  onDraftAssistantChange,
   onNewTopic,
   renderControls
 }: ChatComposerRootProps) => {
+  const resolvedScopeKey = scopeKey ?? topic?.id
+  const resolvedTopicId = topicId ?? topic?.id
+  const resolvedAssistantId = assistantId ?? topic?.assistantId
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const initialState = useMemo(
     () => ({
@@ -330,16 +339,20 @@ const ChatComposerRoot = ({
           addNewTopic: () => actionsRef.current.addNewTopic(),
           onTextChange: (updater) => actionsRef.current.onTextChange(updater)
         }}>
-        <ChatComposerInner
-          topic={topic}
-          actionsRef={actionsRef}
-          onSend={onSend}
-          sendDisabled={sendDisabled}
-          useMentionedModelSelector={useMentionedModelSelector}
-          onTemporaryAssistantChange={onTemporaryAssistantChange}
-          onNewTopic={onNewTopic}
-          renderControls={renderControls}
-        />
+        {resolvedScopeKey ? (
+          <ChatComposerInner
+            scopeKey={resolvedScopeKey}
+            topicId={resolvedTopicId}
+            assistantId={resolvedAssistantId}
+            actionsRef={actionsRef}
+            onSend={onSend}
+            sendDisabled={sendDisabled}
+            useMentionedModelSelector={useMentionedModelSelector}
+            onDraftAssistantChange={onDraftAssistantChange}
+            onNewTopic={onNewTopic}
+            renderControls={renderControls}
+          />
+        ) : null}
       </ComposerToolRuntimeProvider>
     </MessageEditingProvider>
   )
@@ -351,17 +364,20 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic
 }
 
 const ChatComposerInner = ({
-  topic,
+  scopeKey,
+  topicId,
+  assistantId,
   actionsRef,
   onSend,
   sendDisabled = false,
   useMentionedModelSelector,
-  onTemporaryAssistantChange,
+  onDraftAssistantChange,
   onNewTopic,
   renderControls
 }: ChatComposerInnerProps) => {
-  const awaitingApproval = useTopicAwaitingApproval(topic.id)
-  const scope = topic.type ?? TopicType.Chat
+  const streamScopeKey = topicId ?? scopeKey
+  const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
+  const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
@@ -373,7 +389,7 @@ const ChatComposerInner = ({
     isModelPending,
     isModelMissing,
     setModel
-  } = useAssistant(topic.assistantId)
+  } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { providers } = useProviders()
@@ -386,9 +402,9 @@ const ChatComposerInner = ({
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
-  const editingMessageForCurrentTopic = editingMessage?.message.topicId === topic.id ? editingMessage : null
+  const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(topic.id)
+  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(undefined)
@@ -398,8 +414,8 @@ const ChatComposerInner = ({
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
-  const hasMissingPersistedAssistant = !!topic.assistantId && !isAssistantLoading && !assistant
-  const runtimeModel = assistant || !topic.assistantId ? model : undefined
+  const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
+  const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
 
@@ -425,7 +441,7 @@ const ChatComposerInner = ({
     runtimeModel,
     runtimeModelPending,
     selectedAssistantId,
-    topicId: topic.id,
+    topicId: scopeKey,
     mentionedModels,
     setMentionedModels,
     onModelSelect: handleModelSelect
@@ -445,13 +461,13 @@ const ChatComposerInner = ({
 
   useEffect(() => {
     setIsSending(false)
-  }, [topic.id])
+  }, [scopeKey])
 
   const loading = isPending || isSending || awaitingApproval
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${topic.id}:${selectedAssistantId ?? 'no-assistant'}`
+  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const providerName = useProviderDisplayName(runtimeModel?.providerId)
 
@@ -465,7 +481,7 @@ const ChatComposerInner = ({
       assistantKnowledgeBaseIds: assistant?.knowledgeBaseIds,
       allKnowledgeBases,
       isKnowledgeBasesLoading,
-      topicId: topic.id,
+      topicId: scopeKey,
       selectedAssistantId,
       selectedKnowledgeBases,
       setSelectedKnowledgeBases
@@ -558,13 +574,15 @@ const ChatComposerInner = ({
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {
       if (!nextId || nextId === selectedAssistantId) return
-      if (onTemporaryAssistantChange) {
-        await onTemporaryAssistantChange(nextId)
+      if (onDraftAssistantChange) {
+        await onDraftAssistantChange(nextId)
         return
       }
-      await updateTopic(topic.id, { assistantId: nextId })
+      if (topicId) {
+        await updateTopic(topicId, { assistantId: nextId })
+      }
     },
-    [onTemporaryAssistantChange, selectedAssistantId, topic.id, updateTopic]
+    [onDraftAssistantChange, selectedAssistantId, topicId, updateTopic]
   )
 
   const addNewTopic = useCallback(
@@ -584,10 +602,10 @@ const ChatComposerInner = ({
   useEffect(() => {
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
-      if (topicId !== topic.id) return
+      if (topicId !== streamScopeKey) return
       actionsRef.current.focus()
     })
-  }, [actionsRef, topic.id])
+  }, [actionsRef, streamScopeKey])
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
@@ -847,7 +865,7 @@ const ChatComposerInner = ({
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
     useMentionedModelSelector,
-    shouldAutoSelectCreatedAssistant: Boolean(onTemporaryAssistantChange),
+    shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
@@ -955,13 +973,13 @@ export const ChatHomeComposer = (props: ChatComposerProps) => {
 
 export const ChatPlacementComposer = ({
   isHome,
-  onTemporaryAssistantChange,
+  onDraftAssistantChange,
   ...props
 }: ChatComposerProps & { isHome: boolean }) => {
   return (
     <ChatComposerRoot
       {...props}
-      onTemporaryAssistantChange={isHome ? onTemporaryAssistantChange : undefined}
+      onDraftAssistantChange={isHome ? onDraftAssistantChange : undefined}
       useMentionedModelSelector
       renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
     />

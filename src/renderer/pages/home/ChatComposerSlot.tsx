@@ -19,7 +19,6 @@ interface ChatComposerSlotProps {
       userMessageParts?: CherryMessagePart[]
     }
   ) => Promise<void>
-  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   sendDisabled?: boolean
   composerContext?: ComposerContextValue
@@ -29,7 +28,6 @@ export default function ChatComposerSlot({
   isHome,
   topic,
   onSend,
-  onTemporaryAssistantChange,
   onNewTopic,
   sendDisabled,
   composerContext
@@ -37,9 +35,10 @@ export default function ChatComposerSlot({
   const fallback = (
     <ChatPlacementComposer
       isHome={isHome}
-      topic={topic}
+      scopeKey={topic.id}
+      topicId={topic.id}
+      assistantId={topic.assistantId}
       onSend={onSend}
-      onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
       sendDisabled={isHome ? undefined : sendDisabled}
     />

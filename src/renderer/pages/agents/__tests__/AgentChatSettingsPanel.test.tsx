@@ -380,13 +380,10 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat({
       activeSession: null,
-      temporaryConversation: {
-        type: 'agent',
-        id: 'temporary-session',
-        sessionId: 'temporary-session',
-        topicId: 'agent-session:temporary-session',
+      draftConversation: {
         agentId: 'agent-1',
-        session: { id: 'temporary-session', agentId: 'agent-1', accessiblePaths: [] } as any
+        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
       } as any
     })
 
@@ -492,13 +489,10 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat({
       activeSession: null,
-      temporaryConversation: {
-        type: 'agent',
-        id: 'temporary-session',
-        sessionId: 'temporary-session',
-        topicId: 'agent-session:temporary-session',
+      draftConversation: {
         agentId: 'agent-1',
-        session: { id: 'temporary-session', agentId: 'agent-1', accessiblePaths: [] } as any
+        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
       } as any
     })
 

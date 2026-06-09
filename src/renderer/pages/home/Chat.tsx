@@ -9,7 +9,6 @@ import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useCommandHandler } from '@renderer/features/command'
-import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -35,17 +34,9 @@ interface Props {
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
-  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  /**
-   * Called by ChatContent before the first message of a freshly-leased
-   * temporary topic is sent. HomePage owns the lease so it also owns the
-   * persist trigger. `initialName` becomes a placeholder topic title so
-   * the sidebar isn't blank in the gap before auto-naming runs.
-   */
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
 const ChatInner: FC<Props> = (props) => {
@@ -202,7 +193,7 @@ const ChatInner: FC<Props> = (props) => {
     },
     [invalidateCache, props.activeTopic.id, setTopicBranchLiveState, t]
   )
-  const branchPaneDisabled = !!props.onPersistTemporaryTopic
+  const branchPaneDisabled = false
   const locateMessageId = props.locateMessageId ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -240,13 +231,11 @@ const ChatInner: FC<Props> = (props) => {
           topic={props.activeTopic}
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewTopic={props.onNewTopic}
-          onTemporaryAssistantChange={props.onTemporaryAssistantChange}
           locateMessageId={locateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
           onBranchLiveStateChange={handleBranchLiveStateChange}
           clearBranchDraft={clearBranchDraft}
           getBranchDraftAnchorId={getBranchDraftAnchorId}
-          onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
       }
       centerTopOverlay={
@@ -260,7 +249,7 @@ const ChatInner: FC<Props> = (props) => {
         />
       }
       centerOverlay={
-        !branchPaneDisabled && (
+        !branchPaneDisabled ? (
           <TopicRightPane.MaximizedOverlay
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
@@ -269,10 +258,10 @@ const ChatInner: FC<Props> = (props) => {
             onStartBranchDraft={handleStartBranchDraft}
             onCancelBranchDraft={handleCancelBranchDraft}
           />
-        )
+        ) : undefined
       }
       rightPane={
-        branchPaneDisabled ? undefined : (
+        !branchPaneDisabled ? (
           <TopicRightPane.Host
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
@@ -281,7 +270,7 @@ const ChatInner: FC<Props> = (props) => {
             onStartBranchDraft={handleStartBranchDraft}
             onCancelBranchDraft={handleCancelBranchDraft}
           />
-        )
+        ) : undefined
       }
       centerId="chat-main"
       centerRef={mainRef}

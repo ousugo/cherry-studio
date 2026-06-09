@@ -17,7 +17,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -33,6 +32,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import type { DraftAgentSessionConversation, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
 import {
   type AgentSendOptions,
   type AgentTurnInput,
@@ -45,11 +45,17 @@ const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
-): Pick<TemporaryConversationDefaults, 'workspaceId' | 'workspaceMode'> {
+): Pick<DraftAgentSessionDefaults, 'workspaceId' | 'workspaceMode'> {
   if (session.workspace?.type === 'system') {
     return { workspaceMode: 'system' }
   }
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
+}
+
+function getDraftConversationKey(draft: DraftAgentSessionConversation): string {
+  return draft.workspaceSource.type === 'user'
+    ? `agent-draft:${draft.agentId}:workspace:${draft.workspaceSource.workspaceId}`
+    : `agent-draft:${draft.agentId}:system`
 }
 
 interface AgentChatProps {
@@ -67,17 +73,17 @@ interface AgentChatProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  temporaryConversation?: TemporaryConversation | null
+  draftConversation?: DraftAgentSessionConversation | null
   missingAgentDraft?: boolean
-  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
+  onEnsurePersistentSession?: EnsurePersistentSession
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
-  replacingTemporaryAgent?: boolean
-  replacingTemporaryWorkspace?: boolean
+  replacingDraftAgent?: boolean
+  replacingDraftWorkspace?: boolean
 }
 
 const AgentChat = ({
@@ -95,17 +101,17 @@ const AgentChat = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
-  temporaryConversation,
+  draftConversation,
   missingAgentDraft = false,
-  onStartTemporarySession,
+  onStartDraftSession,
   onMissingAgentDraftAgentChange,
-  onPersistTemporarySession,
+  onEnsurePersistentSession,
   onDraftAgentChange,
   onDraftWorkspaceChange,
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
-  replacingTemporaryAgent,
-  replacingTemporaryWorkspace
+  replacingDraftAgent,
+  replacingDraftWorkspace
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
@@ -115,29 +121,39 @@ const AgentChat = ({
     sessionId: string
     messages: CherryUIMessage[]
   } | null>(null)
-  const [temporaryHandoffSessionId, setTemporaryHandoffSessionId] = useState<string | null>(null)
-  const temporarySeedSessionIdRef = useRef<string | null>(null)
-  const lastTemporaryConversationIdRef = useRef<string | null>(null)
+  const [draftHandoffSessionId, setDraftHandoffSessionId] = useState<string | null>(null)
+  const draftSeedSessionIdRef = useRef<string | null>(null)
+  const lastDraftConversationIdRef = useRef<string | null>(null)
 
-  const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
+  const draftAgentConversation = draftConversation ?? null
   const hasLockedSession = lockedSession !== undefined
-  const sessionSnapshot = hasLockedSession
-    ? (lockedSession ?? null)
-    : (temporaryAgentConversation?.session ?? activeSession ?? null)
-  const visibleAgentId = sessionSnapshot?.agentId ?? temporaryAgentConversation?.agentId ?? null
-  const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
-  const visibleWorkspace = sessionSnapshot?.workspace ?? null
+  const activeSessionIsDraftHandoff =
+    !!draftAgentConversation && !!draftHandoffSessionId && activeSession?.id === draftHandoffSessionId
+  const shouldPreferDraftConversation = !!draftAgentConversation && !hasLockedSession && !activeSessionIsDraftHandoff
+  const sessionSnapshot = shouldPreferDraftConversation
+    ? null
+    : hasLockedSession
+      ? (lockedSession ?? null)
+      : (activeSession ?? null)
+  const visibleAgentId = sessionSnapshot?.agentId ?? draftAgentConversation?.agentId ?? null
+  const visibleWorkspaceId =
+    sessionSnapshot?.workspaceId ??
+    (draftAgentConversation?.workspaceSource.type === 'user'
+      ? draftAgentConversation.workspaceSource.workspaceId
+      : null)
+  const visibleWorkspace = sessionSnapshot?.workspace ?? draftAgentConversation?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
+  const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
 
   useEffect(() => {
-    const conversationId = temporaryAgentConversation?.id ?? null
-    if (conversationId && conversationId !== lastTemporaryConversationIdRef.current) {
-      temporarySeedSessionIdRef.current = null
+    const conversationId = draftConversationKey
+    if (conversationId && conversationId !== lastDraftConversationIdRef.current) {
+      draftSeedSessionIdRef.current = null
       setReservedSessionSeed(null)
-      setTemporaryHandoffSessionId(null)
+      setDraftHandoffSessionId(null)
     }
-    if (conversationId) lastTemporaryConversationIdRef.current = conversationId
-  }, [temporaryAgentConversation?.id])
+    if (conversationId) lastDraftConversationIdRef.current = conversationId
+  }, [draftConversationKey])
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -146,47 +162,45 @@ const AgentChat = ({
     if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
 
-  const temporaryHistoryAdapter = useMemo<ConversationHistoryAdapter>(
+  const draftHistoryAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages: (messages) => {
-        const sessionId = temporarySeedSessionIdRef.current
+        const sessionId = draftSeedSessionIdRef.current
         if (!sessionId) return
         setReservedSessionSeed({ sessionId, messages })
       },
       refresh: () => undefined,
       rollback: () => {
-        temporarySeedSessionIdRef.current = null
+        draftSeedSessionIdRef.current = null
         setReservedSessionSeed(null)
-        setTemporaryHandoffSessionId(null)
+        setDraftHandoffSessionId(null)
       }
     }),
     []
   )
 
-  const temporaryTurnController = useConversationTurnController<AgentTurnInput, { topicId: string; sessionId: string }>(
-    {
-      scopeKey: temporaryAgentConversation?.id ?? activeSession?.id ?? 'none',
-      historyAdapter: temporaryHistoryAdapter,
-      ensureConversation: async ({ text }) => {
-        if (!temporaryAgentConversation || !onPersistTemporarySession) return null
-        const persisted = await onPersistTemporarySession(text)
-        if (persisted?.type !== 'agent') return null
-        temporarySeedSessionIdRef.current = persisted.sessionId
-        setTemporaryHandoffSessionId(persisted.sessionId)
-        return { topicId: persisted.topicId, sessionId: persisted.sessionId }
-      },
-      buildStreamRequest: (input, conversation) => ({
-        trigger: 'submit-message',
-        topicId: conversation.topicId,
-        userMessageParts: getAgentTurnParts(input)
-      })
-    }
-  )
-  const sendTemporaryMessage = useCallback(
-    async (message?: { text: string }, options?: AgentSendOptions) => {
-      await temporaryTurnController.send({ text: message?.text ?? '', options })
+  const draftTurnController = useConversationTurnController<AgentTurnInput, { topicId: string; sessionId: string }>({
+    scopeKey: draftConversationKey ?? activeSession?.id ?? 'none',
+    historyAdapter: draftHistoryAdapter,
+    ensureConversation: async ({ text }) => {
+      if (!draftAgentConversation || !onEnsurePersistentSession) return null
+      const persisted = await onEnsurePersistentSession(text)
+      if (!persisted) return null
+      draftSeedSessionIdRef.current = persisted.sessionId
+      setDraftHandoffSessionId(persisted.sessionId)
+      return { topicId: persisted.topicId, sessionId: persisted.sessionId }
     },
-    [temporaryTurnController]
+    buildStreamRequest: (input, conversation) => ({
+      trigger: 'submit-message',
+      topicId: conversation.topicId,
+      userMessageParts: getAgentTurnParts(input)
+    })
+  })
+  const sendDraftMessage = useCallback(
+    async (message?: { text: string }, options?: AgentSendOptions) => {
+      await draftTurnController.send({ text: message?.text ?? '', options })
+    },
+    [draftTurnController]
   )
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
@@ -199,8 +213,7 @@ const AgentChat = ({
   if (isInitializing) {
     return (
       <AgentRightPane
-        workspacePath={temporaryAgentConversation?.session.workspace?.path}
-        traceId={temporaryAgentConversation?.session.traceId ?? undefined}
+        workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}>
         <ConversationShell
@@ -229,12 +242,88 @@ const AgentChat = ({
         />
       )
     }
+    if (draftAgentConversation) {
+      if (draftTurnController.layout !== 'draft') {
+        return (
+          <ConversationShell
+            className={messageStyle}
+            pane={pane}
+            paneOpen={paneOpen}
+            panePosition={panePosition}
+            onPaneCollapse={onPaneCollapse}
+            topBar={
+              <AgentChatNavbar
+                activeAgent={activeAgent ?? null}
+                showSidebarControls={showResourceListControls}
+                sidebarOpen={sidebarOpen}
+                onSidebarToggle={onSidebarToggle}
+              />
+            }
+            center={<ConversationCenterState state="loading" />}
+          />
+        )
+      }
+
+      const draftSessionKey = getDraftConversationKey(draftAgentConversation)
+      const draftWorkspaceId =
+        draftAgentConversation.workspaceSource.type === 'user'
+          ? draftAgentConversation.workspaceSource.workspaceId
+          : null
+      const composer = !isMultiSelectMode ? (
+        <AgentHomeComposer
+          agentId={draftAgentConversation.agentId}
+          sessionId={draftSessionKey}
+          sessionOverride={{
+            workspace: draftAgentConversation.workspace ?? null,
+            workspaceId: draftWorkspaceId
+          }}
+          sendMessage={sendDraftMessage}
+          stop={async () => undefined}
+          isStreaming={false}
+          onAgentChange={onDraftAgentChange}
+          agentChanging={replacingDraftAgent}
+          workspaceId={draftWorkspaceId}
+          onWorkspaceChange={onDraftWorkspaceChange}
+          workspaceChanging={replacingDraftWorkspace}
+          showWorkspaceSelector
+          onNewSessionDraft={() =>
+            onStartDraftSession?.({
+              agentId: draftAgentConversation.agentId,
+              workspace: draftAgentConversation.workspaceSource
+            })
+          }
+        />
+      ) : undefined
+
+      return (
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          topBar={
+            <AgentChatNavbar
+              activeAgent={activeAgent ?? null}
+              showSidebarControls={showResourceListControls}
+              sidebarOpen={sidebarOpen}
+              onSidebarToggle={onSidebarToggle}
+            />
+          }
+          center={
+            <ConversationStageCenter
+              placement="home"
+              main={null}
+              composer={composer}
+              homeWelcomeText={t('agent.home.welcome_title')}
+            />
+          }
+        />
+      )
+    }
     if (missingAgentDraft) {
       const composer = !isMultiSelectMode ? (
-        <MissingAgentHomeComposer
-          onAgentChange={onMissingAgentDraftAgentChange}
-          agentChanging={replacingTemporaryAgent}
-        />
+        <MissingAgentHomeComposer onAgentChange={onMissingAgentDraftAgentChange} agentChanging={replacingDraftAgent} />
       ) : undefined
 
       return (
@@ -275,54 +364,27 @@ const AgentChat = ({
     )
   }
 
-  const sessionAgentId = sessionSnapshot.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const sessionAgentId = sessionSnapshot.agentId ?? draftAgentConversation?.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
-  const isDraftTemporarySession = !!temporaryAgentConversation && temporaryTurnController.layout === 'draft'
   const reservedMessages =
     reservedSessionSeed?.sessionId === sessionSnapshot.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
-  const isTemporaryTurnInProgress =
-    temporaryTurnController.phase !== 'draft' && temporaryTurnController.phase !== 'ready'
-  const isPendingTemporarySession =
+  const isDraftTurnInProgress = draftTurnController.phase !== 'draft' && draftTurnController.phase !== 'ready'
+  const isPendingDraftSession =
     !!activeSession &&
     activeSession.id === sessionSnapshot.id &&
-    (temporaryHandoffSessionId === sessionSnapshot.id || isTemporaryTurnInProgress)
+    (draftHandoffSessionId === sessionSnapshot.id || isDraftTurnInProgress)
   const shouldFetchSessionHistoryOnMount =
     activeSessionSource === 'query' ||
     activeSessionSource === 'pending' ||
-    (!!activeSession && activeSessionSource === 'none' && !temporaryAgentConversation)
+    (!!activeSession && activeSessionSource === 'none')
   const isWaitingForReservedMessages =
-    isPendingTemporarySession && reservedMessages.length === 0 && temporaryTurnController.phase !== 'ready'
-  const isTemporaryHandoff = (!!temporaryAgentConversation && !isDraftTemporarySession) || isWaitingForReservedMessages
+    isPendingDraftSession && reservedMessages.length === 0 && draftTurnController.phase !== 'ready'
+  const isDraftHandoff = isWaitingForReservedMessages
   const sessionMessagesEnabled =
     !!activeSession && activeSession.id === sessionSnapshot.id && !isWaitingForReservedMessages
-  const sessionHistoryFetchOnMount = isPendingTemporarySession
-    ? temporaryTurnController.phase === 'ready'
+  const sessionHistoryFetchOnMount = isPendingDraftSession
+    ? draftTurnController.phase === 'ready'
     : shouldFetchSessionHistoryOnMount
-  const homeComposer =
-    isDraftTemporarySession && !isMultiSelectMode && temporaryAgentConversation ? (
-      <AgentHomeComposer
-        agentId={temporaryAgentConversation.agentId}
-        sessionId={temporaryAgentConversation.sessionId}
-        sessionOverride={temporaryAgentConversation.session}
-        sendMessage={sendTemporaryMessage}
-        stop={async () => undefined}
-        isStreaming={false}
-        onAgentChange={onDraftAgentChange}
-        agentChanging={replacingTemporaryAgent}
-        workspaceId={temporaryAgentConversation.session.workspaceId}
-        onWorkspaceChange={onDraftWorkspaceChange}
-        workspaceChanging={replacingTemporaryWorkspace}
-        showWorkspaceSelector
-        onNewSessionDraft={() =>
-          onStartTemporarySession?.({
-            agentId: temporaryAgentConversation.agentId,
-            ...getNewSessionWorkspaceDefaults(temporaryAgentConversation.session),
-            name: t('common.unnamed')
-          })
-        }
-      />
-    ) : undefined
-
   return (
     <AgentChatSessionFrame
       className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
@@ -333,28 +395,27 @@ const AgentChat = ({
       sidebarOpen={sidebarOpen}
       onSidebarToggle={onSidebarToggle}
       session={sessionSnapshot}
-      placement={isDraftTemporarySession ? 'home' : 'docked'}
-      homeComposer={homeComposer}
+      placement="docked"
+      homeComposer={undefined}
       homeWelcomeText={t('agent.home.welcome_title')}
       agentId={sendableAgentId}
       activeAgent={activeAgent}
       isMultiSelectMode={isMultiSelectMode}
       sessionMessagesEnabled={sessionMessagesEnabled}
       sessionHistoryFetchOnMount={sessionHistoryFetchOnMount}
-      dockedSendDisabled={isTemporaryHandoff}
-      dockedStreaming={isTemporaryHandoff}
+      dockedSendDisabled={isDraftHandoff}
+      dockedStreaming={isDraftHandoff}
       reservedMessages={reservedMessages}
       onOpenCitationsPanel={handleOpenCitationsPanel}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       onNewSessionDraft={
-        sessionAgentId && onStartTemporarySession
+        sessionAgentId && onStartDraftSession
           ? () =>
-              onStartTemporarySession({
+              onStartDraftSession({
                 agentId: sessionAgentId,
-                ...getNewSessionWorkspaceDefaults(sessionSnapshot),
-                name: t('common.unnamed')
+                ...getNewSessionWorkspaceDefaults(sessionSnapshot)
               })
           : undefined
       }

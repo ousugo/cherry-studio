@@ -83,7 +83,7 @@ import { useTopicMenuActions } from './useTopicMenuActions'
 const logger = loggerService.withContext('Topics')
 
 interface Props {
-  activeTopic: Topic
+  activeTopic?: Topic
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   revealRequest?: ResourceListRevealRequest
@@ -355,11 +355,11 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      if (topic.id !== activeTopic.id) {
+      if (topic.id !== activeTopic?.id) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic.id, setActiveTopic, showTopicImageExportToast]
+    [activeTopic?.id, setActiveTopic, showTopicImageExportToast]
   )
 
   useEffect(() => {
@@ -387,15 +387,15 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
-  const activeTopicIdRef = useRef(activeTopic.id)
+  const activeTopicIdRef = useRef(activeTopic?.id ?? '')
 
   useEffect(() => {
     topicsRef.current = topics
   }, [topics])
 
   useEffect(() => {
-    activeTopicIdRef.current = activeTopic.id
-  }, [activeTopic.id])
+    activeTopicIdRef.current = activeTopic?.id ?? ''
+  }, [activeTopic?.id])
 
   useEffect(() => {
     setOptimisticMove(null)
@@ -441,7 +441,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   )
 
   const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
-    activeTopic.id
+    activeTopic?.id ?? ''
   )
 
   useEffect(() => {
@@ -505,12 +505,12 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         return
       }
 
-      if (topic.id === activeTopic.id && topics.length > 1) {
+      if (topic.id === activeTopic?.id && topics.length > 1) {
         const index = findIndex(topics, (candidate) => candidate.id === topic.id)
         setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
     },
-    [activeTopic.id, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -1196,7 +1196,7 @@ const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
 }
 
 interface TopicListBodyProps {
-  activeTopic: Topic
+  activeTopic?: Topic
   deletingTopicId: string | null
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions

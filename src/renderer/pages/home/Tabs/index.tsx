@@ -7,7 +7,7 @@ import type { AddNewTopicPayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {
-  activeTopic: Topic
+  activeTopic?: Topic
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void

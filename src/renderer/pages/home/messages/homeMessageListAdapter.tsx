@@ -90,14 +90,16 @@ export function useHomeMessageListProviderValue({
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
+  const topicId = topic.id
+  const assistantId = topic.assistantId
   const navigate = useNavigate()
-  const { assistant, model } = useAssistant(topic.assistantId)
+  const { assistant, model } = useAssistant(assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
+  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
@@ -110,12 +112,12 @@ export function useHomeMessageListProviderValue({
     () =>
       messages.map((message) =>
         toMessageListItem(message, {
-          assistantId: assistant?.id ?? topic.assistantId,
-          topicId: topic.id,
+          assistantId: assistant?.id ?? assistantId,
+          topicId,
           modelFallback: modelToSnapshot(model)
         })
       ),
-    [assistant?.id, messages, model, topic.assistantId, topic.id]
+    [assistant?.id, assistantId, messages, model, topicId]
   )
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)

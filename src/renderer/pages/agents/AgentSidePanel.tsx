@@ -1,14 +1,14 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import Sessions from './components/Sessions'
+import type { DraftAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
-  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
   setActiveSessionId: (id: string | null, session?: AgentSessionEntity | null) => void
@@ -18,7 +18,7 @@ const AgentSidePanel = ({
   activeSessionId,
   onOpenHistory,
   onSelectItem,
-  onStartTemporarySession,
+  onStartDraftSession,
   onStartMissingAgentDraft,
   revealRequest,
   setActiveSessionId
@@ -37,7 +37,7 @@ const AgentSidePanel = ({
           onOpenHistory={onOpenHistory}
           onSelectItem={onSelectItem}
           revealRequest={revealRequest}
-          onStartTemporarySession={onStartTemporarySession}
+          onStartDraftSession={onStartDraftSession}
           onStartMissingAgentDraft={onStartMissingAgentDraft}
         />
       </div>

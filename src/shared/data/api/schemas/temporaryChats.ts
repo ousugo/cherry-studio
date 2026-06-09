@@ -13,11 +13,7 @@
 
 import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import * as z from 'zod'
 
-import { AgentNameAtomSchema } from './agents'
-import type { AgentSessionEntity } from './agentSessions'
-import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import type { CreateMessageDto } from './messages'
 import type { CreateTopicDto } from './topics'
 
@@ -34,14 +30,6 @@ export interface PersistTemporaryChatResponse {
   /** Number of messages written to the persistent DB */
   messageCount: number
 }
-
-export const CreateTemporarySessionSchema = z.strictObject({
-  agentId: z.string().min(1),
-  name: AgentNameAtomSchema.optional(),
-  description: z.string().optional(),
-  workspace: AgentSessionWorkspaceSourceSchema
-})
-export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
 
 export interface UpdateTemporaryTopicDto {
   assistantId?: string | null
@@ -136,27 +124,6 @@ export type TemporaryChatSchemas = {
     POST: {
       params: { id: string }
       response: PersistTemporaryChatResponse
-    }
-  }
-
-  '/temporary/sessions': {
-    POST: {
-      body: CreateTemporarySessionDto
-      response: AgentSessionEntity
-    }
-  }
-
-  '/temporary/sessions/:id': {
-    DELETE: {
-      params: { id: string }
-      response: void
-    }
-  }
-
-  '/temporary/sessions/:id/persist': {
-    POST: {
-      params: { id: string }
-      response: AgentSessionEntity
     }
   }
 }

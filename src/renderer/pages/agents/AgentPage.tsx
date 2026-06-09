@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
@@ -15,14 +16,15 @@ import { useCommandHandler } from '@renderer/features/command'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -31,17 +33,9 @@ import { useTranslation } from 'react-i18next'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { parseAgentRouteSearch } from './routeSearch'
+import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
-
-function getSessionWorkspaceDefaults(
-  session: AgentSessionEntity | null | undefined
-): Pick<TemporaryConversationDefaults, 'workspaceId' | 'workspaceMode'> {
-  if (session?.workspace?.type === 'system') {
-    return { workspaceMode: 'system' }
-  }
-  return session?.workspaceId ? { workspaceId: session.workspaceId } : {}
-}
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -66,11 +60,18 @@ const AgentPage = () => {
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
   const pendingSelectedSessionRef = useRef<AgentSessionEntity | null>(null)
-  const [ignoredTemporarySessionId, setIgnoredTemporarySessionId] = useState<string | null>(null)
+  const draftSessionRef = useRef<DraftAgentSession | null>(null)
+  const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
-    setIgnoredTemporarySessionId(null)
+    if (routeActiveSessionId === null && draftSessionRef.current) {
+      setActiveSessionId(null)
+      return
+    }
+
+    draftSessionRef.current = null
+    setDraftSession(null)
     setActiveSessionId(routeActiveSessionId)
   }, [routeActiveSessionId])
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
@@ -81,28 +82,14 @@ const AgentPage = () => {
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
-  const initialTemporarySessionEvaluatedRef = useRef(false)
-  const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
-  const [replacingTemporaryWorkspace, setReplacingTemporaryWorkspace] = useState(false)
+  const initialDraftSessionEvaluatedRef = useRef(false)
+  const [replacingDraftAgent, setReplacingDraftAgent] = useState(false)
+  const [replacingDraftWorkspace, setReplacingDraftWorkspace] = useState(false)
   const [missingAgentDraft, setMissingAgentDraft] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
-  const temporaryConversation = useTemporaryConversation({ type: 'agent' })
-  const {
-    conversation: temporaryAgentConversation,
-    persistedConversation,
-    start: startTemporaryConversation,
-    replace: replaceTemporaryConversation,
-    persist: persistTemporaryConversation,
-    discard: discardTemporaryConversation
-  } = temporaryConversation
-  const pendingPersistedSession =
-    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
-      ? persistedConversation.session
-      : null
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
-  const pendingSession = pendingPersistedSession ?? pendingSelectedSession
   const {
     session: activeSession,
     isLoading: isActiveSessionLoading,
@@ -110,16 +97,17 @@ const AgentPage = () => {
   } = useActiveSession({
     activeSessionId,
     setActiveSessionId,
-    pendingSession
+    pendingSession: pendingSelectedSession
   })
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
-  const visibleTemporaryAgentConversation =
-    temporaryAgentConversation?.type === 'agent' && temporaryAgentConversation.sessionId !== ignoredTemporarySessionId
-      ? temporaryAgentConversation
-      : null
+  const visibleDraftSession = !isMessageOnlyView && !activeSessionId ? draftSession : null
+  const setDraftSessionState = useCallback((nextDraft: DraftAgentSession | null) => {
+    draftSessionRef.current = nextDraft
+    setDraftSession(nextDraft)
+  }, [])
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
@@ -164,10 +152,10 @@ const AgentPage = () => {
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
   const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
-  // Unpersisted temp sessions do not have a stable instance key.
-  const isTemporaryView = !isMessageOnlyView && !activeSessionId && visibleTemporaryAgentConversation?.type === 'agent'
+  // Unpersisted draft sessions do not have a stable instance key.
+  const isDraftView = !isMessageOnlyView && !activeSessionId && !!visibleDraftSession
   const tabInstanceSessionId =
-    !isMessageOnlyView && !isTemporaryView ? (visibleSession?.id ?? routeActiveSessionId ?? undefined) : undefined
+    !isMessageOnlyView && !isDraftView ? (visibleSession?.id ?? routeActiveSessionId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
     emoji: visibleAgent?.configuration?.avatar,
@@ -228,8 +216,8 @@ const AgentPage = () => {
   }, [activeSession?.id, activeSessionSource])
 
   useEffect(() => {
-    // Track "last focused session" only for persisted sessions — temp ids are
-    // ephemeral and would point to nothing on the next sidebar click. Gated on
+    // Track "last focused session" only for persisted sessions — draft views have
+    // no stable session id to restore on the next sidebar click. Gated on
     // the active tab: `last_used` is a single global "what I'm looking at now",
     // so background tabs must not clobber it and switching tabs must update it.
     if (!isActiveTab) return
@@ -250,18 +238,154 @@ const AgentPage = () => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
+
+  const buildDraftSession = useCallback(
+    async ({
+      agentId,
+      workspaceSource
+    }: {
+      agentId: string
+      workspaceSource: AgentSessionWorkspaceSource
+    }): Promise<DraftAgentSession> => {
+      const workspace =
+        workspaceSource.type === AGENT_WORKSPACE_TYPE.USER
+          ? await dataApiService.get(`/agent-workspaces/${workspaceSource.workspaceId}`)
+          : {
+              type: AGENT_WORKSPACE_TYPE.SYSTEM,
+              name: t('agent.session.workspace_selector.no_project'),
+              path: ''
+            }
+
+      return {
+        agentId,
+        workspaceSource,
+        workspace
+      }
+    },
+    [t]
+  )
+
+  const startDraftSession = useCallback(
+    async (defaults: DraftAgentSessionDefaults) => {
+      const isSystemWorkspaceMode =
+        defaults.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM || defaults.workspaceMode === 'system'
+      const rememberedWorkspaceId =
+        defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER
+          ? defaults.workspace.workspaceId
+          : isSystemWorkspaceMode
+            ? undefined
+            : (defaults.workspaceId ?? lastUsedWorkspaceId ?? undefined)
+      const workspaceSource: AgentSessionWorkspaceSource = isSystemWorkspaceMode
+        ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        : rememberedWorkspaceId
+          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: rememberedWorkspaceId }
+          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
+      if (
+        visibleDraftSession &&
+        defaults.agentId === visibleDraftSession.agentId &&
+        workspaceSource.type === visibleDraftSession.workspaceSource.type &&
+        (workspaceSource.type === AGENT_WORKSPACE_TYPE.SYSTEM ||
+          (visibleDraftSession.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER &&
+            workspaceSource.workspaceId === visibleDraftSession.workspaceSource.workspaceId))
+      ) {
+        if (visibleDraftSession.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
+          setLastUsedWorkspaceId(visibleDraftSession.workspaceSource.workspaceId)
+        }
+        pendingSelectedSessionRef.current = null
+        setActiveSessionId(null)
+        return
+      }
+
+      if (!defaults.agentId) return
+
+      let started: DraftAgentSession
+      try {
+        started = await buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource
+        })
+      } catch (err) {
+        if (!rememberedWorkspaceId || defaults.workspaceId || defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
+          throw err
+        }
+
+        logger.warn('Failed to start draft session with remembered workspace', err as Error, {
+          workspaceId: rememberedWorkspaceId
+        })
+        setLastUsedWorkspaceId(null)
+        started = await buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        })
+      }
+      pendingSelectedSessionRef.current = null
+      setDraftSessionState(started)
+      setLastUsedAgentId(started.agentId)
+      if (started.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
+        setLastUsedWorkspaceId(started.workspaceSource.workspaceId)
+      }
+      setMissingAgentDraft(false)
+      setActiveSessionId(null)
+    },
+    [
+      buildDraftSession,
+      lastUsedWorkspaceId,
+      setActiveSessionId,
+      setDraftSessionState,
+      setLastUsedAgentId,
+      setLastUsedWorkspaceId,
+      visibleDraftSession
+    ]
+  )
+
+  const startMissingAgentDraft = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+    pendingSelectedSessionRef.current = null
+    setDraftSessionState(null)
+    setActiveSessionId(null)
+    setMissingAgentDraft(true)
+  }, [setActiveSessionId, setDraftSessionState])
+
+  const startMissingAgentDraftSession = useCallback(
+    async (agentId: string | null) => {
+      if (!agentId) return
+      await startDraftSession({ agentId })
+    },
+    [startDraftSession]
+  )
+
+  const startDefaultDraftSession = useCallback(async () => {
+    setPendingLocateMessageId(undefined)
+    pendingSelectedSessionRef.current = null
+
+    if (!agents.length) {
+      setDraftSessionState(null)
+      setActiveSessionId(null)
+      setMissingAgentDraft(true)
+      return
+    }
+
+    const rememberedAgent = lastUsedAgentId ? agents.find((agent) => agent.id === lastUsedAgentId) : undefined
+    const defaultAgent = rememberedAgent ?? agents[0]
+    await startDraftSession({ agentId: defaultAgent.id })
+  }, [agents, lastUsedAgentId, setActiveSessionId, setDraftSessionState, startDraftSession])
+
   const handleHistorySessionSelect = useCallback(
     (sessionId: string | null, messageId?: string) => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
-      void discardTemporaryConversation()
+      setDraftSessionState(null)
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
+
+      if (!sessionId) {
+        void startDefaultDraftSession()
+        return
+      }
+
       setActiveSessionId(sessionId)
-
-      if (!sessionId) return
-
       sessionRevealRequestIdRef.current += 1
       setSessionRevealRequest({
         clearFilters: true,
@@ -270,7 +394,7 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [conversationNav, currentTabId, discardTemporaryConversation, setResourceListOpen]
+    [conversationNav, currentTabId, setDraftSessionState, setResourceListOpen, startDefaultDraftSession]
   )
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
@@ -294,99 +418,20 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [])
 
-  const startTemporarySession = useCallback(
-    async (defaults: TemporaryConversationDefaults) => {
-      const isSystemWorkspaceMode = defaults.workspaceMode === 'system'
-      const rememberedWorkspaceId = isSystemWorkspaceMode
-        ? undefined
-        : (defaults.workspaceId ?? lastUsedWorkspaceId ?? undefined)
-      if (
-        !isSystemWorkspaceMode &&
-        visibleTemporaryAgentConversation?.type === 'agent' &&
-        defaults.agentId === visibleTemporaryAgentConversation.agentId &&
-        (rememberedWorkspaceId ?? null) === (visibleTemporaryAgentConversation.session.workspaceId ?? null)
-      ) {
-        if (isUserWorkspaceSession(visibleTemporaryAgentConversation.session)) {
-          setLastUsedWorkspaceId(visibleTemporaryAgentConversation.session.workspaceId)
-        }
-        pendingSelectedSessionRef.current = null
-        setIgnoredTemporarySessionId(null)
-        setActiveSessionId(null)
-        return
-      }
-
-      const startDefaults = {
-        agentId: defaults.agentId,
-        ...(isSystemWorkspaceMode ? { workspaceMode: 'system' as const } : {}),
-        ...(!isSystemWorkspaceMode && rememberedWorkspaceId ? { workspaceId: rememberedWorkspaceId } : {}),
-        name: defaults.name ?? t('common.unnamed')
-      }
-
-      let started: Awaited<ReturnType<typeof startTemporaryConversation>>
-      try {
-        started = await startTemporaryConversation(startDefaults)
-      } catch (err) {
-        if (!rememberedWorkspaceId || defaults.workspaceId) throw err
-
-        logger.warn('Failed to start temporary session with remembered workspace', err as Error, {
-          workspaceId: rememberedWorkspaceId
-        })
-        setLastUsedWorkspaceId(null)
-        started = await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
-      }
-      if (started?.type === 'agent') {
-        pendingSelectedSessionRef.current = null
-        setIgnoredTemporarySessionId(null)
-        setLastUsedAgentId(started.agentId)
-        if (isUserWorkspaceSession(started.session)) {
-          setLastUsedWorkspaceId(started.session.workspaceId)
-        }
-      }
-      setMissingAgentDraft(false)
-      setActiveSessionId(null)
-    },
-    [
-      lastUsedWorkspaceId,
-      setActiveSessionId,
-      setLastUsedAgentId,
-      setLastUsedWorkspaceId,
-      startTemporaryConversation,
-      t,
-      visibleTemporaryAgentConversation
-    ]
-  )
-
-  const startMissingAgentDraft = useCallback(() => {
-    setPendingLocateMessageId(undefined)
-    pendingSelectedSessionRef.current = null
-    setIgnoredTemporarySessionId(null)
-    void discardTemporaryConversation()
-    setActiveSessionId(null)
-    setMissingAgentDraft(true)
-  }, [discardTemporaryConversation, setActiveSessionId])
-
-  const startMissingAgentDraftSession = useCallback(
-    async (agentId: string | null) => {
-      if (!agentId) return
-      await startTemporarySession({ agentId })
-    },
-    [startTemporarySession]
-  )
-
   useEffect(() => {
-    if (initialTemporarySessionEvaluatedRef.current) {
+    if (initialDraftSessionEvaluatedRef.current) {
       return
     }
 
     if (isMessageOnlyView) {
-      initialTemporarySessionEvaluatedRef.current = true
+      initialDraftSessionEvaluatedRef.current = true
       return
     }
 
     if (isAgentsLoading) return
 
     if (!agents.length) {
-      initialTemporarySessionEvaluatedRef.current = true
+      initialDraftSessionEvaluatedRef.current = true
       if (activeSessionId) {
         setActiveSessionId(null)
       }
@@ -394,16 +439,16 @@ const AgentPage = () => {
       return
     }
 
-    if (missingAgentDraft || activeSessionId || visibleTemporaryAgentConversation) {
-      initialTemporarySessionEvaluatedRef.current = true
+    if (missingAgentDraft || activeSessionId || visibleDraftSession) {
+      initialDraftSessionEvaluatedRef.current = true
       return
     }
 
     const rememberedAgent = lastUsedAgentId ? agents?.find((agent) => agent.id === lastUsedAgentId) : undefined
     const defaultAgent = rememberedAgent ?? agents?.[0]
 
-    initialTemporarySessionEvaluatedRef.current = true
-    void startTemporarySession({ agentId: defaultAgent.id })
+    initialDraftSessionEvaluatedRef.current = true
+    void startDraftSession({ agentId: defaultAgent.id })
   }, [
     activeSessionId,
     agents,
@@ -412,117 +457,121 @@ const AgentPage = () => {
     lastUsedAgentId,
     missingAgentDraft,
     setActiveSessionId,
-    startTemporarySession,
-    visibleTemporaryAgentConversation
+    startDraftSession,
+    visibleDraftSession
   ])
 
-  const setActiveSessionAndDiscardTemporary = useCallback(
+  const setActiveSessionAndDiscardDraft = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
       pendingSelectedSessionRef.current = session ?? null
-
-      const currentTemporarySessionId = visibleTemporaryAgentConversation?.sessionId
-      if (currentTemporarySessionId && sessionId && currentTemporarySessionId !== sessionId) {
-        setIgnoredTemporarySessionId(currentTemporarySessionId)
-        void discardTemporaryConversation()
+      if (sessionId) {
+        setDraftSessionState(null)
       }
 
       setActiveSessionId(sessionId)
     },
-    [discardTemporaryConversation, visibleTemporaryAgentConversation]
+    [setDraftSessionState]
   )
 
-  const persistTemporarySession = useCallback(
+  const ensurePersistentSession = useCallback(
     async (initialName?: string) => {
-      const persisted = await persistTemporaryConversation(initialName)
-      if (persisted?.type === 'agent') {
-        pendingSelectedSessionRef.current = null
-        setIgnoredTemporarySessionId(null)
-        setLastUsedAgentId(persisted.agentId)
-        if (isUserWorkspaceSession(persisted.session)) {
-          setLastUsedWorkspaceId(persisted.session.workspaceId)
-        }
-        setActiveSessionId(persisted.sessionId)
-        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${persisted.sessionId}`]).catch(
-          (err) => {
-            logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
-          }
-        )
-        return persisted
+      const current = draftSessionRef.current
+      if (!current) {
+        throw new Error('Draft session handoff failed: no active draft session')
       }
-      return null
-    },
-    [invalidateCache, persistTemporaryConversation, setActiveSessionId, setLastUsedAgentId, setLastUsedWorkspaceId]
-  )
-  const replaceTemporaryAgent = useCallback(
-    async (agentId: string | null) => {
-      if (!agentId || temporaryAgentConversation?.type !== 'agent') return
-      if (agentId === temporaryAgentConversation.agentId || replacingTemporaryAgent) return
 
-      setReplacingTemporaryAgent(true)
+      const trimmed = initialName?.trim()
+      const session = await dataApiService.post('/agent-sessions', {
+        body: {
+          agentId: current.agentId,
+          name: trimmed ? trimmed.slice(0, 30) : t('common.unnamed'),
+          workspace: current.workspaceSource
+        }
+      })
+      const persisted: PersistentAgentSessionConversation = {
+        agentId: session.agentId ?? current.agentId,
+        name: session.name,
+        session,
+        sessionId: session.id,
+        topicId: buildAgentSessionTopicId(session.id)
+      }
+      pendingSelectedSessionRef.current = session
+      setDraftSessionState(null)
+      setLastUsedAgentId(persisted.agentId)
+      if (isUserWorkspaceSession(session)) {
+        setLastUsedWorkspaceId(session.workspaceId)
+      }
+      setActiveSessionId(session.id)
+      void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+        logger.warn('Failed to refresh session metadata after draft session create', err as Error)
+      })
+      return persisted
+    },
+    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId, t]
+  )
+  const replaceDraftAgent = useCallback(
+    async (agentId: string | null) => {
+      const current = draftSessionRef.current
+      if (!agentId || !current) return
+      if (agentId === current.agentId || replacingDraftAgent) return
+
+      setReplacingDraftAgent(true)
       try {
-        await replaceTemporaryConversation({
+        const next = await buildDraftSession({
           agentId,
-          ...getSessionWorkspaceDefaults(temporaryAgentConversation.session),
-          name: temporaryAgentConversation.name ?? t('common.unnamed')
+          workspaceSource: current.workspaceSource
         })
         pendingSelectedSessionRef.current = null
-        setIgnoredTemporarySessionId(null)
+        setDraftSessionState(next)
         setLastUsedAgentId(agentId)
         setActiveSessionId(null)
       } catch (err) {
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
-        setReplacingTemporaryAgent(false)
+        setReplacingDraftAgent(false)
       }
     },
-    [
-      replaceTemporaryConversation,
-      replacingTemporaryAgent,
-      setActiveSessionId,
-      setLastUsedAgentId,
-      t,
-      temporaryAgentConversation
-    ]
+    [buildDraftSession, replacingDraftAgent, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, t]
   )
-  const replaceTemporaryWorkspace = useCallback(
+  const replaceDraftWorkspace = useCallback(
     async (workspaceId: string | null) => {
-      if (temporaryAgentConversation?.type !== 'agent') return
-      const currentIsSystemWorkspace = temporaryAgentConversation.session.workspace?.type === 'system'
+      const current = draftSessionRef.current
+      if (!current) return
+      const currentIsSystemWorkspace = current.workspaceSource.type === AGENT_WORKSPACE_TYPE.SYSTEM
       if (workspaceId === null && currentIsSystemWorkspace) return
-      if (workspaceId && workspaceId === temporaryAgentConversation.session.workspaceId) {
+      if (
+        workspaceId &&
+        current.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER &&
+        workspaceId === current.workspaceSource.workspaceId
+      ) {
         setLastUsedWorkspaceId(workspaceId)
         return
       }
-      if (replacingTemporaryWorkspace) return
+      if (replacingDraftWorkspace) return
 
-      setReplacingTemporaryWorkspace(true)
+      setReplacingDraftWorkspace(true)
       try {
-        await replaceTemporaryConversation({
-          agentId: temporaryAgentConversation.agentId,
-          ...(workspaceId ? { workspaceId } : { workspaceMode: 'system' as const }),
-          name: temporaryAgentConversation.name ?? t('common.unnamed')
+        const workspaceSource: AgentSessionWorkspaceSource = workspaceId
+          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
+          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        const next = await buildDraftSession({
+          agentId: current.agentId,
+          workspaceSource
         })
         if (workspaceId) {
           setLastUsedWorkspaceId(workspaceId)
         }
         pendingSelectedSessionRef.current = null
-        setIgnoredTemporarySessionId(null)
+        setDraftSessionState(next)
         setActiveSessionId(null)
       } catch (err) {
-        logger.error('Failed to replace temporary workspace', err as Error, { workspaceId })
+        logger.error('Failed to replace draft workspace', err as Error, { workspaceId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
-        setReplacingTemporaryWorkspace(false)
+        setReplacingDraftWorkspace(false)
       }
     },
-    [
-      replaceTemporaryConversation,
-      replacingTemporaryWorkspace,
-      setActiveSessionId,
-      setLastUsedWorkspaceId,
-      t,
-      temporaryAgentConversation
-    ]
+    [buildDraftSession, replacingDraftWorkspace, setActiveSessionId, setDraftSessionState, setLastUsedWorkspaceId, t]
   )
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
@@ -553,9 +602,9 @@ const AgentPage = () => {
               activeSessionId={activeSessionId}
               onOpenHistory={openHistory}
               revealRequest={sessionRevealRequest}
-              onStartTemporarySession={startTemporarySession}
+              onStartDraftSession={startDraftSession}
               onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
-              setActiveSessionId={setActiveSessionAndDiscardTemporary}
+              setActiveSessionId={setActiveSessionAndDiscardDraft}
             />
           }
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
@@ -566,24 +615,19 @@ const AgentPage = () => {
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
-          temporaryConversation={isMessageOnlyView ? null : visibleTemporaryAgentConversation}
-          missingAgentDraft={
-            !isMessageOnlyView &&
-            missingAgentDraft &&
-            !visibleSession &&
-            visibleTemporaryAgentConversation?.type !== 'agent'
-          }
-          onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}
+          draftConversation={isMessageOnlyView ? null : visibleDraftSession}
+          missingAgentDraft={!isMessageOnlyView && missingAgentDraft && !visibleSession && !visibleDraftSession}
+          onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
           onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
-          onPersistTemporarySession={isMessageOnlyView ? undefined : persistTemporarySession}
-          onDraftAgentChange={isMessageOnlyView ? undefined : replaceTemporaryAgent}
-          onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceTemporaryWorkspace}
+          onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
+          onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
+          onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
           onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
           onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
           locateMessageId={pendingLocateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
-          replacingTemporaryAgent={replacingTemporaryAgent}
-          replacingTemporaryWorkspace={replacingTemporaryWorkspace}
+          replacingDraftAgent={replacingDraftAgent}
+          replacingDraftWorkspace={replacingDraftWorkspace}
         />
       </div>
       {historyOverlay}

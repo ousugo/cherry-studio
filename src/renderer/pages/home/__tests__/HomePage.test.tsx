@@ -2,6 +2,7 @@ import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { useCommandHandler } from '@renderer/features/command'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -29,6 +30,17 @@ const historyTopic: Topic = {
   isNameManuallyEdited: false
 }
 
+const createdTopic: Topic = {
+  id: 'topic-created',
+  assistantId: 'assistant-2',
+  name: '',
+  createdAt: '2026-01-03T00:00:00.000Z',
+  updatedAt: '2026-01-03T00:00:00.000Z',
+  messages: [],
+  pinned: false,
+  isNameManuallyEdited: false
+}
+
 const homeMocks = vi.hoisted(() => ({
   activeTopicOptions: undefined as
     | {
@@ -39,13 +51,13 @@ const homeMocks = vi.hoisted(() => ({
       }
     | undefined,
   cacheSetPersist: vi.fn(),
+  createTopic: vi.fn(),
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
   assistantsLoading: false,
   assistantsRefreshing: false,
-  discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
@@ -54,19 +66,14 @@ const homeMocks = vi.hoisted(() => ({
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
-  persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
-  replaceTemporaryConversation: vi.fn(),
   routeSearch: {} as Record<string, unknown>,
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
-  setActiveTopicId: vi.fn(),
   setShowSidebar: vi.fn(),
   isActiveTab: false,
-  startTemporaryConversation: vi.fn(),
-  temporaryConversation: null as any,
-  updateTemporaryAssistant: vi.fn()
+  streamOpen: vi.fn()
 }))
 
 vi.mock('@renderer/features/command', () => ({
@@ -113,19 +120,81 @@ vi.mock('@renderer/components/chat', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
   ),
+  ConversationShell: ({
+    topBar,
+    pane,
+    paneOpen,
+    center
+  }: {
+    topBar?: ReactNode
+    pane?: ReactNode
+    paneOpen?: boolean
+    center?: ReactNode
+  }) => (
+    <section>
+      <output data-testid="pane-open">{String(paneOpen)}</output>
+      <div>{topBar}</div>
+      <div>{pane}</div>
+      <div>{center}</div>
+    </section>
+  ),
+  ConversationStageCenter: ({
+    placement,
+    composer,
+    homeWelcomeText
+  }: {
+    placement: string
+    composer?: ReactNode
+    homeWelcomeText?: string
+  }) => (
+    <div data-placement={placement} data-testid="conversation-stage">
+      <output data-testid="welcome-text">{homeWelcomeText ?? ''}</output>
+      {composer}
+    </div>
+  ),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
-  useTemporaryConversation: () => ({
-    conversation: homeMocks.temporaryConversation,
-    discard: homeMocks.discardTemporaryConversation,
-    persist: homeMocks.persistTemporaryConversation,
-    replace: homeMocks.replaceTemporaryConversation,
-    start: homeMocks.startTemporaryConversation,
-    updateAssistant: homeMocks.updateTemporaryAssistant
-  })
+vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+  ChatPlacementComposer: ({
+    assistantId,
+    isHome,
+    onDraftAssistantChange,
+    onNewTopic,
+    onSend,
+    scopeKey
+  }: {
+    assistantId?: string
+    isHome: boolean
+    onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
+    onSend: (
+      text: string,
+      options?: {
+        userMessageParts?: CherryMessagePart[]
+      }
+    ) => void | Promise<void>
+    scopeKey: string
+  }) => (
+    <div
+      data-assistant-id={assistantId ?? ''}
+      data-home={String(isHome)}
+      data-scope-key={scopeKey}
+      data-testid="draft-composer">
+      <button
+        type="button"
+        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] as CherryMessagePart[] })}>
+        Send draft
+      </button>
+      <button type="button" onClick={() => onDraftAssistantChange?.('assistant-2')}>
+        Switch draft assistant
+      </button>
+      <button type="button" onClick={() => onNewTopic?.({ assistantId: 'assistant-2' })}>
+        New draft with assistant 2
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/context/TabIdContext', () => ({
@@ -169,6 +238,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   return {
     mapApiTopicToRendererTopic: (topic: Topic) => topic,
     useTopicMutations: () => ({
+      createTopic: homeMocks.createTopic,
       refreshTopics: homeMocks.refreshTopics
     }),
     useActiveTopic: (options: {
@@ -177,16 +247,30 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       setActiveTopicId: (id: string | null) => void
       passive?: boolean
     }) => {
+      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
+      const setActiveTopicId = React.useCallback(
+        (id: string | null) => {
+          if (id === null) {
+            homeMocks.activeTopicOverride = undefined
+            setActiveTopic(undefined)
+          }
+          options.setActiveTopicId(id)
+        },
+        [options.setActiveTopicId]
+      )
+      const setActiveTopicValue = React.useCallback((topic: Topic) => {
+        homeMocks.activeTopicOverride = topic
+        setActiveTopic(topic)
+      }, [])
       homeMocks.activeTopicOptions = {
         passive: options.passive,
         activeTopicId: options.activeTopicId,
         initialTopic: options.initialTopic,
-        setActiveTopicId: options.setActiveTopicId
+        setActiveTopicId
       }
-      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
       return {
         activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : (homeMocks.activeTopicOverride ?? activeTopic),
-        setActiveTopic,
+        setActiveTopic: setActiveTopicValue,
         isLoading: homeMocks.activeTopicLoading,
         topicSource: homeMocks.activeTopicSource
       }
@@ -211,6 +295,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'chat.home.welcome_title': 'Welcome',
         'common.loading': 'Loading...',
         'history.error.topic_not_found': 'Conversation not found'
       })[key] ?? key
@@ -226,7 +311,6 @@ vi.mock('../Chat', () => ({
     locateMessageId,
     onNewTopic,
     onLocateMessageHandled,
-    onTemporaryAssistantChange,
     onPaneCollapse
   }: {
     activeTopic: Topic
@@ -236,7 +320,6 @@ vi.mock('../Chat', () => ({
     locateMessageId?: string
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
-    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
     onPaneCollapse?: () => void
   }) => (
     <section>
@@ -265,11 +348,6 @@ vi.mock('../Chat', () => ({
           Locate handled
         </button>
       )}
-      {onTemporaryAssistantChange && (
-        <button type="button" onClick={() => onTemporaryAssistantChange('assistant-2')}>
-          Switch temporary assistant
-        </button>
-      )}
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
@@ -280,8 +358,16 @@ vi.mock('../Chat', () => ({
   )
 }))
 
-vi.mock('../Navbar', () => ({
-  default: () => <nav />
+vi.mock('../components/ChatNavBar', () => ({
+  default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
+    <nav>
+      {onSidebarToggle && (
+        <button type="button" onClick={onSidebarToggle}>
+          Toggle sidebar
+        </button>
+      )}
+    </nav>
+  )
 }))
 
 vi.mock('../Tabs', () => ({
@@ -344,34 +430,23 @@ describe('HomePage', () => {
     homeMocks.persistCacheValues.clear()
     homeMocks.focusExistingTab.mockReturnValue(false)
     homeMocks.isActiveTab = false
-    homeMocks.persistTemporaryConversation.mockResolvedValue(null)
-    homeMocks.replaceTemporaryConversation.mockResolvedValue({
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-    homeMocks.updateTemporaryAssistant.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-    homeMocks.temporaryConversation = null
+    homeMocks.createTopic.mockResolvedValue(createdTopic)
+    homeMocks.refreshTopics.mockResolvedValue(undefined)
+    homeMocks.streamOpen.mockResolvedValue({ mode: 'started', userMessageId: 'user-created' })
     homeMocks.activeTopicLoading = false
     homeMocks.activeTopicOverride = undefined
     homeMocks.activeTopicSource = 'query'
     homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
+    homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
+        ai: {
+          streamOpen: homeMocks.streamOpen
+        },
         window: {
           resetMinimumSize: vi.fn().mockResolvedValue(undefined),
           setMinimumSize: vi.fn().mockResolvedValue(undefined)
@@ -516,12 +591,6 @@ describe('HomePage', () => {
   it('does not write locate state into the current tab before focusing an already-open topic message', () => {
     homeMocks.locationState = undefined
     homeMocks.focusExistingTab.mockReturnValue(true)
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
 
     render(<HomePage />)
 
@@ -536,10 +605,8 @@ describe('HomePage', () => {
     })
 
     expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-history', { excludeTabId: 'chat-tab' })
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
-    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+    expect(screen.getByTestId('draft-composer')).toBeInTheDocument()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
-    expect(homeMocks.discardTemporaryConversation).not.toHaveBeenCalled()
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {
@@ -554,7 +621,7 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
   })
 
-  it('waits for a cached active topic before starting a first-launch temporary topic', () => {
+  it('waits for a cached active topic before starting the first-launch draft', () => {
     homeMocks.locationState = undefined
     homeMocks.activeTopicLoading = true
     homeMocks.forceActiveTopicUndefined = true
@@ -562,7 +629,7 @@ describe('HomePage', () => {
     const { rerender } = render(<HomePage />)
 
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
 
     homeMocks.activeTopicLoading = false
     homeMocks.forceActiveTopicUndefined = false
@@ -570,7 +637,7 @@ describe('HomePage', () => {
     rerender(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
   })
 
   it('renders a message-only route topic without updating global chat state', () => {
@@ -593,7 +660,6 @@ describe('HomePage', () => {
       passive: true,
       activeTopicId: null
     })
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
     expect(homeMocks.cacheSetPersist).not.toHaveBeenCalled()
   })
@@ -608,7 +674,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Loading...')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
@@ -621,415 +686,88 @@ describe('HomePage', () => {
     expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).toHaveTextContent('Conversation not found')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
-  it('treats topicId without message view as a normal chat route', async () => {
+  it('starts the first-launch draft from the remembered assistant', async () => {
     homeMocks.locationState = undefined
-    homeMocks.routeSearch = { topicId: 'topic-message' }
-    homeMocks.routeTopic = {
-      ...initialTopic,
-      id: 'topic-message',
-      name: 'Message topic'
-    }
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
 
     render(<HomePage />)
-
-    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.activeTopicOptions).toMatchObject({
-      passive: false,
-      activeTopicId: 'topic-message'
-    })
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('starts generic temporary topics with the active topic assistant', async () => {
-    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
     })
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
-    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
-  })
-
-  it('prefers a leased temporary topic over a stale active topic while rendering home mode', () => {
-    homeMocks.locationState = undefined
-    homeMocks.activeTopicOverride = initialTopic
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-2',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
-
-    render(<HomePage />)
-
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
-    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'assistants',
         instanceKey: null
       })
     )
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
   })
 
-  it('selects a persisted topic after an assistant temporary topic is active', async () => {
+  it('updates the draft assistant without creating a topic', async () => {
     homeMocks.locationState = undefined
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
 
     render(<HomePage />)
 
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
-    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-default')
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open history' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select history topic' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch draft assistant' }))
 
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
-    expect(screen.queryByRole('button', { name: 'Switch temporary assistant' })).not.toBeInTheDocument()
-    expect(homeMocks.discardTemporaryConversation).toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('remembers the active topic assistant for the next first-launch temporary topic', async () => {
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', 'assistant-1')
-    })
-  })
-
-  it('seeds the first-launch temporary topic from the remembered assistant', async () => {
+  it('creates the real topic and opens the stream only when the draft sends', async () => {
     homeMocks.locationState = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
 
     render(<HomePage />)
 
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
-  })
-
-  it('clears a stale remembered assistant and falls back to the first assistant', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'deleted-assistant')
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-default',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send draft' }))
 
     await waitFor(() => {
-      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
+      expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
     })
-  })
-
-  it('seeds the first-launch temporary topic from the first assistant when no remembered assistant exists', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-default',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
+    expect(homeMocks.streamOpen).toHaveBeenCalledWith({
+      trigger: 'submit-message',
+      topicId: 'topic-created',
+      userMessageParts: [{ type: 'text', text: 'hello' }],
+      mentionedModelIds: undefined
     })
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('leases an assistant-less first-launch temporary topic when the resolved assistant list is empty', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = []
-    homeMocks.assistantsLoaded = true
-    homeMocks.assistantsLoading = false
-    homeMocks.assistantsRefreshing = false
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
-    })
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
-    expect(screen.getByTestId('active-topic-assistant').textContent).toBe('')
-  })
-
-  it('clears a stale remembered assistant and starts assistant-less when no assistants remain', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = []
-    homeMocks.assistantsLoaded = true
-    homeMocks.assistantsLoading = false
-    homeMocks.assistantsRefreshing = false
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'deleted-assistant')
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
-    })
-  })
-
-  it('waits for assistants before leasing the first-launch temporary topic', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = []
-    homeMocks.assistantsLoading = true
-
-    const { rerender } = render(<HomePage />)
-
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
-
-    homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.assistantsLoading = false
-    rerender(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('waits for the assistant list to resolve before leasing the first-launch temporary topic', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = []
-    homeMocks.assistantsLoaded = false
-    homeMocks.assistantsLoading = false
-
-    const { rerender } = render(<HomePage />)
-
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
-
-    homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.assistantsLoaded = true
-    rerender(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('seeds the first-launch temporary topic from the route assistantId', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-route' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-default')
-    homeMocks.routeSearch = { assistantId: 'assistant-route' }
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-route',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-route' })
-    })
-  })
-
-  it('falls back when the route assistantId is missing from the assistant list', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.routeSearch = { assistantId: 'missing-assistant' }
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-default',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('does not lease another temporary topic while the active temporary topic is still empty', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topic: initialTopic,
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
-
-    render(<HomePage />)
-
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
-    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
-
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
-  })
-
-  it('starts a new temporary topic when the active temporary assistant does not match the target', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-2' }]
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topic: initialTopic,
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic-next',
-      topicId: 'temp-topic-next',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
-  })
-
-  it('starts the remembered assistant when the active temporary topic has no assistant', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.temporaryConversation = {
-      id: 'temp-topic-empty',
-      topic: { ...initialTopic, assistantId: undefined, id: 'temp-topic-empty' },
-      topicId: 'temp-topic-empty',
-      type: 'assistant'
-    }
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic-next',
-      topicId: 'temp-topic-next',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('uses a valid explicit payload assistant before remembered and first assistants', async () => {
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic with assistant 2' }))
 
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
-  })
-
-  it('falls back when an explicit payload assistant is missing from the assistant list', async () => {
-    homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-default',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic with missing assistant' }))
-
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-default' })
-    })
-  })
-
-  it('updates the active temporary topic assistant without changing the topic id', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.temporaryConversation = {
-      assistantId: 'assistant-1',
-      id: 'temp-topic',
-      topic: initialTopic,
-      topicId: 'temp-topic',
-      type: 'assistant'
-    }
-    homeMocks.updateTemporaryAssistant.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic',
-      topicId: 'temp-topic',
-      type: 'assistant'
-    })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Switch temporary assistant' }))
-
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
-    expect(homeMocks.updateTemporaryAssistant).toHaveBeenCalledWith('assistant-2')
-    expect(homeMocks.replaceTemporaryConversation).not.toHaveBeenCalled()
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('passes URL topicId to useActiveTopic as activeTopicId', async () => {
     homeMocks.locationState = undefined
     homeMocks.routeSearch = { topicId: 'topic-from-url' }
+    homeMocks.activeTopicLoading = true
 
     await act(async () => {
       render(<HomePage />)
@@ -1043,6 +781,7 @@ describe('HomePage', () => {
     homeMocks.locationState = undefined
     homeMocks.routeSearch = {}
     homeMocks.currentTab = { metadata: { instanceAppId: 'assistants', instanceKey: 'topic-from-metadata' } }
+    homeMocks.activeTopicLoading = true
 
     await act(async () => {
       render(<HomePage />)
@@ -1068,7 +807,7 @@ describe('HomePage', () => {
         instanceKey: 'topic-from-metadata'
       })
     )
-    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
   })
 
   it('keeps same-tab topic changes local instead of writing the URL', async () => {

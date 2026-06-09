@@ -38,7 +38,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
@@ -100,10 +100,18 @@ const createSkillQuickPanelItems = (
   }))
 }
 
+type AgentComposerWorkspacePreview = Pick<AgentWorkspaceEntity, 'type'> &
+  Partial<Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path'>>
+
+type AgentComposerSessionSnapshot = {
+  workspace?: AgentComposerWorkspacePreview | null
+  workspaceId?: string | null
+}
+
 type Props = {
   agentId: string
   sessionId: string
-  sessionOverride?: AgentSessionEntity
+  sessionOverride?: AgentComposerSessionSnapshot
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
   onNewSessionDraft?: () => void | Promise<void>
@@ -227,7 +235,7 @@ interface InnerProps {
   agentId: string
   sessionId: string
   sessionData?: ToolContext['session']
-  workspace?: AgentSessionEntity['workspace']
+  workspace?: AgentComposerWorkspacePreview | null
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
@@ -258,7 +266,7 @@ interface AgentComposerContextControlsProps {
 }
 
 interface AgentComposerWorkspaceControlProps {
-  workspace?: AgentSessionEntity['workspace']
+  workspace?: AgentComposerWorkspacePreview | null
   workspaceId?: string | null
   workspaceChanging?: boolean
   workspaceWarning?: string
@@ -455,7 +463,7 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 }
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
-  workspace?: AgentSessionEntity['workspace']
+  workspace?: AgentComposerWorkspacePreview | null
   workspaceId?: string | null
   workspaceChanging?: boolean
   workspaceWarning?: string

@@ -10,13 +10,12 @@ import ConversationStageCenter from '@renderer/components/chat/shell/Conversatio
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
-import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -27,21 +26,12 @@ import { useChatRuntimeState } from './useChatRuntimeState'
 interface Props {
   topic: Topic
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
-  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
-  /**
-   * If the active topic is a freshly-leased temporary one, this callback
-   * migrates it into SQLite (with the same id) before the first message
-   * is sent. Owned by HomePage so the lease and the persist trigger live
-   * on the same hook instance. `initialName` seeds a placeholder topic
-   * title so the sidebar isn't blank pre-auto-name.
-   */
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
 /**
@@ -57,18 +47,13 @@ interface Props {
 const ChatContent: FC<Props> = ({
   topic,
   onOpenCitationsPanel,
-  onTemporaryAssistantChange,
   onNewTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId,
-  onPersistTemporaryTopic
+  getBranchDraftAnchorId
 }) => {
-  const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
-  useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
-  const isFreshTemporaryTopic = !!onPersistTemporaryTopic && !hasPersistedTemporaryTopic
   const {
     uiMessages,
     siblingsMap,
@@ -78,23 +63,19 @@ const ChatContent: FC<Props> = ({
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
-  } = useTopicMessages(topic.id, { fetchOnMount: !isFreshTemporaryTopic })
+  } = useTopicMessages(topic.id)
 
   return (
     <ChatContentInner
       topic={topic}
       onOpenCitationsPanel={onOpenCitationsPanel}
-      onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
-      onPersistTemporaryTopic={onPersistTemporaryTopic}
       isHistoryLoading={isHistoryLoading}
-      isFreshTemporaryTopic={isFreshTemporaryTopic}
-      onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -113,8 +94,6 @@ const ChatContent: FC<Props> = ({
 
 interface InnerProps extends Props {
   isHistoryLoading: boolean
-  isFreshTemporaryTopic: boolean
-  onTemporaryTopicPersisted: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
@@ -131,17 +110,13 @@ interface InnerProps extends Props {
 const ChatContentInner: FC<InnerProps> = ({
   topic,
   onOpenCitationsPanel,
-  onTemporaryAssistantChange,
   onNewTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId,
-  onPersistTemporaryTopic,
   isHistoryLoading,
-  isFreshTemporaryTopic,
-  onTemporaryTopicPersisted,
   initialMessages,
   uiMessages,
   siblingsMap,
@@ -156,9 +131,6 @@ const ChatContentInner: FC<InnerProps> = ({
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
-    isFreshTemporaryTopic,
-    onPersistTemporaryTopic,
-    onTemporaryTopicPersisted,
     initialMessages,
     uiMessages,
     refresh,
@@ -226,7 +198,6 @@ const ChatContentInner: FC<InnerProps> = ({
                         isHome={runtime.shouldRenderHomeComposer}
                         topic={topic}
                         onSend={runtime.sendMessage}
-                        onTemporaryAssistantChange={onTemporaryAssistantChange}
                         onNewTopic={onNewTopic}
                         sendDisabled={isHistoryLoading}
                         composerContext={runtime.composerContext}

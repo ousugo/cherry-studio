@@ -13,7 +13,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { FileMetadata, Topic } from '@renderer/types'
@@ -41,9 +40,6 @@ export interface ChatTurnInput {
 interface UseChatRuntimeStateParams {
   topic: Topic
   isHistoryLoading: boolean
-  isFreshTemporaryTopic: boolean
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
-  onTemporaryTopicPersisted: () => void
   initialMessages: CherryUIMessage[]
   uiMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
@@ -121,9 +117,6 @@ function getReservedActiveExecutions(messages: CherryUIMessage[]): ActiveExecuti
 export function useChatRuntimeState({
   topic,
   isHistoryLoading,
-  isFreshTemporaryTopic,
-  onPersistTemporaryTopic,
-  onTemporaryTopicPersisted,
   initialMessages,
   uiMessages,
   refresh,
@@ -242,9 +235,9 @@ export function useChatRuntimeState({
     () => ({
       seedReservedMessages,
       refresh,
-      rollback: isFreshTemporaryTopic ? cache.clearBranchCache : cache.rollbackBranch
+      rollback: cache.rollbackBranch
     }),
-    [cache.clearBranchCache, cache.rollbackBranch, isFreshTemporaryTopic, refresh, seedReservedMessages]
+    [cache.rollbackBranch, refresh, seedReservedMessages]
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
@@ -252,17 +245,9 @@ export function useChatRuntimeState({
   >({
     scopeKey: topic.id,
     historyAdapter,
-    ensureConversation: async ({ text }) => {
+    ensureConversation: async () => {
       if (isHistoryLoading) return null
       const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
-      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
-        const persisted = await onPersistTemporaryTopic(text)
-        if (persisted?.type !== 'assistant') {
-          throw new Error('Temporary topic handoff failed before stream open')
-        }
-        onTemporaryTopicPersisted()
-        return { topicId: persisted.topicId, parentAnchorId }
-      }
       return { topicId: topic.id, parentAnchorId }
     },
     buildStreamRequest: ({ text, options }, conversation) => ({
@@ -367,12 +352,7 @@ export function useChatRuntimeState({
   )
   finishRef.current = handleExecutionFinish
 
-  const shouldRenderHomeComposer =
-    !isHistoryLoading &&
-    isFreshTemporaryTopic &&
-    turnController.layout === 'draft' &&
-    uiMessages.length === 0 &&
-    branchActiveExecutions.length === 0
+  const shouldRenderHomeComposer = false
 
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,
