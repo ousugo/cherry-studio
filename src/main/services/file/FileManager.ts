@@ -671,24 +671,14 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register all File_* IPC handlers owned by this lifecycle service
-   * (Phase 1 dangling-state + Phase 2 entry CRUD / sweep + path/directory
-   * helpers). Kept as a dedicated helper so `onInit` stays a narrow
-   * three-step sequence (init → register → sweep).
+   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
+   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
+   * narrow two-step sequence (init → register).
    *
-   * The dangling-state handlers Zod-parse their `params` before delegating,
-   * matching the DataApi handler discipline (`b8709c964` / `2437c1104`):
-   * without it the batch fan-out is unbounded — a 100k-id `Promise.all` over
-   * `findById` would saturate the event loop and the DB connection pool.
-   *
-   * The directory handlers live here (not in the post-bootstrap
-   * `registerIpc()`) so they are registered during bootstrap, before the
-   * renderer can invoke them. `File_ListDirectory` calls into the
-   * `@main/utils/file/search` primitive (RFC §G — ripgrep + fuzzy is
-   * exposed via the single `listDirectory` public entry, internals are
-   * private). `Tree_*` channels back the `DirectoryTreeBuilder` primitive
-   * (RFC §12) that replaced the legacy `getDirectoryStructure` + chokidar
-   * singleton for Notes.
+   * Every handler Zod-parses its `params` before delegating, matching the
+   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
+   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
+   * would saturate the event loop and the DB connection pool.
    */
   private registerIpcHandlers(): void {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
