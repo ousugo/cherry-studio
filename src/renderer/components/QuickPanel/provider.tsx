@@ -37,8 +37,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
   const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
-  const clearTimer = useRef<NodeJS.Timeout | null>(null)
+  const clearTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)
   const panelGenerationRef = useRef(0)
   const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
@@ -93,7 +94,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const open = useCallback(
     (options: QuickPanelOpenOptions) => {
       if (clearTimer.current) {
-        clearTimeout(clearTimer.current)
+        window.clearTimeout(clearTimer.current)
         clearTimer.current = null
       }
 
@@ -126,6 +127,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {
+      if (!isMountedRef.current) return
+
       setIsVisible(false)
       setManageListExternally(false)
       setTrackInputQuery(false)
@@ -133,7 +136,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
-      clearTimer.current = setTimeout(() => {
+      clearTimer.current = window.setTimeout(() => {
+        clearTimer.current = null
+        if (!isMountedRef.current) return
+
         setList([])
         setOnClose(undefined)
         setBeforeAction(undefined)
@@ -154,9 +160,12 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   )
 
   useEffect(() => {
+    isMountedRef.current = true
+
     return () => {
+      isMountedRef.current = false
       if (clearTimer.current) {
-        clearTimeout(clearTimer.current)
+        window.clearTimeout(clearTimer.current)
         clearTimer.current = null
       }
     }
