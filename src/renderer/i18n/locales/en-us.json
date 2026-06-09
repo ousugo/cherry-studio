@@ -3073,6 +3073,8 @@
           }
         },
         "generate": "Generate prompt",
+        "generate_failed_description": "Check or change the default model, then try again.",
+        "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",

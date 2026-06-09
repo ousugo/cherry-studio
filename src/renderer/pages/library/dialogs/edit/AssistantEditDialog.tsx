@@ -27,7 +27,6 @@ import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { useAssistantMutationsById } from '@renderer/pages/library/adapters/assistantAdapter'
 import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/pages/library/constants'
 import { fetchGenerate } from '@renderer/services/ApiService'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AGENT_PROMPT } from '@shared/config/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Database, Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
@@ -423,6 +422,10 @@ function AssistantPromptField({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
   })
+  const promptGenerationFailedToast = {
+    title: t('library.config.prompt.generate_failed_title'),
+    description: t('library.config.prompt.generate_failed_description')
+  }
 
   const handlePromptChange = (nextPrompt: string) => {
     setShowUndoButton(false)
@@ -452,7 +455,7 @@ function AssistantPromptField({
 
       if (generateRequestIdRef.current !== requestId) return
       if (!generatedPrompt) {
-        toast.error(t('error.no_response'))
+        toast.error(promptGenerationFailedToast)
         return
       }
 
@@ -464,7 +467,7 @@ function AssistantPromptField({
       logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
         assistantId: resource.id
       })
-      toast.error(formatErrorMessageWithPrefix(error, t('library.config.prompt.generate')))
+      toast.error(promptGenerationFailedToast)
     } finally {
       if (generateRequestIdRef.current === requestId) {
         setGenerating(false)

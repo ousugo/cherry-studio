@@ -3073,6 +3073,8 @@
           }
         },
         "generate": "生成提示词",
+        "generate_failed_description": "请检查或调整默认模型后重试。",
+        "generate_failed_title": "生成提示词失败",
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",

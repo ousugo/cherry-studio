@@ -302,6 +302,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'library.config.prompt.dblclick_hint': 'Double-click to edit',
           'library.config.prompt.generate': 'Generate prompt',
+          'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
+          'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_title': 'Variables',
           'library.config.prompt.vars.arch': 'Architecture',
@@ -711,7 +713,12 @@ describe('edit dialogs', () => {
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Generate prompt: Model failed'))
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith({
+        description: 'Check or change the default model, then try again.',
+        title: 'Failed to generate prompt'
+      })
+    )
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
     expect(fetchGenerateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -729,7 +736,12 @@ describe('edit dialogs', () => {
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('No response'))
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith({
+        description: 'Check or change the default model, then try again.',
+        title: 'Failed to generate prompt'
+      })
+    )
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
   })
 

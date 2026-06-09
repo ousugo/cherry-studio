@@ -3073,6 +3073,8 @@
           }
         },
         "generate": "Tạo lời nhắc",
+        "generate_failed_description": "Kiểm tra hoặc đổi mô hình mặc định rồi thử lại.",
+        "generate_failed_title": "Không thể tạo lời nhắc",
         "insert_variable": "Chèn biến",
         "label": "Lời nhắc hệ thống",
         "placeholder": "Nhập lời nhắc hệ thống. Các biến như {{date}} và {{model_name}} được hỗ trợ...",
