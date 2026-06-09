@@ -18,6 +18,7 @@ import { useSessionMenuActions } from './useSessionMenuActions'
 const DELETE_CONFIRMATION_TIMEOUT = 2000
 
 interface SessionItemProps {
+  active?: boolean
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
@@ -30,6 +31,7 @@ interface SessionItemProps {
 }
 
 const SessionItem = ({
+  active = false,
   channelType,
   onDelete,
   onOpenInNewTab,
@@ -89,6 +91,7 @@ const SessionItem = ({
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
+      isActiveInCurrentTab: active,
       onDelete: handleDelete,
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
@@ -101,6 +104,7 @@ const SessionItem = ({
       handleDelete,
       handleOpenInNewTab,
       handleTogglePin,
+      active,
       onOpenInNewTab,
       onTogglePin,
       pinned,
@@ -146,24 +150,24 @@ const SessionItem = ({
   const handlePress = useCallback(
     (event: MouseEvent) => {
       // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching the hover action.
-      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab) {
+      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !active) {
         handleOpenInNewTab()
         return
       }
       onPress(session.id)
       onSelectItem?.()
     },
-    [handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
   )
 
   const handleAuxClick = useCallback(
     (event: MouseEvent) => {
       // Middle-click opens in a new tab.
-      if (event.button !== 1 || !onOpenInNewTab) return
+      if (event.button !== 1 || !onOpenInNewTab || active) return
       event.preventDefault()
       handleOpenInNewTab()
     },
-    [handleOpenInNewTab, onOpenInNewTab]
+    [active, handleOpenInNewTab, onOpenInNewTab]
   )
 
   const handleTogglePinClick = useCallback(

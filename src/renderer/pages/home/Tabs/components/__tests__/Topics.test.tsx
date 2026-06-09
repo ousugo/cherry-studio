@@ -815,7 +815,6 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
-      'Open in new tab',
       'Clear messages',
       '',
       'Save to notes',
@@ -834,9 +833,9 @@ describe('Topics', () => {
   it('opens a topic message page in a new app tab from the context menu', async () => {
     const { getByText } = renderTopicList()
 
-    fireEvent.contextMenu(getByText('Alpha topic'))
-    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.contextMenu(getByText('Gamma topic'))
+    const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
+    const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrameCallbacks.push(callback)
@@ -854,10 +853,20 @@ describe('Topics', () => {
     })
     expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat', {
       forceNew: true,
-      title: 'Alpha topic',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
+      title: 'Gamma topic',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-c' }
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('hides open-in-new-tab for the active topic context menu', () => {
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).not.toHaveTextContent('Open in new tab')
   })
 
   it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {

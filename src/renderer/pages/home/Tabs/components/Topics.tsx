@@ -1303,6 +1303,7 @@ function TopicRow({
   const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
   const { menuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
+    isActiveInCurrentTab: isActive,
     isRenaming: isRenaming(topic.id),
     notesPath,
     onAutoRename,

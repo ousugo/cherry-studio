@@ -1,6 +1,7 @@
 import { emojiTabIcon } from '@renderer/components/layout/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { isPageTitledRoute } from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
 import { createContext, type ReactNode, use, useEffect } from 'react'
@@ -79,7 +80,7 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       appId: instanceAppId,
       key: instanceKey
     })
-    if (currentTab.id === 'home') {
+    if (currentTab.id === 'home' && !isPageTitledRoute(currentTab.url)) {
       if (isMetadataEqual(currentTab.metadata, metadata)) return
       updateTab(currentTabId, { metadata })
       return

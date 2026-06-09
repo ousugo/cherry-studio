@@ -1395,9 +1395,9 @@ describe('Sessions', () => {
   it('opens a session message page in a new app tab from the context menu', async () => {
     render(<SessionsForTest />)
 
-    fireEvent.contextMenu(screen.getByText('Alpha session'))
-    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.contextMenu(screen.getByText('Beta session'))
+    const betaMenu = screen.getByText('Beta session').closest('[data-testid="context-menu"]')
+    const menuContent = betaMenu?.querySelector('[data-testid="context-menu-content"]')
     const animationFrameCallbacks: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrameCallbacks.push(callback)
@@ -1415,10 +1415,20 @@ describe('Sessions', () => {
     })
     expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents', {
       forceNew: true,
-      title: 'Alpha session',
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-a' }
+      title: 'Beta session',
+      metadata: { instanceAppId: 'agents', instanceKey: 'session-b' }
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('hides open-in-new-tab for the active session context menu', () => {
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).not.toHaveTextContent('Open in new tab')
   })
 
   it('hides the inline delete action for pinned sessions', () => {

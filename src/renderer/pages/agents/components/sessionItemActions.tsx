@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
 
 export interface SessionActionContext {
+  isActiveInCurrentTab: boolean
   onDelete: () => void
   onOpenInNewTab?: () => void
   onTogglePin?: () => void
@@ -29,7 +30,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.open-in-new-tab',
-  availability: ({ onOpenInNewTab }) => ({ visible: !!onOpenInNewTab, enabled: !!onOpenInNewTab }),
+  availability: ({ isActiveInCurrentTab, onOpenInNewTab }) => ({
+    visible: !!onOpenInNewTab && !isActiveInCurrentTab,
+    enabled: !!onOpenInNewTab && !isActiveInCurrentTab
+  }),
   run: ({ onOpenInNewTab }) => onOpenInNewTab?.()
 })
 

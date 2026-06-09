@@ -29,6 +29,7 @@ type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
+  isActiveInCurrentTab: boolean
   isRenaming: boolean
   notesPath: string
   onAutoRename: TopicMenuHandler
@@ -46,6 +47,7 @@ export interface TopicMenuActionOptions {
 
 export function createTopicActionContext({
   exportMenuOptions,
+  isActiveInCurrentTab,
   isRenaming,
   notesPath,
   onAutoRename,
@@ -62,6 +64,7 @@ export function createTopicActionContext({
 }: TopicMenuActionOptions): TopicActionContext {
   return {
     exportMenuOptions,
+    isActiveInCurrentTab,
     isRenaming,
     onAutoRename,
     onClearMessages,
@@ -169,6 +172,7 @@ export function useTopicMenuPreset<TItem>({
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
   const {
     exportMenuOptions,
+    isActiveInCurrentTab,
     isRenaming,
     notesPath,
     onAutoRename,
@@ -187,6 +191,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     () =>
       createTopicActionContext({
         exportMenuOptions,
+        isActiveInCurrentTab,
         isRenaming,
         notesPath,
         onAutoRename,
@@ -203,6 +208,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       }),
     [
       exportMenuOptions,
+      isActiveInCurrentTab,
       isRenaming,
       notesPath,
       onAutoRename,

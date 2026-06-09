@@ -6,6 +6,7 @@ const t = ((key: string) => key) as SessionActionContext['t']
 
 function createSessionActionFixture(overrides: Partial<SessionActionContext> = {}): SessionActionContext {
   return {
+    isActiveInCurrentTab: false,
     onDelete: vi.fn(),
     pinned: false,
     sessionName: 'Session title',
@@ -51,5 +52,16 @@ describe('session item actions', () => {
     expect(startEdit).toHaveBeenCalledWith('Session title')
     expect(onTogglePin).toHaveBeenCalled()
     expect(onDelete).toHaveBeenCalled()
+  })
+
+  it('hides open-in-new-tab when the session is already active in the current tab', () => {
+    const actions = resolveSessionMenuActions(
+      createSessionActionFixture({
+        isActiveInCurrentTab: true,
+        onOpenInNewTab: vi.fn()
+      })
+    )
+
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
   })
 })

@@ -423,6 +423,7 @@ const AssistantHistoryRecordsContent = ({
 
       return createTopicActionContext({
         exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
+        isActiveInCurrentTab: false,
         isRenaming: isTopicRenaming(topic.id),
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
@@ -645,6 +646,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
       createSessionActionContext({
+        isActiveInCurrentTab: false,
         onDelete: () => {
           void handleDeleteSession(session.id)
         },

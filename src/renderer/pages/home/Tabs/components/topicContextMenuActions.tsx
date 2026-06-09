@@ -37,6 +37,7 @@ type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
+  isActiveInCurrentTab: boolean
   isRenaming: boolean
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
@@ -93,7 +94,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.open-in-new-tab',
-  availability: ({ onOpenInNewTab }) => ({ visible: !!onOpenInNewTab, enabled: !!onOpenInNewTab }),
+  availability: ({ isActiveInCurrentTab, onOpenInNewTab }) => ({
+    visible: !!onOpenInNewTab && !isActiveInCurrentTab,
+    enabled: !!onOpenInNewTab && !isActiveInCurrentTab
+  }),
   run: ({ onOpenInNewTab, topic }) => onOpenInNewTab?.(topic)
 })
 

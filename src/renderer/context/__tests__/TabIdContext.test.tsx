@@ -86,26 +86,28 @@ describe('TabIdContext', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
-  it('does not let page metadata overwrite the fixed home tab title', async () => {
+  it('lets page-titled routes update the fixed home tab title', async () => {
     mocks.tabs = [
       {
         id: 'home',
         type: 'route',
-        url: '/app/chat',
-        title: 'Chat',
+        url: '/app/agents',
+        title: 'Agent',
         metadata: { keep: true }
       }
     ]
 
     render(
       <TabIdProvider tabId="home">
-        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
+        <TabMetadataWriter title="Session title" emoji="spark" instanceAppId="agents" instanceKey="session-1" />
       </TabIdProvider>
     )
 
     await waitFor(() =>
       expect(mocks.updateTab).toHaveBeenCalledWith('home', {
-        metadata: { keep: true, instanceAppId: 'assistants', instanceKey: 'topic-1' }
+        title: 'Session title',
+        icon: 'icon:spark',
+        metadata: { keep: true, instanceAppId: 'agents', instanceKey: 'session-1' }
       })
     )
   })

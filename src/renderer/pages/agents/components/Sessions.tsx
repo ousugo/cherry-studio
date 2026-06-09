@@ -1401,6 +1401,7 @@ const Sessions = ({
         />
       </ResourceList.Header>
       <SessionListBody
+        activeSessionId={activeSessionId}
         channelTypeMap={channelTypeMap}
         displayMode={displayMode}
         error={listError}
@@ -1438,6 +1439,7 @@ const Sessions = ({
 }
 
 interface SessionListBodyProps {
+  activeSessionId: string | null
   channelTypeMap: Record<string, string>
   displayMode: AgentSessionDisplayMode
   error?: unknown
@@ -1453,6 +1455,7 @@ interface SessionListBodyProps {
 }
 
 function SessionListBody({
+  activeSessionId,
   channelTypeMap,
   displayMode,
   error,
@@ -1472,6 +1475,7 @@ function SessionListBody({
     <SessionItem
       key={session.id}
       session={session}
+      active={session.id === activeSessionId}
       channelType={channelTypeMap[session.id]}
       pinned={session.pinned}
       reserveLeadingIconSlot={
