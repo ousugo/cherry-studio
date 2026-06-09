@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -21,6 +22,8 @@ import { useCommandHandler } from '@renderer/features/command'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
+import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
@@ -37,7 +40,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -394,6 +397,50 @@ const AgentComposerWorkspaceControl = ({
   )
 
   return selector
+}
+
+function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
+  const { t } = useTranslation()
+  const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
+  const { percentage, usage } = useAgentSessionContextUsage(sessionId, expectedModels)
+  const compaction = useAgentSessionCompaction(sessionId)
+  if (percentage === null || !usage) return null
+
+  const isCompacting = compaction.status === 'compacting'
+  const ringColor = getAgentContextUsageColor(percentage)
+
+  return (
+    <Tooltip
+      placement="top"
+      classNames={{
+        placeholder: 'inline-grid',
+        content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
+      }}
+      content={
+        <AgentContextUsageSummary usage={usage} percentage={percentage} color={ringColor} isCompacting={isCompacting} />
+      }>
+      <span
+        aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
+        aria-busy={isCompacting || undefined}
+        className={cn(
+          'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--color-border-subtle)_0)]',
+          isCompacting && 'animate-pulse'
+        )}
+        style={
+          {
+            '--context-usage-color': ringColor,
+            '--context-usage-progress': `${percentage}%`
+          } as React.CSSProperties
+        }>
+        <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
+      </span>
+    </Tooltip>
+  )
+}
+
+function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
+  if (!model) return undefined
+  return [model.apiModelId, parseUniqueModelId(model.id).modelId].filter((value): value is string => Boolean(value))
 }
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
@@ -817,6 +864,7 @@ const AgentComposerInner = ({
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        renderSendAccessory={() => <AgentComposerContextUsage model={model} sessionId={sessionId} />}
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>

@@ -161,6 +161,8 @@ describe('useAgentMessageListProviderValue', () => {
         warning: vi.fn()
       }
     })
+    window.api.file.openPath = vi.fn()
+    window.api.file.showInFolder = vi.fn()
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
@@ -211,7 +213,8 @@ describe('useAgentMessageListProviderValue', () => {
         openArtifactFile,
         deleteMessage,
         respondToolApproval,
-        messageNavigation: 'anchor'
+        messageNavigation: 'anchor',
+        workspacePath: '/tmp/workspace'
       })
       return null
     }
@@ -289,6 +292,12 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
+
+    void value?.actions.openPath?.('dist/report.md')
+    expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+
+    void value?.actions.showInFolder?.('/Users/me/report.md')
+    expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({

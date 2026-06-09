@@ -552,7 +552,13 @@ const AgentChatSessionFrame = ({
             onSidebarToggle={onSidebarToggle}
           />
         }
-        topRightTool={<AgentRightPane.FilesToggle disabled={rightPaneDisabled} />}
+        topRightTool={
+          <>
+            <AgentRightPane.InfoCard disabled={rightPaneDisabled} />
+            <AgentRightPane.FilesToggle disabled={rightPaneDisabled} />
+          </>
+        }
+        topRightToolReserve="double"
         center={
           <ConversationStageCenter
             placement={placement}

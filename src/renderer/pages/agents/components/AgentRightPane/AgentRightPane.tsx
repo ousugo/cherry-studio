@@ -1,5 +1,6 @@
-import { Badge } from '@cherrystudio/ui'
+import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { EmptyState } from '@renderer/components/chat'
+import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ArtifactPane, {
@@ -8,9 +9,12 @@ import ArtifactPane, {
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
+import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
@@ -19,7 +23,19 @@ import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { Activity, CheckCircle, Circle, FileText, FolderOpen, GitBranch, Loader2 } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  CheckCircle,
+  Circle,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Info,
+  Loader2,
+  Package,
+  Waypoints
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +43,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AgentRightPaneStatus,
   type AgentStatusTask,
+  type AgentSubagent,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection
@@ -432,33 +449,28 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
   }
 }
 
-function StatusMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border-subtle px-3 py-2">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-medium text-foreground text-lg leading-6">{value}</div>
-    </div>
-  )
-}
-
 function AgentAgentRightPaneStatusPanel() {
   const { state, meta } = useAgentRightPane()
   const { t } = useTranslation()
   const { status } = state
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const compaction = useAgentSessionCompaction(meta.sessionId)
+  const isCompacting = compaction.status === 'compacting'
+  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
     <div className="space-y-4 p-3 text-sm">
-      <section className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
-          <Badge variant="outline" className="text-[11px]">
-            {t('agent.right_pane.status.task_count', {
-              completed: status.completedTaskCount,
-              total: status.totalTaskCount
-            })}
-          </Badge>
-        </div>
-        {status.tasks.length ? (
+      {status.tasks.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
+            <Badge variant="outline" className="text-[11px]">
+              {t('agent.right_pane.status.task_count', {
+                completed: status.completedTaskCount,
+                total: status.totalTaskCount
+              })}
+            </Badge>
+          </div>
           <div className="space-y-1.5">
             {status.tasks.map((task) => (
               <div
@@ -477,47 +489,17 @@ function AgentAgentRightPaneStatusPanel() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="rounded-md border border-border-subtle px-3 py-2 text-muted-foreground text-xs">
-            {t('agent.right_pane.status.no_tasks')}
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="space-y-2">
-        <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.context')}</h3>
-        <dl className="space-y-2 rounded-md border border-border-subtle px-3 py-2 text-xs">
-          <div className="space-y-0.5">
-            <dt className="text-muted-foreground">{t('agent.right_pane.status.workspace')}</dt>
-            <dd className="break-all text-foreground">{state.workspacePath || t('common.none')}</dd>
-          </div>
-          <div className="space-y-0.5">
-            <dt className="text-muted-foreground">{t('agent.right_pane.status.agent')}</dt>
-            <dd className="break-all text-foreground">{meta.agentName || meta.agentId || t('common.none')}</dd>
-          </div>
-          <div className="space-y-0.5">
-            <dt className="text-muted-foreground">{t('agent.right_pane.status.selected_tool')}</dt>
-            <dd className="break-all text-foreground">
-              {state.activeFlowTab?.title || state.flow.selectedTool?.toolName || t('common.none')}
-            </dd>
-          </div>
-        </dl>
-        {status.latestCompactSummary && (
-          <div className="max-h-40 overflow-auto rounded-md border border-border-subtle px-3 py-2 text-foreground text-xs leading-5">
-            {status.latestCompactSummary}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-2">
-        <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.activity')}</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <StatusMetric label={t('agent.right_pane.status.tools_total')} value={status.toolStats.total} />
-          <StatusMetric label={t('agent.right_pane.status.tools_active')} value={status.toolStats.active} />
-          <StatusMetric label={t('agent.right_pane.status.tools_done')} value={status.toolStats.completed} />
-          <StatusMetric label={t('agent.right_pane.status.tools_failed')} value={status.toolStats.failed} />
-        </div>
-      </section>
+      <AgentContextUsageSummary
+        usage={usage}
+        percentage={percentage}
+        color={contextUsageColor}
+        isCompacting={isCompacting}
+        className="rounded-md border border-border-subtle px-3 py-2"
+      />
+      <AgentRightPaneHighlights includeTasks={false} />
     </div>
   )
 }
@@ -578,7 +560,7 @@ function AgentRightPaneSurface() {
           {t('agent.right_pane.tabs.status')}
         </Shell.Tab>
         {enableDeveloperMode && (
-          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />}>
+          <Shell.Tab value="trace" icon={<Waypoints className="size-3.5" />}>
             {t('trace.label')}
           </Shell.Tab>
         )}
@@ -629,12 +611,176 @@ function AgentRightPaneFilesToggle({ disabled }: { disabled?: boolean }) {
   return <Shell.Toggle tab="files" command="topic.sidebar.toggle" commandEnabled={isActiveTab} disabled={disabled} />
 }
 
+function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
+  switch (status) {
+    case 'done':
+      return <CheckCircle size={14} className="text-success" />
+    case 'error':
+      return <Circle size={14} className="text-destructive" />
+    case 'running':
+    default:
+      return <Loader2 size={14} className="animate-spin text-info" />
+  }
+}
+
+function AgentRightPaneHighlightSection({
+  title,
+  icon,
+  compact,
+  children
+}: {
+  title: string
+  icon: ReactNode
+  compact: boolean
+  children: ReactNode
+}) {
+  return (
+    <section
+      className={cn(
+        'space-y-1.5',
+        compact
+          ? 'border-border-subtle border-t pt-2.5 first:border-t-0 first:pt-0'
+          : 'rounded-md border border-border-subtle px-3 py-2'
+      )}>
+      <h3 className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+        {icon}
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+function AgentRightPaneHighlights({
+  compact = false,
+  includeTasks = true
+}: {
+  compact?: boolean
+  includeTasks?: boolean
+}) {
+  const { state, actions } = useAgentRightPane()
+  const { t } = useTranslation()
+  const tasks = includeTasks ? state.status.tasks : []
+  const hasHighlights = tasks.length > 0 || state.status.subagents.length > 0 || state.status.artifacts.length > 0
+
+  if (!hasHighlights) return null
+
+  return (
+    <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
+      {tasks.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.status.tasks')}
+          icon={<Activity size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <ul className="space-y-1">
+            {tasks.map((task) => (
+              <li key={`${task.source}-${task.id}`} className="flex min-w-0 items-start gap-2">
+                <TaskStatusIcon status={task.status} />
+                <span
+                  className={cn(
+                    'wrap-break-word min-w-0 flex-1 text-xs leading-5',
+                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground-secondary'
+                  )}>
+                  {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {state.status.subagents.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.subagents')}
+          icon={<Bot size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <ul className="space-y-1">
+            {state.status.subagents.map((subagent) => (
+              <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
+                <SubagentStatusIcon status={subagent.status} />
+                <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
+                  {subagent.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {state.status.artifacts.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.artifacts')}
+          icon={<Package size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <ul className="space-y-0.5">
+            {state.status.artifacts.map((artifact) => (
+              <li key={`${artifact.toolCallId}-${artifact.path}`}>
+                <button
+                  type="button"
+                  onClick={() => actions.openArtifactFile(artifact.path)}
+                  title={artifact.path}
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  <FileText size={14} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </AgentRightPaneHighlightSection>
+      )}
+    </div>
+  )
+}
+
+// Hover-card preview body. Lives inside HoverCardContent so it mounts only when the card opens.
+// Reads the same persisted usage data the Status tab renders.
+function AgentRightPaneInfoCardBody() {
+  const { meta } = useAgentRightPane()
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const compaction = useAgentSessionCompaction(meta.sessionId)
+  const isCompacting = compaction.status === 'compacting'
+  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
+
+  return (
+    <div className="max-h-[70vh] space-y-3 overflow-auto">
+      <AgentContextUsageSummary
+        usage={usage}
+        percentage={percentage}
+        color={contextUsageColor}
+        isCompacting={isCompacting}
+      />
+      <AgentRightPaneHighlights compact />
+    </div>
+  )
+}
+
+// Shown only in the collapsed state (rendered into ConversationShell's topRightTool, which the shell
+// suppresses while the pane is open/maximized). Hover previews the session; click expands to Status.
+function AgentRightPaneInfoCard({ disabled }: { disabled?: boolean }) {
+  const { openTab } = useShellActions()
+  const { t } = useTranslation()
+  if (disabled) return null
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <NavbarIcon tone="conversation" aria-label={t('agent.right_pane.info.label')} onClick={() => openTab('status')}>
+          <Info />
+        </NavbarIcon>
+      </HoverCardTrigger>
+      <HoverCardContent align="end" sideOffset={8} className="w-80 p-3">
+        <AgentRightPaneInfoCardBody />
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
 // `AgentRightPane` is the provider itself, with the other parts attached as
 // statics — used as `<AgentRightPane>` / `<AgentRightPane.Host>`.
 export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
-  FilesToggle: AgentRightPaneFilesToggle
+  FilesToggle: AgentRightPaneFilesToggle,
+  InfoCard: AgentRightPaneInfoCard
 })
 
 export type { AgentToolFlowOpenInput }

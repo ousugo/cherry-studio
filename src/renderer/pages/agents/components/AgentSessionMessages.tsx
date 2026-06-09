@@ -92,7 +92,8 @@ const AgentSessionMessages = ({
     openArtifactFile,
     deleteMessage,
     respondToolApproval,
-    messageNavigation
+    messageNavigation,
+    workspacePath: session?.workspace?.path
   })
 
   useEffect(() => {

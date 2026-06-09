@@ -3,6 +3,7 @@ import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { CompactPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
@@ -41,11 +42,28 @@ export interface AgentStatusTask {
   source: 'todo' | 'task'
 }
 
+/** A sub-agent spawned via the `Agent`/`Task` tool, derived from the message stream. */
+export interface AgentSubagent {
+  toolCallId: string
+  name: string
+  status: 'running' | 'done' | 'error'
+}
+
+/** A final deliverable file the agent declared via the `report_artifacts` tool. */
+export interface AgentArtifactFile {
+  toolCallId: string
+  path: string
+  name: string
+  description?: string
+}
+
 export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
   activeTask?: AgentStatusTask
   completedTaskCount: number
   totalTaskCount: number
+  subagents: AgentSubagent[]
+  artifacts: AgentArtifactFile[]
   latestCompactSummary?: string
   toolStats: {
     total: number
@@ -367,11 +385,41 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
   }
 }
 
+function isReportArtifactsTool(toolName: string | undefined): boolean {
+  return toolName === REPORT_ARTIFACTS_TOOL_NAME || (toolName?.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ?? false)
+}
+
+function getSubagentName(input: unknown, fallback: string): string {
+  if (isRecord(input)) {
+    const description = typeof input.description === 'string' ? input.description.trim() : ''
+    if (description) return description
+    const name = typeof input.name === 'string' ? input.name.trim() : ''
+    if (name) return name
+  }
+  return fallback
+}
+
+function getSubagentStatus(state: string | undefined): AgentSubagent['status'] {
+  if (state === 'output-error' || state === 'output-denied') return 'error'
+  if (isTerminalToolState(state)) return 'done'
+  return 'running'
+}
+
+function getPathBasename(path: string): string {
+  const segments = path
+    .trim()
+    .split(/[/\\]+/)
+    .filter(Boolean)
+  return segments.at(-1) ?? path
+}
+
 export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
+  const subagentByCallId = new Map<string, AgentSubagent>()
+  const artifactByPath = new Map<string, AgentArtifactFile>()
   let latestCompactSummary: string | undefined
   const toolStats = { total: 0, active: 0, completed: 0, failed: 0 }
 
@@ -402,7 +450,31 @@ export function buildAgentRightPaneStatus(
       if (state === 'input-streaming' || state === 'input-available' || state === 'approval-requested') {
         toolStats.active += 1
       }
-      applyTaskToolPart(taskMap, part, getToolCallId(part) ?? `${message.id}-${partIndex}`)
+      const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
+      applyTaskToolPart(taskMap, part, fallbackId)
+
+      const toolName = getToolNameFromPart(part)
+      if (toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task) {
+        subagentByCallId.set(fallbackId, {
+          toolCallId: fallbackId,
+          name: getSubagentName(getToolPartInput(part), toolName),
+          status: getSubagentStatus(state)
+        })
+      } else if (isReportArtifactsTool(toolName)) {
+        const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
+        if (parsed.success) {
+          for (const artifact of parsed.data.artifacts) {
+            const path = artifact.path.trim()
+            if (!path) continue
+            artifactByPath.set(path, {
+              toolCallId: fallbackId,
+              path,
+              name: getPathBasename(path),
+              description: artifact.description
+            })
+          }
+        }
+      }
     })
   }
 
@@ -416,6 +488,8 @@ export function buildAgentRightPaneStatus(
     activeTask,
     completedTaskCount,
     totalTaskCount: tasks.length,
+    subagents: Array.from(subagentByCallId.values()),
+    artifacts: Array.from(artifactByPath.values()),
     latestCompactSummary,
     toolStats
   }

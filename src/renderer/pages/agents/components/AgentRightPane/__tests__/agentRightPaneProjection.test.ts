@@ -151,4 +151,41 @@ describe('agent right pane projections', () => {
     expect(status.completedTaskCount).toBe(1)
     expect(status.totalTaskCount).toBe(3)
   })
+
+  it('projects sub-agents and declared artifacts into status', () => {
+    const parts = [
+      toolPart('agent-1', 'Agent', undefined, 'input-available', { description: 'Inspect renderer state' }),
+      toolPart('task-1', 'Task', undefined, 'output-error', { name: 'Audit tests' }),
+      toolPart('artifacts-1', 'report_artifacts', undefined, 'output-available', {
+        artifacts: [
+          { path: 'docs/report.md', description: 'Summary report' },
+          { path: 'docs/report.md', description: 'Updated summary report' },
+          { path: '/tmp/build/output.json' }
+        ],
+        summary: 'Created deliverables'
+      })
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.subagents).toEqual([
+      { toolCallId: 'agent-1', name: 'Inspect renderer state', status: 'running' },
+      { toolCallId: 'task-1', name: 'Audit tests', status: 'error' }
+    ])
+    expect(status.artifacts).toEqual([
+      {
+        toolCallId: 'artifacts-1',
+        path: 'docs/report.md',
+        name: 'report.md',
+        description: 'Updated summary report'
+      },
+      {
+        toolCallId: 'artifacts-1',
+        path: '/tmp/build/output.json',
+        name: 'output.json',
+        description: undefined
+      }
+    ])
+  })
 })

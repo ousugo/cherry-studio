@@ -125,6 +125,7 @@ vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
+  useSharedCache: () => [null, vi.fn()],
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -217,6 +218,11 @@ vi.mock('../components/AgentRightPane', () => {
         <button type="button" disabled={disabled}>
           Files
         </button>
+      ),
+      InfoCard: ({ disabled }: { disabled?: boolean }) => (
+        <button type="button" disabled={disabled}>
+          Info
+        </button>
       )
     }
   )
@@ -256,10 +262,6 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
       )}
     </div>
   )
-}))
-
-vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
-  PinnedTodoPanel: () => <div data-testid="pinned-todo-panel" />
 }))
 
 describe('AgentChat settings panel', () => {

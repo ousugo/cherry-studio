@@ -98,7 +98,7 @@ vi.mock('@renderer/config/models', () => {
 })
 
 vi.mock('@renderer/types', () => ({
-  BuiltinMCPServerNames: {
+  BuiltinMcpServerNames: {
     flomo: '@cherry/flomo',
     mcpAutoInstall: '@cherry/mcp-auto-install',
     memory: '@cherry/memory',

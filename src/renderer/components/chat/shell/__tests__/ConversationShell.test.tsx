@@ -71,4 +71,26 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
+
+  it('lays out a double top-right tool cluster without the single-button width clamp', () => {
+    const { container } = render(
+      <ConversationShell
+        topBar={<div data-testid="top-bar" />}
+        topRightTool={
+          <>
+            <button type="button">info</button>
+            <button type="button">toggle</button>
+          </>
+        }
+        topRightToolReserve="double"
+        center={<div />}
+      />
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    const topRightTool = container.querySelector('[data-navbar-right-occupant]')
+    expect(topBarWrapper).toHaveClass('pr-[76px]')
+    expect(topRightTool).toHaveClass('gap-0.5')
+    expect(topRightTool).not.toHaveClass('w-7.5')
+  })
 })

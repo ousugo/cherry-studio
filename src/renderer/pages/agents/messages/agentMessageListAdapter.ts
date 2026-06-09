@@ -8,6 +8,7 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
+import { normalizeInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
@@ -64,6 +65,20 @@ interface AgentMessageListParams {
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   messageNavigation: string
+  workspacePath?: string
+}
+
+const isAbsoluteFilePath = (path: string): boolean => {
+  return path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path)
+}
+
+const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): string => {
+  const normalizedPath = normalizeInlineFilePath(rawPath)
+  if (!workspacePath || isAbsoluteFilePath(normalizedPath)) return normalizedPath
+
+  const cleanWorkspacePath = workspacePath.replace(/[\\/]+$/g, '')
+  const cleanRelativePath = normalizedPath.replace(/^\.?[\\/]+/g, '')
+  return `${cleanWorkspacePath}/${cleanRelativePath}`
 }
 
 export function useAgentMessageListProviderValue({
@@ -81,7 +96,8 @@ export function useAgentMessageListProviderValue({
   openArtifactFile,
   deleteMessage,
   respondToolApproval,
-  messageNavigation
+  messageNavigation,
+  workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const visibleMessages = useMemo(
@@ -121,13 +137,19 @@ export function useAgentMessageListProviderValue({
     saveTextFile: exportActions.saveTextFile
   })
 
-  const openPath = useCallback((path: string) => {
-    return window.api.file.openPath(path)
-  }, [])
+  const openPath = useCallback(
+    (path: string) => {
+      return window.api.file.openPath(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
 
-  const showInFolder = useCallback((path: string) => {
-    return window.api.file.showInFolder(path)
-  }, [])
+  const showInFolder = useCallback(
+    (path: string) => {
+      return window.api.file.showInFolder(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
 
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)

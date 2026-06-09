@@ -328,6 +328,7 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
+  useSharedCache: () => [null, vi.fn()],
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -495,10 +496,6 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: ({ open }: { open: boolean }) => <div data-testid="citations-panel" data-open={String(open)} />
 }))
 
-vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
-  PinnedTodoPanel: () => <div data-testid="pinned-todo-panel" />
-}))
-
 describe('AgentChat artifact pane', () => {
   const activeSessionProps = () => ({
     activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
@@ -538,7 +535,8 @@ describe('AgentChat artifact pane', () => {
           }
         },
         file: {
-          isTextFile: vi.fn().mockResolvedValue(true)
+          isTextFile: vi.fn().mockResolvedValue(true),
+          getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
       }
     })
