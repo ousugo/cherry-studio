@@ -1,3 +1,5 @@
+import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
@@ -51,6 +53,10 @@ export type AgentRuntimeEvent =
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
+  | { type: 'compaction-complete'; anchor: AgentSessionCompactionAnchorData }
+  | { type: 'compaction-error'; error: string }
+  | { type: 'context-usage'; usage: AgentSessionContextUsage }
   | { type: 'error'; error: unknown }
 
 export interface AgentRuntimeConnection {
@@ -65,6 +71,12 @@ export interface AgentRuntimeConnection {
    */
   redirect?(input: AgentRuntimeUserInput): boolean
   applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
+  /**
+   * Read the live context-window usage for this connection's session. Returns null when the
+   * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
+   * Optional ⇒ the host treats the runtime as unable to report usage.
+   */
+  getContextUsage?(): Promise<AgentSessionContextUsage | null>
   close(): void | Promise<void>
 }
 
