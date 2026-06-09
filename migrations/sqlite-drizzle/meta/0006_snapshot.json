@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "84091fcb-6cbb-431e-9148-606bc08235c0",
-  "prevId": "4ef947fa-45e8-4205-a4b2-395ac3b4ad1b",
+  "id": "b1a16c1c-eddf-4464-a51f-015daf494adb",
+  "prevId": "5b474d22-ab0d-4653-a8e3-bdecf899da46",
   "tables": {
     "agent": {
       "name": "agent",
@@ -72,8 +72,8 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "allowed_tools": {
-          "name": "allowed_tools",
+        "disabled_tools": {
+          "name": "disabled_tools",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -203,6 +203,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "workspace": {
+          "name": "workspace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "config": {
@@ -514,7 +521,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "trace_id": {
@@ -569,7 +576,7 @@
           "tableTo": "agent_workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -821,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",

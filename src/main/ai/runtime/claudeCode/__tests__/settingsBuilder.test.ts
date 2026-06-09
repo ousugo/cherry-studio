@@ -190,7 +190,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { path: '/workspace/project' }
+      workspace: { type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)

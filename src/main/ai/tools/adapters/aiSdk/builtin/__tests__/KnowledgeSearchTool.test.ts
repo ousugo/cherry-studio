@@ -2,12 +2,12 @@ import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { type Assistant, ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const orchestratorSearch = vi.fn()
+const knowledgeServiceSearch = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeOrchestrationService') return { search: orchestratorSearch }
+      if (name === 'KnowledgeService') return { search: knowledgeServiceSearch }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -47,7 +47,7 @@ function callExecute(
 
 describe('kb_search', () => {
   beforeEach(() => {
-    orchestratorSearch.mockReset()
+    knowledgeServiceSearch.mockReset()
   })
 
   it('builds an entry with the agreed namespace + defer policy', () => {
@@ -62,40 +62,40 @@ describe('kb_search', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
     )
     expect(result).toEqual([])
-    expect(orchestratorSearch).not.toHaveBeenCalled()
+    expect(knowledgeServiceSearch).not.toHaveBeenCalled()
   })
 
   it('drops out-of-scope baseIds but still searches the in-scope ones', async () => {
-    orchestratorSearch.mockResolvedValue([])
+    knowledgeServiceSearch.mockResolvedValue([])
     await callExecute(
       { query: 'q', baseIds: ['kb-1', 'kb-other'] },
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
     )
-    expect(orchestratorSearch).toHaveBeenCalledTimes(1)
-    expect(orchestratorSearch).toHaveBeenCalledWith('kb-1', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledTimes(1)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
   })
 
   it('trusts the requested baseIds when assistant scope is empty (future toggle path)', async () => {
-    orchestratorSearch.mockResolvedValue([])
+    knowledgeServiceSearch.mockResolvedValue([])
     await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })
-    expect(orchestratorSearch).toHaveBeenCalledTimes(2)
-    expect(orchestratorSearch).toHaveBeenCalledWith('kb-1', 'q')
-    expect(orchestratorSearch).toHaveBeenCalledWith('kb-2', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q')
   })
 
   it('queries every requested base when all are in-scope', async () => {
-    orchestratorSearch.mockResolvedValue([])
+    knowledgeServiceSearch.mockResolvedValue([])
     await callExecute(
       { query: 'how does X work', baseIds: ['kb-1', 'kb-2'] },
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )
-    expect(orchestratorSearch).toHaveBeenCalledTimes(2)
-    expect(orchestratorSearch).toHaveBeenCalledWith('kb-1', 'how does X work')
-    expect(orchestratorSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
+    expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
   })
 
   it('aggregates, dedupes by content, sorts by score desc, assigns 1-based ids', async () => {
-    orchestratorSearch.mockImplementation(async (baseId: string) => {
+    knowledgeServiceSearch.mockImplementation(async (baseId: string) => {
       if (baseId === 'kb-1') {
         return [
           { pageContent: 'A', score: 0.8, metadata: {} },
@@ -122,7 +122,7 @@ describe('kb_search', () => {
   })
 
   it('logs and yields [] for one base when its search throws, but other bases continue', async () => {
-    orchestratorSearch.mockImplementation(async (baseId: string) => {
+    knowledgeServiceSearch.mockImplementation(async (baseId: string) => {
       if (baseId === 'broken') throw new Error('vector store down')
       return [{ pageContent: 'ok', score: 0.7, metadata: {} }]
     })

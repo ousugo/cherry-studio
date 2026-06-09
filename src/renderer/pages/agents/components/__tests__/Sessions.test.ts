@@ -27,7 +27,7 @@ describe('buildCreateSessionSeed', () => {
   it('copies the agent and workspace id from the source session', () => {
     expect(buildCreateSessionSeed(session({ agentId: 'agent-2', workspaceId: 'workspace-2' }))).toEqual({
       agentId: 'agent-2',
-      workspaceId: 'workspace-2'
+      workspace: { type: 'user', workspaceId: 'workspace-2' }
     })
   })
 
@@ -58,7 +58,7 @@ describe('buildCreateSessionSeed', () => {
       )
     ).toEqual({
       agentId: 'agent-1',
-      workspaceMode: 'system'
+      workspace: { type: 'system' }
     })
   })
 })
@@ -86,7 +86,7 @@ describe('findLatestCreateSessionSeed', () => {
           updatedAt: '2026-01-03T00:00:00.000Z'
         })
       ])
-    ).toEqual({ agentId: 'agent-newer', workspaceId: 'workspace-newer' })
+    ).toEqual({ agentId: 'agent-newer', workspace: { type: 'user', workspaceId: 'workspace-newer' } })
   })
 
   it('honors the group predicate before choosing the seed', () => {
@@ -108,6 +108,6 @@ describe('findLatestCreateSessionSeed', () => {
         ],
         (candidate) => candidate.id === 'session-b'
       )
-    ).toEqual({ agentId: 'agent-b', workspaceId: 'workspace-b' })
+    ).toEqual({ agentId: 'agent-b', workspace: { type: 'user', workspaceId: 'workspace-b' } })
   })
 })

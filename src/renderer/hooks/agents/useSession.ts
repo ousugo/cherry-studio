@@ -143,15 +143,28 @@ export const useSessions = (
         window.toast.error(t('agent.session.create.error.failed'))
         return null
       }
+      let result: AgentSessionEntity
       try {
-        const result = await createTrigger({ body: { ...form, agentId } })
-        return result
+        result = await createTrigger({
+          body: {
+            agentId,
+            name: form.name,
+            description: form.description,
+            workspace: form.workspace
+          }
+        })
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
+
+      await refresh().catch((error) => {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
+      })
+
+      return result
     },
-    [agentId, createTrigger, t]
+    [agentId, createTrigger, refresh, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {

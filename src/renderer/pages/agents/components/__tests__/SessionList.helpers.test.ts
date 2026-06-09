@@ -228,9 +228,16 @@ describe('SessionList helpers', () => {
       id: 'session:workspace:ws-project-a',
       label: 'Project A Workspace'
     })
-    expect(workdirGroup(createSession({ workspace: null }))).toEqual({
-      id: 'session:workdir:none',
-      label: 'No project'
+    expect(
+      workdirGroup(
+        createSession({
+          workspaceId: 'system-ws',
+          workspace: makeWorkspace('/Users/jd/Data/Agents/system/session', { id: 'system-ws', type: 'system' })
+        })
+      )
+    ).toEqual({
+      id: SESSION_NO_PROJECT_GROUP_ID,
+      label: ''
     })
   })
 

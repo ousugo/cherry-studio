@@ -11,6 +11,7 @@ import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 
 // ============================================================================
@@ -141,6 +142,7 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
+  workspace: AgentSessionWorkspaceSourceSchema,
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
@@ -185,6 +187,7 @@ export const CreateTaskSchema = z.strictObject({
   name: JobScheduleNameAtomSchema,
   prompt: z.string().min(1),
   trigger: TriggerSchema,
+  workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
   channelIds: z.array(z.string()).optional()
 })

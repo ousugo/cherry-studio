@@ -839,7 +839,7 @@ describe('Sessions', () => {
     expect(onStartTemporarySession).toHaveBeenCalledWith({
       agentId: 'agent-a',
       name: 'Untitled',
-      workspaceMode: 'system'
+      workspace: { type: 'system' }
     })
   })
 
@@ -1122,7 +1122,7 @@ describe('Sessions', () => {
       expect(onStartTemporarySession).toHaveBeenCalledWith({
         agentId: 'agent-b',
         name: 'Untitled',
-        workspaceId: 'ws-c'
+        workspace: { type: 'user', workspaceId: 'ws-c' }
       })
     )
 
@@ -1273,7 +1273,11 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled', workspaceId: 'ws-b' })
+    expect(onStartTemporarySession).toHaveBeenCalledWith({
+      agentId: 'agent-b',
+      name: 'Untitled',
+      workspace: { type: 'user', workspaceId: 'ws-b' }
+    })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
@@ -1925,7 +1929,7 @@ describe('Sessions', () => {
       expect(onStartTemporarySession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         name: 'Untitled',
-        workspaceId: 'ws-a'
+        workspace: { type: 'user', workspaceId: 'ws-a' }
       })
     )
     expect(dataApiMocks.findOrCreateWorkspace).not.toHaveBeenCalled()

@@ -1,5 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { topicTable } from '@data/db/schemas/topic'
@@ -66,6 +67,13 @@ describe('EntitySearchService', () => {
       configuration: { avatar: '🧠' },
       orderKey: 'a0'
     })
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: 'workspace-search',
+      name: 'Search workspace',
+      path: '/tmp/workspace-search',
+      type: 'user',
+      orderKey: 'a0'
+    })
     await dbh.db.insert(topicTable).values({
       id: '33333333-3333-4333-8333-333333333333',
       name: 'Needle Topic',
@@ -77,6 +85,7 @@ describe('EntitySearchService', () => {
       agentId: '22222222-2222-4222-8222-222222222222',
       name: 'Needle Session',
       description: 'Session result',
+      workspaceId: 'workspace-search',
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
@@ -174,6 +183,7 @@ describe('EntitySearchService', () => {
       agentId: '22222222-2222-4222-8222-222222222222',
       name: 'Needle Follow-up',
       description: '',
+      workspaceId: 'workspace-search',
       orderKey: 'a1'
     })
 

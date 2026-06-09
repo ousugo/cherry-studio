@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4ef947fa-45e8-4205-a4b2-395ac3b4ad1b",
+  "id": "5b474d22-ab0d-4653-a8e3-bdecf899da46",
   "prevId": "42474ea0-ee52-400c-830d-844399281ff1",
   "tables": {
     "agent": {
@@ -203,6 +203,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "workspace": {
+          "name": "workspace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "config": {
@@ -514,7 +521,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "order_key": {
@@ -562,7 +569,7 @@
           "tableTo": "agent_workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -821,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -922,14 +928,6 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
         },
         "name": {
           "name": "name",
@@ -3105,9 +3103,9 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_order_key_idx": {
-          "name": "topic_order_key_idx",
-          "columns": ["order_key"],
+        "topic_group_id_order_key_idx": {
+          "name": "topic_group_id_order_key_idx",
+          "columns": ["group_id", "order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {

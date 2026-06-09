@@ -299,7 +299,7 @@ describe('useTemporaryConversation', () => {
       await Promise.resolve()
     })
     expect(mocks.dataApiPost).toHaveBeenCalledWith('/temporary/sessions', {
-      body: { agentId: 'agent-1', name: 'Agent 1', workspaceId: undefined }
+      body: { agentId: 'agent-1', name: 'Agent 1', workspace: { type: 'system' } }
     })
 
     act(() => {

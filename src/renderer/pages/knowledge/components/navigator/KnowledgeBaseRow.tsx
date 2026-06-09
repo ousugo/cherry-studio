@@ -114,84 +114,86 @@ const KnowledgeBaseRow = ({
     <>
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div className="group/kb group relative w-full">
-          {/* TODO(knowledge): Button is used as a row container here; consider switching to the Item primitive so the size/gap/radius overrides go away. */}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onSelectBase(base.id)}
+          <div
             className={cn(
-              'min-h-11 w-full justify-start gap-2.5 rounded-xl px-2.5 py-1.5 text-left shadow-none',
-              selected ? 'bg-secondary hover:bg-secondary' : 'hover:bg-accent'
+              'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
+              selected ? 'bg-secondary' : 'hover:bg-accent'
             )}>
-            <KnowledgeBaseIcon />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onSelectBase(base.id)}
+              className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-left shadow-none hover:bg-transparent">
+              <KnowledgeBaseIcon />
 
-            <div className="min-w-0 flex-1 pr-5">
-              <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
-              <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
-                <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
-                <span
-                  className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
-                  aria-label={statusLabel}
-                  title={statusLabel}
-                />
+              <div className="min-w-0">
+                <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
+                <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
+                  <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
+                  <span
+                    className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
+                    aria-label={statusLabel}
+                    title={statusLabel}
+                  />
+                </div>
               </div>
-            </div>
-          </Button>
+            </Button>
 
-          <DropdownMenu open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.more')}
-                className={cn(
-                  '-translate-y-1/2 absolute top-1/2 right-2 text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100',
-                  moreMenuOpen ? 'opacity-100' : 'opacity-0'
-                )}>
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="bottom" sideOffset={8} className="w-45">
-              <DropdownMenuItem onSelect={handleRenameBase}>
-                <PencilLine className="size-3.5" />
-                <span>{t('knowledge.context.rename')}</span>
-              </DropdownMenuItem>
-              {(canMoveToUngrouped || availableGroups.length > 0) && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <ArrowRightLeft className="size-3.5" />
-                    <span>{t('knowledge.context.move_to')}</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-45">
-                    {canMoveToUngrouped && (
-                      <DropdownMenuItem onSelect={() => void handleMoveBase(null)}>
-                        {t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)}
-                      </DropdownMenuItem>
-                    )}
-                    {availableGroups.length > 0 && canMoveToUngrouped && <DropdownMenuSeparator />}
-                    {availableGroups.length > 0 && (
-                      <>
-                        <DropdownMenuLabel className="text-foreground-muted">
-                          {t('knowledge.context.move_to')}
-                        </DropdownMenuLabel>
-                        {availableGroups.map((group) => (
-                          <DropdownMenuItem key={group.id} onSelect={() => void handleMoveBase(group.id)}>
-                            {group.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={handleRequestDelete}>
-                <Trash2 className="size-3.5" />
-                <span>{t('knowledge.context.delete')}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <DropdownMenu open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.more')}
+                  className={cn(
+                    'text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100',
+                    moreMenuOpen ? 'opacity-100' : 'opacity-0'
+                  )}>
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="w-45">
+                <DropdownMenuItem onSelect={handleRenameBase}>
+                  <PencilLine className="size-3.5" />
+                  <span>{t('knowledge.context.rename')}</span>
+                </DropdownMenuItem>
+                {(canMoveToUngrouped || availableGroups.length > 0) && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <ArrowRightLeft className="size-3.5" />
+                      <span>{t('knowledge.context.move_to')}</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-45">
+                      {canMoveToUngrouped && (
+                        <DropdownMenuItem onSelect={() => void handleMoveBase(null)}>
+                          {t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)}
+                        </DropdownMenuItem>
+                      )}
+                      {availableGroups.length > 0 && canMoveToUngrouped && <DropdownMenuSeparator />}
+                      {availableGroups.length > 0 && (
+                        <>
+                          <DropdownMenuLabel className="text-foreground-muted">
+                            {t('knowledge.context.move_to')}
+                          </DropdownMenuLabel>
+                          {availableGroups.map((group) => (
+                            <DropdownMenuItem key={group.id} onSelect={() => void handleMoveBase(group.id)}>
+                              {group.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={handleRequestDelete}>
+                  <Trash2 className="size-3.5" />
+                  <span>{t('knowledge.context.delete')}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CommandContextMenu>
 

@@ -15,7 +15,7 @@ vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
-      if (name === 'KnowledgeOrchestrationService') return { search: kbSearch, listBases }
+      if (name === 'KnowledgeService') return { search: kbSearch, listBases }
       throw new Error(`unexpected service: ${name}`)
     }
   }

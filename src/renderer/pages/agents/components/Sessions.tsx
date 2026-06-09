@@ -36,8 +36,12 @@ import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporary
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/agentSessions'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  type AgentWorkspaceEntity
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -102,9 +106,8 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 type CreateSessionSeed = {
   agentId: string
-  workspaceId?: string
+  workspace?: AgentSessionWorkspaceSource
   workspacePath?: string
-  workspaceMode?: WorkspaceMode
 }
 
 function SessionListOptionsMenu({
@@ -282,18 +285,21 @@ export function buildCreateSessionSeed(
   if (!session?.agentId) return null
 
   if (session.workspace?.type === 'system') {
-    return { agentId: session.agentId, workspaceMode: 'system' }
+    return { agentId: session.agentId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
   }
 
   if (session.workspaceId) {
-    return { agentId: session.agentId, workspaceId: session.workspaceId }
+    return {
+      agentId: session.agentId,
+      workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
+    }
   }
 
   if (session.workspace?.path) {
     return { agentId: session.agentId, workspacePath: session.workspace.path }
   }
 
-  return { agentId: session.agentId }
+  return { agentId: session.agentId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
 }
 
 export function findLatestCreateSessionSeed(
@@ -678,17 +684,19 @@ const Sessions = ({
 
       setCreatingSession(true)
       try {
-        const workspaceId = seed.workspaceId
-          ? seed.workspaceId
-          : seed.workspacePath
-            ? (await findOrCreateWorkspace({ body: { path: seed.workspacePath } })).id
-            : undefined
+        const workspace =
+          seed.workspace ??
+          (seed.workspacePath
+            ? ({
+                type: AGENT_WORKSPACE_TYPE.USER,
+                workspaceId: (await findOrCreateWorkspace({ body: { path: seed.workspacePath } })).id
+              } satisfies AgentSessionWorkspaceSource)
+            : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
 
         await onStartTemporarySession?.({
           agentId: seed.agentId,
           name: t('common.unnamed'),
-          ...(seed.workspaceMode ? { workspaceMode: seed.workspaceMode } : {}),
-          ...(workspaceId ? { workspaceId } : {})
+          workspace
         })
 
         setActiveSessionId(null)

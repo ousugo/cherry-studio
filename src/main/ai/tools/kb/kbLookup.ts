@@ -42,13 +42,13 @@ export async function searchKb(query: string, baseIds: string[], allowedIds: str
     logger.warn('Dropped baseIds outside the assistant scope', { rejected, allowedIds })
   }
 
-  const orchestrator = application.get('KnowledgeOrchestrationService')
+  const knowledgeService = application.get('KnowledgeService')
   const perBaseResults = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return await orchestrator.search(baseId, query)
+        return await knowledgeService.search(baseId, query)
       } catch (error) {
-        logger.warn('KnowledgeOrchestrationService.search failed', {
+        logger.warn('KnowledgeService.search failed', {
           baseId,
           query,
           error: error instanceof Error ? error.message : String(error)
@@ -95,8 +95,8 @@ export async function listKb(
   groupId: string | undefined,
   allowedIds: string[]
 ): Promise<KbListOutput> {
-  const orchestrator = application.get('KnowledgeOrchestrationService')
-  const allBases = await orchestrator.listBases()
+  const knowledgeService = application.get('KnowledgeService')
+  const allBases = await knowledgeService.listBases()
   const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
   const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
@@ -104,9 +104,9 @@ export async function listKb(
   // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent
   // listRootItems queries against SQLite + the vector store on every kb_list
   // call. 8 in-flight is enough to keep the agent loop responsive without
-  // overwhelming the orchestrator.
+  // overwhelming the knowledge service.
   const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
-    buildOutputItem(base, orchestrator)
+    buildOutputItem(base, knowledgeService)
   )
 
   const lowered = query?.toLowerCase()
@@ -132,14 +132,14 @@ export function kbListModelOutput(
 
 async function buildOutputItem(
   base: KnowledgeBase,
-  orchestrator: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
+  knowledgeService: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
 ): Promise<KbListOutputItem> {
   let rootItems: KnowledgeItem[] = []
   if (base.status === 'completed') {
     try {
-      rootItems = await orchestrator.listRootItems(base.id)
+      rootItems = await knowledgeService.listRootItems(base.id)
     } catch (error) {
-      logger.warn('KnowledgeOrchestrationService.listRootItems failed', {
+      logger.warn('KnowledgeService.listRootItems failed', {
         baseId: base.id,
         error: error instanceof Error ? error.message : String(error)
       })
@@ -171,7 +171,7 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
         legacyFile?.origin_name?.trim() ||
         legacyFile?.name?.trim() ||
         item.data.source.trim() ||
-        item.data.fileEntryId.trim()
+        item.data.relativePath.trim()
       return value ? value : null
     }
     case 'url':

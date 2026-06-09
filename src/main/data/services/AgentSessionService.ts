@@ -20,6 +20,7 @@ import type {
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -51,23 +52,17 @@ function decodeSessionCursor(raw: string): { key: string; id: string } | null {
 
 type JoinedSessionRow = {
   session: SessionRow
-  workspace: AgentWorkspaceRow | null
+  workspace: AgentWorkspaceRow
 }
-type SessionDeleteTx = Pick<DbOrTx, 'delete'>
-type SessionDeleteWorkflowTx = Pick<DbOrTx, 'delete' | 'select'>
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
-  if (row.session.workspaceId && !row.workspace) {
-    throw DataApiErrorFactory.notFound('Workspace', row.session.workspaceId)
-  }
-
   return {
     id: row.session.id,
     agentId: row.session.agentId,
     name: row.session.name,
     description: row.session.description,
     workspaceId: row.session.workspaceId,
-    workspace: row.workspace ? rowToAgentWorkspace(row.workspace) : null,
+    workspace: rowToAgentWorkspace(row.workspace),
     traceId: row.session.traceId,
     orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
@@ -121,72 +116,88 @@ export class AgentSessionService {
     }))
   }
 
+  async create(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
+    return await this.createSession(dto)
+  }
+
   async createSession(
     dto: CreateAgentSessionDto,
-    options: { id?: string; allowSystemWorkspaceId?: boolean } = {}
+    options: { id?: string; systemWorkspaceId?: string } = {}
   ): Promise<AgentSessionEntity> {
-    if (dto.workspaceMode === 'system' && dto.workspaceId) {
-      throw DataApiErrorFactory.validation({
-        workspaceId: ['must be omitted when workspaceMode is system']
-      })
+    const id = options.id ?? uuidv4()
+    await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, options)),
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
+    )
+    return await this.getById(id)
+  }
+
+  private async createTx(
+    tx: DbOrTx,
+    id: string,
+    dto: CreateAgentSessionDto,
+    options: { systemWorkspaceId?: string } = {}
+  ): Promise<void> {
+    await this.assertAgentExistsTx(tx, dto.agentId)
+
+    let workspaceId: string
+    switch (dto.workspace.type) {
+      case AGENT_WORKSPACE_TYPE.USER: {
+        const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+        if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
+          throw DataApiErrorFactory.invalidOperation(
+            'create session',
+            'workspace source must reference a user workspace'
+          )
+        }
+        workspaceId = workspace.id
+        break
+      }
+      case AGENT_WORKSPACE_TYPE.SYSTEM: {
+        if (options.systemWorkspaceId) {
+          const workspace = await agentWorkspaceService.getByIdTx(tx, options.systemWorkspaceId, {
+            includeSystem: true
+          })
+          if (workspace.type !== AGENT_WORKSPACE_TYPE.SYSTEM) {
+            throw DataApiErrorFactory.invalidOperation(
+              'create session',
+              'system workspace source must reference a system workspace'
+            )
+          }
+          workspaceId = workspace.id
+        } else {
+          workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
+        }
+        break
+      }
+      default: {
+        const exhaustive: never = dto.workspace
+        throw DataApiErrorFactory.invalidOperation(
+          'create session',
+          `unsupported workspace source: ${String(exhaustive)}`
+        )
+      }
     }
 
-    const db = application.get('DbService').getDb()
+    await this.insertTx(tx, {
+      id,
+      agentId: dto.agentId,
+      name: dto.name,
+      description: dto.description,
+      workspaceId
+    })
+  }
 
-    // Verify the agent exists; FK alone gives generic 404 — explicit check returns
-    // a precise resource = 'Agent'.
-    const [agent] = await db
+  private async assertAgentExistsTx(tx: DbOrTx, agentId: string): Promise<void> {
+    const [agent] = await tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
-      .where(eq(agentsTable.id, dto.agentId))
+      .where(eq(agentsTable.id, agentId))
       .limit(1)
-    if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
-
-    const id = options.id ?? uuidv4()
-    const preparedSystemWorkspace =
-      dto.workspaceMode === 'system' ? agentWorkspaceService.prepareSystemAgentWorkspaceForSession(id) : null
-    try {
-      await withSqliteErrors(
-        () =>
-          application.get('DbService').withWriteTx(async (tx) => {
-            let workspaceId = dto.workspaceId
-            if (workspaceId) {
-              await agentWorkspaceService.getByIdTx(tx, workspaceId, { includeSystem: options.allowSystemWorkspaceId })
-            } else if (preparedSystemWorkspace) {
-              workspaceId = (
-                await agentWorkspaceService.createPreparedSystemAgentWorkspaceTx(tx, preparedSystemWorkspace)
-              ).id
-            } else {
-              const [sibling] = await tx
-                .select({ workspaceId: sessionsTable.workspaceId })
-                .from(sessionsTable)
-                .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-                .where(and(eq(sessionsTable.agentId, dto.agentId), eq(agentWorkspaceTable.type, 'user')))
-                .orderBy(desc(sessionsTable.createdAt))
-                .limit(1)
-              workspaceId = sibling?.workspaceId ?? (await agentWorkspaceService.createDefaultAgentWorkspaceTx(tx)).id
-            }
-
-            return insertWithOrderKey(
-              tx,
-              sessionsTable,
-              { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
-              { pkColumn: sessionsTable.id, position: 'first' }
-            )
-          }),
-        {
-          ...defaultHandlersFor('Session', id),
-          foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-        }
-      )
-    } catch (error) {
-      if (preparedSystemWorkspace) {
-        agentWorkspaceService.deletePreparedSystemAgentWorkspaceDirectory(preparedSystemWorkspace)
-      }
-      throw error
-    }
-
-    return await this.getById(id)
+    if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
   async getById(id: string): Promise<AgentSessionEntity> {
@@ -194,19 +205,13 @@ export class AgentSessionService {
     const [row] = await db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
   }
 
-  /**
-   * Lazily mint and persist the session-level OTel trace id — one trace tree per
-   * session (see trace 重塑). Returns the existing id, or generates a valid 32-hex
-   * traceId and persists it. Runs inside `withWriteTx` so concurrent first turns
-   * serialize and converge on a single trace.
-   */
   async ensureTraceId(sessionId: string): Promise<string> {
     return application.get('DbService').withWriteTx(async (tx) => {
       const [row] = await tx
@@ -222,12 +227,6 @@ export class AgentSessionService {
     })
   }
 
-  /**
-   * Resolve an agent's workspace path WITHOUT creating a session. Sessions for the same
-   * agent reuse the most-recent sibling's workspace (see `createSessionTx`), so this returns
-   * that shared path, or null when the agent has no session/workspace yet. Used by heartbeat
-   * scheduling to read `heartbeat.md` before deciding whether a fire warrants a session.
-   */
   async findAgentWorkspacePath(agentId: string): Promise<string | null> {
     const db = application.get('DbService').getDb()
     const [row] = await db
@@ -262,7 +261,7 @@ export class AgentSessionService {
     const rows = await db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(limit + 1)
@@ -292,7 +291,7 @@ export class AgentSessionService {
     const rows = await db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
       .limit(limit)
@@ -301,54 +300,60 @@ export class AgentSessionService {
   }
 
   async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
-    // Workspace binding is insert-only: build an explicit patch so a caller that
-    // bypasses the schema (passing `workspaceId`) can't rebind the workspace.
     const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) patch.name = dto.name
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
     if (Object.keys(patch).length === 0) return this.getById(id)
-    const db = application.get('DbService').getDb()
-    const [row] = await withSqliteErrors(
-      () => db.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning(),
+
+    const row = await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return await this.getById(id)
   }
 
-  async delete(id: string): Promise<void> {
-    let systemWorkspacePath: string | null = null
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      const row = await this.getDeleteWorkflowRowTx(tx, id)
-      if (row.workspace?.type === 'system') {
-        agentWorkspaceService.assertSystemAgentWorkspacePath(row.workspace.path)
-        systemWorkspacePath = row.workspace.path
-        await this.deleteByWorkspaceTx(tx, row.workspace.id)
-        await agentWorkspaceService.deleteByIdTx(tx, row.workspace.id)
-        return
-      }
-
-      await this.deleteByIdTx(tx, id)
-    })
-    if (systemWorkspacePath) {
-      agentWorkspaceService.deleteSystemAgentWorkspaceDirectoryAfterCommit(systemWorkspacePath)
-    }
-  }
-
-  private async getDeleteWorkflowRowTx(tx: SessionDeleteWorkflowTx, id: string): Promise<JoinedSessionRow> {
-    const [row] = await tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(eq(sessionsTable.id, id))
-      .limit(1)
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
+    const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
     return row
   }
 
-  async deleteByIdTx(tx: SessionDeleteTx, id: string): Promise<void> {
+  private async insertTx(
+    tx: DbOrTx,
+    values: {
+      id: string
+      agentId: string
+      name: string
+      description?: string
+      workspaceId: string
+    }
+  ): Promise<void> {
+    await insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
+  }
+
+  async delete(id: string): Promise<void> {
+    await application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+  }
+
+  async deleteTx(tx: DbOrTx, id: string): Promise<void> {
+    const [session] = await tx
+      .select({ id: sessionsTable.id, workspaceId: sessionsTable.workspaceId, workspaceType: agentWorkspaceTable.type })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!session) throw DataApiErrorFactory.notFound('Session', id)
+
+    const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    await pinService.purgeForEntityTx(tx, 'session', id)
+    if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
+      await agentWorkspaceService.deleteByIdTx(tx, session.workspaceId)
+    }
+  }
+
+  async deleteByIdTx(tx: DbOrTx, id: string): Promise<void> {
     await this.deleteByIdsTx(tx, [id], { requireAll: true })
   }
 
@@ -356,13 +361,11 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return { deletedIds: [], deletedCount: 0 }
 
-    const systemWorkspacePaths: string[] = []
-    const dbService = application.get('DbService')
-    const deletedIds = await dbService.withWriteTx(async (tx) => {
+    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
       const rows = await tx
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
-        .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(inArray(sessionsTable.id, uniqueIds))
 
       if (rows.length !== uniqueIds.length) {
@@ -372,40 +375,32 @@ export class AgentSessionService {
       }
 
       const normalSessionIds: string[] = []
-      const systemWorkspacePathById = new Map<string, string>()
+      const systemWorkspaceIds = new Set<string>()
       for (const row of rows) {
-        if (row.workspace?.type === 'system') {
-          agentWorkspaceService.assertSystemAgentWorkspacePath(row.workspace.path)
-          systemWorkspacePathById.set(row.workspace.id, row.workspace.path)
-          continue
+        if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+          systemWorkspaceIds.add(row.workspace.id)
+        } else {
+          normalSessionIds.push(row.session.id)
         }
-
-        normalSessionIds.push(row.session.id)
       }
 
       const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
-      for (const [workspaceId, workspacePath] of systemWorkspacePathById) {
+      for (const workspaceId of systemWorkspaceIds) {
         const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
         for (const id of workspaceSessionIds) {
           deleted.add(id)
         }
         await agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-        systemWorkspacePaths.push(workspacePath)
       }
 
       return Array.from(deleted)
     })
 
-    for (const path of systemWorkspacePaths) {
-      agentWorkspaceService.deleteSystemAgentWorkspaceDirectoryAfterCommit(path)
-    }
-
     logger.info('Deleted sessions', { count: deletedIds.length })
-
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  async deleteByWorkspaceTx(tx: SessionDeleteTx, workspaceId: string): Promise<string[]> {
+  async deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): Promise<string[]> {
     const deletedSessions = await tx
       .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
@@ -416,9 +411,7 @@ export class AgentSessionService {
   }
 
   async deleteByAgentId(agentId: string): Promise<DeleteAgentSessionsResult> {
-    const systemWorkspacePaths: string[] = []
-    const dbService = application.get('DbService')
-    const deletedIds = await dbService.withWriteTx(async (tx) => {
+    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
       const [agent] = await tx
         .select({ id: agentsTable.id })
         .from(agentsTable)
@@ -429,48 +422,36 @@ export class AgentSessionService {
       const rows = await tx
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
-        .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(eq(sessionsTable.agentId, agentId))
 
       const normalSessionIds: string[] = []
-      const systemWorkspacePathById = new Map<string, string>()
+      const systemWorkspaceIds = new Set<string>()
       for (const row of rows) {
-        if (row.workspace?.type === 'system') {
-          agentWorkspaceService.assertSystemAgentWorkspacePath(row.workspace.path)
-          systemWorkspacePathById.set(row.workspace.id, row.workspace.path)
-          continue
+        if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+          systemWorkspaceIds.add(row.workspace.id)
+        } else {
+          normalSessionIds.push(row.session.id)
         }
-
-        normalSessionIds.push(row.session.id)
       }
 
       const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
-      for (const [workspaceId, workspacePath] of systemWorkspacePathById) {
+      for (const workspaceId of systemWorkspaceIds) {
         const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
         for (const id of workspaceSessionIds) {
           deleted.add(id)
         }
         await agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-        systemWorkspacePaths.push(workspacePath)
       }
 
       return Array.from(deleted)
     })
 
-    for (const path of systemWorkspacePaths) {
-      agentWorkspaceService.deleteSystemAgentWorkspaceDirectoryAfterCommit(path)
-    }
-
     logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
-
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private async deleteByIdsTx(
-    tx: SessionDeleteTx,
-    ids: string[],
-    options: { requireAll?: boolean } = {}
-  ): Promise<string[]> {
+  private async deleteByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): Promise<string[]> {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -486,28 +467,31 @@ export class AgentSessionService {
     }
 
     await pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
-
     return deletedIds
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await application.get('DbService').withWriteTx(async (tx) => {
-      const [target] = await tx
-        .select({ id: sessionsTable.id })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.id, id))
-        .limit(1)
-      if (!target) throw DataApiErrorFactory.notFound('Session', id)
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+  }
 
-      await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
-    })
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!target) throw DataApiErrorFactory.notFound('Session', id)
+
+    await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    await application
-      .get('DbService')
-      .withWriteTx((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
+
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    await applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
   }
 
   async exists(id: string): Promise<boolean> {

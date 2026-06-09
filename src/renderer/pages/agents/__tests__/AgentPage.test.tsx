@@ -8,6 +8,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const agentPageMocks = vi.hoisted(() => ({
   activeSessionId: 'session-initial' as string | null,
   agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }],
+  workspace: {
+    id: 'workspace-a',
+    name: 'Workspace A',
+    path: '/workspace/a',
+    type: 'user',
+    orderKey: 'a0',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  },
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
@@ -313,8 +322,8 @@ vi.mock('../AgentSidePanel', () => ({
               agentId: 'agent-a',
               name: 'Session Next',
               description: '',
-              workspaceId: null,
-              workspace: null,
+              workspaceId: agentPageMocks.workspace.id,
+              workspace: agentPageMocks.workspace,
               orderKey: 'next',
               createdAt: '2026-01-02T00:00:00.000Z',
               updatedAt: '2026-01-02T00:00:00.000Z'
@@ -433,8 +442,8 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: 'Draft',
         description: '',
-        workspaceId: null,
-        workspace: null,
+        workspaceId: agentPageMocks.workspace.id,
+        workspace: agentPageMocks.workspace,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -576,8 +585,8 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: 'Draft',
         description: '',
-        workspaceId: null,
-        workspace: null,
+        workspaceId: agentPageMocks.workspace.id,
+        workspace: agentPageMocks.workspace,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -635,8 +644,8 @@ describe('AgentPage', () => {
       id: 'session-1',
       agentId: 'agent-a',
       name: 'Session 1',
-      workspaceId: null,
-      workspace: null
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
 
@@ -663,8 +672,8 @@ describe('AgentPage', () => {
       id: 'session-2',
       agentId: 'agent-a',
       name: 'Session 2',
-      workspaceId: null,
-      workspace: null
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
     }
     activeSessionMocks.isLoading = false
     rerender(<AgentPage />)
@@ -743,8 +752,8 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: 'Draft',
         description: '',
-        workspaceId: null,
-        workspace: null,
+        workspaceId: agentPageMocks.workspace.id,
+        workspace: agentPageMocks.workspace,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -766,6 +775,7 @@ describe('AgentPage', () => {
     await waitFor(() =>
       expect(temporaryConversationMocks.replace).toHaveBeenCalledWith({
         agentId: 'agent-created',
+        workspaceId: agentPageMocks.workspace.id,
         name: 'Draft'
       })
     )
@@ -869,8 +879,8 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: 'Draft',
         description: '',
-        workspaceId: null,
-        workspace: null,
+        workspaceId: agentPageMocks.workspace.id,
+        workspace: agentPageMocks.workspace,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'

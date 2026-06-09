@@ -1,7 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -13,8 +14,9 @@ export type TemporaryConversationPhase = 'idle' | 'leased' | 'persisting' | 'per
 export type TemporaryConversationDefaults = {
   assistantId?: string | null
   agentId?: string | null
+  workspace?: AgentSessionWorkspaceSource
   workspaceId?: string
-  workspaceMode?: WorkspaceMode
+  workspaceMode?: 'system'
   name?: string
 }
 
@@ -89,12 +91,19 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
           throw new Error('agentId is required to start a temporary agent conversation')
         }
 
+        const workspace =
+          merged.workspace ??
+          (merged.workspaceMode === 'system'
+            ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            : merged.workspaceId
+              ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: merged.workspaceId }
+              : { type: AGENT_WORKSPACE_TYPE.SYSTEM })
+
         const session = await dataApiService.post('/temporary/sessions', {
           body: {
             agentId: merged.agentId,
             name: merged.name,
-            workspaceId: merged.workspaceId,
-            workspaceMode: merged.workspaceMode
+            workspace
           }
         })
         next = {
