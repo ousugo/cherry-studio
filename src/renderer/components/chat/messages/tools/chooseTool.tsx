@@ -14,12 +14,12 @@ import { MessageWebSearchToolTitle } from './web-search/MessageWebSearch'
 
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
-const agentTools = Object.values(AgentToolsType)
+const agentTools = new Set<string>(Object.values(AgentToolsType))
 /** cherry-tools that carry short wire names (no `mcp__` prefix) and lack a bespoke card. */
 const CHERRY_AGENT_TOOL_NAMES = new Set(['web_fetch', 'kb_list', 'memory'])
 
-const isAgentTool = (toolName: AgentToolsType) => {
-  if (agentTools.includes(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
+const isAgentTool = (toolName: string) => {
+  if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
     return true
   }
   return false
@@ -63,7 +63,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     }
   }
 
-  if (isAgentTool(toolName as AgentToolsType)) {
+  if (isAgentTool(toolName)) {
     return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
   return null

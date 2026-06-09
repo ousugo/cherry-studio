@@ -33,7 +33,15 @@ const translations: Record<string, string> = {
   'message.tools.activity.repository': 'code repository',
   'message.tools.activity.searching': 'Finding',
   'message.tools.activity.syncing': 'Syncing',
-  'message.tools.activity.viewing': 'Viewing'
+  'message.tools.activity.taskId': 'Task {{id}}',
+  'message.tools.activity.taskList': 'task list',
+  'message.tools.activity.viewing': 'Viewing',
+  'message.tools.labels.taskCreate': 'Create task',
+  'message.tools.labels.taskGet': 'View task',
+  'message.tools.labels.taskList': 'List tasks',
+  'message.tools.labels.taskOutput': 'View task output',
+  'message.tools.labels.taskStop': 'Stop task',
+  'message.tools.labels.taskUpdate': 'Update task'
 }
 
 const t = (key: string, options?: Record<string, string>) => {
@@ -91,6 +99,18 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'node --version' }, true, t)).toEqual({
       label: 'Running command',
       description: 'node command'
+    })
+  })
+
+  it('uses explicit labels for SDK task tools', () => {
+    expect(getReadableToolActivity(AgentToolsType.TaskCreate, { subject: 'Build launch deck' }, false, t)).toEqual({
+      label: 'Create task',
+      description: 'Build launch deck'
+    })
+
+    expect(getReadableToolActivity(AgentToolsType.TaskUpdate, { taskId: '1' }, false, t)).toEqual({
+      label: 'Update task',
+      description: 'Task 1'
     })
   })
 })

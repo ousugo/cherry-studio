@@ -750,6 +750,17 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelector('[data-testid]')).toBeNull()
   })
 
+  it('returns nothing for hidden agent task event data', () => {
+    const { container } = renderParts([
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'task-1', title: 'Inspect task state' }
+      } as unknown as CherryMessagePart
+    ])
+
+    expect(container.querySelector('[data-testid]')).toBeNull()
+  })
+
   // -- source-url / step-start --
   it('skips source-url and step-start parts', () => {
     const { container } = renderParts([

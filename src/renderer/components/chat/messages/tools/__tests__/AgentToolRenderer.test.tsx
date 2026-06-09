@@ -98,6 +98,12 @@ describe('AgentToolRenderer', () => {
     'message.tools.labels.webFetch': 'Web Fetch',
     'message.tools.labels.skill': 'Skill',
     'message.tools.labels.task': 'Task',
+    'message.tools.labels.taskCreate': 'Create task',
+    'message.tools.labels.taskGet': 'View task',
+    'message.tools.labels.taskList': 'List tasks',
+    'message.tools.labels.taskOutput': 'View task output',
+    'message.tools.labels.taskStop': 'Stop task',
+    'message.tools.labels.taskUpdate': 'Update task',
     'message.tools.labels.search': 'Search',
     'message.tools.labels.exitPlanMode': 'ExitPlanMode',
     'message.tools.labels.multiEdit': 'MultiEdit',
@@ -119,6 +125,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.activity.installing': 'Installing',
     'message.tools.activity.projectDependencies': 'project dependencies',
     'message.tools.activity.searching': 'Finding',
+    'message.tools.activity.taskId': 'Task {{id}}',
     'message.tools.activity.taskList': 'task list',
     'message.tools.activity.view': 'View',
     'message.tools.activity.viewing': 'Viewing',
@@ -144,12 +151,19 @@ describe('AgentToolRenderer', () => {
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
     mockMessageListActions.mockReturnValue({})
     mockUseTranslation.mockReturnValue({
-      t: (key: string, options?: string | { count?: number }) => {
+      t: (key: string, options?: string | Record<string, string | number>) => {
         // Handle plural keys with count option
         if (typeof options === 'object' && options.count !== undefined) {
           const pluralKey = options.count === 1 ? `${key}_one` : `${key}_other`
           const template = mockTranslations[pluralKey] ?? mockTranslations[key] ?? key
           return template.replace('{{count}}', String(options.count))
+        }
+        if (typeof options === 'object') {
+          const template = mockTranslations[key] ?? key
+          return Object.entries(options).reduce(
+            (result, [name, value]) => result.replace(`{{${name}}}`, String(value)),
+            template
+          )
         }
         return mockTranslations[key] ?? (typeof options === 'string' ? options : key)
       }
@@ -291,13 +305,47 @@ describe('AgentToolRenderer', () => {
 
       const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Create')).toBeInTheDocument()
+      expect(screen.getByText('Create task')).toBeInTheDocument()
       expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
       expect(container.textContent).not.toContain('task-1')
       expect(screen.queryByTestId('collapse-content-TaskCreate')).toBeNull()
     })
 
-    it('should route Agent through the task renderer', () => {
+    it('should render SDK TaskUpdate with a readable task target', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskUpdate', name: 'TaskUpdate', description: 'Update task', type: 'provider' },
+        status: 'done',
+        arguments: {
+          taskId: '1',
+          status: 'in_progress'
+        },
+        response: 'Task updated'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Update task')).toBeInTheDocument()
+      expect(screen.getByText('Task 1')).toBeInTheDocument()
+    })
+
+    it('should render SDK TaskList rows with task text instead of ordinal ids', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskList', name: 'TaskList', description: 'List tasks', type: 'provider' },
+        status: 'done',
+        arguments: {},
+        response: {
+          tasks: [{ id: '1', subject: 'Build launch deck', status: 'completed', blockedBy: [] }]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-TaskList')).toHaveTextContent('Build launch deck')
+      expect(screen.getByTestId('collapse-content-TaskList')).not.toHaveTextContent(/^1$/)
+    })
+
+    it('should route Agent through the agent renderer', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
         status: 'done',

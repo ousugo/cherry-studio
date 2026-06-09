@@ -396,9 +396,15 @@ export interface ToolOutputMap {
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolOutput
 }
 
-export type ToolRendererFn = (props: {
-  input?: ToolInput | Record<string, unknown> | string
-  output?: ToolOutput | unknown
-}) => ToolDisclosureItem
+export type ToolRendererProps<T extends AgentToolsType = AgentToolsType> = {
+  input?: ToolInputMap[T]
+  output?: ToolOutputMap[T]
+}
 
-export type ToolRenderersMap = Partial<Record<AgentToolsType, ToolRendererFn>>
+export type ToolRendererFn<T extends AgentToolsType = AgentToolsType> = (
+  props: ToolRendererProps<T>
+) => ToolDisclosureItem
+
+export type ToolRenderersMap = Partial<{
+  [T in AgentToolsType]: ToolRendererFn<T>
+}>

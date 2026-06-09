@@ -123,7 +123,7 @@ describe('agent right pane projections', () => {
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(1)
   })
 
-  it('aggregates TodoWrite and TaskList into status tasks', () => {
+  it('ignores legacy TodoWrite and aggregates TaskList into status tasks', () => {
     const parts = [
       toolPart('todos', 'TodoWrite', undefined, 'output-available', {
         todos: [
@@ -146,10 +146,103 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.tasks.map((task) => task.title)).toEqual(['Design pane', 'Wire flow', 'Review context'])
-    expect(status.activeTask?.title).toBe('Wire flow')
+    expect(status.tasks.map((task) => task.title)).toEqual(['Review context'])
+    expect(status.activeTask?.title).toBe('Review context')
+    expect(status.completedTaskCount).toBe(0)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('uses SDK task subject fields instead of ordinal ids', () => {
+    const parts = [
+      toolPart(
+        'task-list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [{ id: '1', subject: '构建瑞士风格 AI 产品发布 PPT', status: 'completed', blockedBy: [] }]
+        }
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([
+      {
+        id: '1',
+        title: '构建瑞士风格 AI 产品发布 PPT',
+        status: 'completed'
+      }
+    ])
     expect(status.completedTaskCount).toBe(1)
-    expect(status.totalTaskCount).toBe(3)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('merges TaskUpdate into a pending TaskCreate by SDK ordinal id before create output arrives', () => {
+    const parts = [
+      toolPart('task-create', 'TaskCreate', undefined, 'input-available', {
+        subject: '制作瑞士风格AI产品发布PPT',
+        description: '基于瑞士国际主义风格制作发布 PPT',
+        activeForm: '制作瑞士风格AI产品发布PPT'
+      }),
+      toolPart('task-update', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '1',
+        status: 'in_progress',
+        activeForm: '制作瑞士风格AI产品发布PPT'
+      })
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([
+      {
+        id: '1',
+        title: '制作瑞士风格AI产品发布PPT',
+        activeText: '制作瑞士风格AI产品发布PPT',
+        status: 'in_progress'
+      }
+    ])
+    expect(status.activeTask?.title).toBe('制作瑞士风格AI产品发布PPT')
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('applies persisted Claude SDK task events to status tasks', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'task-1',
+          status: 'in_progress',
+          title: 'Inspect task state',
+          activeText: 'Inspecting task state'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'task-1',
+          status: 'completed',
+          summary: 'Inspect task state'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([
+      {
+        id: 'task-1',
+        title: 'Inspect task state',
+        activeText: 'Inspecting task state',
+        status: 'completed'
+      }
+    ])
   })
 
   it('projects sub-agents and declared artifacts into status', () => {

@@ -10,13 +10,13 @@ function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | 
   if (typeof input === 'string') return input.trim() || toolName
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
-  const inputRecord = input as Record<string, unknown>
+  const inputEntries = Object.entries(input)
   for (const key of ['description', 'subject', 'title', 'name']) {
-    const value = inputRecord[key]
+    const value = inputEntries.find(([field]) => field === key)?.[1]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
 
-  const prompt = inputRecord.prompt
+  const prompt = inputEntries.find(([field]) => field === 'prompt')?.[1]
   if (typeof prompt === 'string')
     return (
       prompt
@@ -44,7 +44,7 @@ export function AgentToolCallCard({
   toolName?: string
   sourceMessageId?: string
   input?: ToolInput | Record<string, unknown>
-  output?: ToolOutput | unknown
+  output?: ToolOutput
   isStreaming?: boolean
   status?: ToolStatus
   hasError?: boolean
@@ -53,7 +53,7 @@ export function AgentToolCallCard({
 }) {
   const actions = useOptionalMessageListActions()
   const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, (input ?? {}) as Record<string, unknown>, output)
+    ? renderTool(toolName, input ?? {}, output)
     : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId

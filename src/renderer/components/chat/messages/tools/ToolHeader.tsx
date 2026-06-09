@@ -58,13 +58,13 @@ export interface ToolHeaderProps {
 export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
   [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
   [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
-  [AgentToolsType.Task]: { icon: <Bot size={14} />, labelKey: 'message.tools.labels.task' },
-  [AgentToolsType.TaskCreate]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TaskGet]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TaskUpdate]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TaskList]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TaskOutput]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TaskStop]: { icon: <Bot size={14} /> },
+  [AgentToolsType.Task]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.task' },
+  [AgentToolsType.TaskCreate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskCreate' },
+  [AgentToolsType.TaskGet]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskGet' },
+  [AgentToolsType.TaskUpdate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskUpdate' },
+  [AgentToolsType.TaskList]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskList' },
+  [AgentToolsType.TaskOutput]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskOutput' },
+  [AgentToolsType.TaskStop]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskStop' },
   [AgentToolsType.Bash]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' },
   [AgentToolsType.BashOutput]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' },
   [AgentToolsType.Search]: { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' },
@@ -101,6 +101,11 @@ function getStringArg(args: unknown, key: string): string | undefined {
 
 function getStringInput(args: unknown): string | undefined {
   return typeof args === 'string' && args.trim() ? args.trim() : undefined
+}
+
+function getTaskIdTarget(args: unknown, t: Translate): string | undefined {
+  const taskId = getStringArg(args, 'taskId') ?? getStringArg(args, 'task_id') ?? getStringArg(args, 'shell_id')
+  return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
 }
 
 function getFileName(filePath: string | undefined): string | undefined {
@@ -352,17 +357,36 @@ export function getReadableToolActivity(
       }
     case AgentToolsType.TaskCreate:
       return {
-        label: labels.create,
+        label: t('message.tools.labels.taskCreate'),
         description:
           getStringArg(args, 'subject') ?? getStringArg(args, 'description') ?? t('message.tools.activity.taskList')
       }
     case AgentToolsType.TaskGet:
+      return {
+        label: t('message.tools.labels.taskGet'),
+        description: getTaskIdTarget(args, t) ?? t('message.tools.activity.taskList')
+      }
     case AgentToolsType.TaskList:
+      return { label: t('message.tools.labels.taskList'), description: t('message.tools.activity.taskList') }
     case AgentToolsType.TaskOutput:
-      return { label: labels.view, description: t('message.tools.activity.taskList') }
+      return {
+        label: t('message.tools.labels.taskOutput'),
+        description: getTaskIdTarget(args, t) ?? t('message.tools.activity.taskList')
+      }
     case AgentToolsType.TaskUpdate:
+      return {
+        label: t('message.tools.labels.taskUpdate'),
+        description:
+          getStringArg(args, 'subject') ??
+          getStringArg(args, 'description') ??
+          getTaskIdTarget(args, t) ??
+          t('message.tools.activity.taskList')
+      }
     case AgentToolsType.TaskStop:
-      return { label: labels.modify, description: t('message.tools.activity.taskList') }
+      return {
+        label: t('message.tools.labels.taskStop'),
+        description: getTaskIdTarget(args, t) ?? t('message.tools.activity.taskList')
+      }
     case AgentToolsType.Bash:
     case AgentToolsType.BashOutput:
       return getCommandActivity(args, active, t)
@@ -470,7 +494,7 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
-      'inline-flex min-w-0 max-w-[300px] shrink items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary',
+      'inline-flex min-w-0 max-w-full shrink items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary',
       className
     ]
       .filter(Boolean)

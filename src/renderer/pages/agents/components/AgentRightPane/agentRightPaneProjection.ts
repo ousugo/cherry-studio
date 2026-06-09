@@ -1,11 +1,18 @@
-import { AgentToolsType, type TodoItem } from '@renderer/components/chat/messages/tools/agent/types'
+import {
+  getTaskActiveText,
+  getTaskId,
+  getTaskTitle,
+  isTaskRecord,
+  normalizeTaskStatus
+} from '@renderer/components/chat/messages/tools/agent/taskData'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/agent/types'
 import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { CompactPartData } from '@shared/data/types/uiParts'
+import type { AgentTaskEventPartData, CompactPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
@@ -39,7 +46,6 @@ export interface AgentStatusTask {
   title: string
   status: 'pending' | 'in_progress' | 'completed' | 'error'
   activeText?: string
-  source: 'todo' | 'task'
 }
 
 /** A sub-agent spawned via the `Agent`/`Task` tool, derived from the message stream. */
@@ -311,78 +317,71 @@ export function buildAgentToolFlowProjection(
   }
 }
 
-function getLatestTodoItems(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
-): TodoItem[] {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i]
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
-    for (let j = parts.length - 1; j >= 0; j -= 1) {
-      const part = parts[j]
-      if (getToolNameFromPart(part) !== AgentToolsType.TodoWrite) continue
-      const todos = (getToolPartInput(part) as { todos?: unknown }).todos
-      return Array.isArray(todos) ? (todos as TodoItem[]) : []
-    }
-  }
-  return []
-}
-
 function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMessagePart, fallbackId: string): void {
   const toolName = getToolNameFromPart(part)
   const input = getToolPartInput(part)
   const output = getToolPartOutput(part)
 
   if (toolName === AgentToolsType.TaskCreate) {
-    const inputRecord = isRecord(input) ? input : {}
-    const outputRecord = isRecord(output) ? output : {}
-    const outputTask = isRecord(outputRecord.task) ? outputRecord.task : undefined
-    const id = typeof outputTask?.id === 'string' ? outputTask.id : fallbackId
-    const title =
-      (typeof outputTask?.subject === 'string' && outputTask.subject) ||
-      (typeof inputRecord.subject === 'string' && inputRecord.subject) ||
-      id
-    const activeText = typeof inputRecord.activeForm === 'string' ? inputRecord.activeForm : undefined
-    taskMap.set(id, { id, title, activeText, status: 'pending', source: 'task' })
+    const inputRecord = isTaskRecord(input) ? input : {}
+    const outputRecord = isTaskRecord(output) ? output : {}
+    const outputTask = isTaskRecord(outputRecord.task) ? outputRecord.task : undefined
+    const id = (outputTask ? getTaskId(outputTask) : undefined) ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
+    const title = (outputTask ? getTaskTitle(outputTask) : undefined) ?? getTaskTitle(inputRecord, id) ?? id
+    const activeText = getTaskActiveText(inputRecord)
+    taskMap.set(id, { id, title, activeText, status: 'pending' })
     return
   }
 
   if (toolName === AgentToolsType.TaskUpdate) {
-    const inputRecord = isRecord(input) ? input : {}
-    const id =
-      (typeof inputRecord.taskId === 'string' && inputRecord.taskId) ||
-      (isRecord(output) && typeof output.taskId === 'string' ? output.taskId : fallbackId)
+    const inputRecord = isTaskRecord(input) ? input : {}
+    const id = getTaskId(inputRecord) ?? (isTaskRecord(output) ? getTaskId(output) : undefined) ?? fallbackId
     const existing = taskMap.get(id)
-    const status = inputRecord.status === 'deleted' ? 'completed' : inputRecord.status
+    const status = normalizeTaskStatus(inputRecord.status)
     taskMap.set(id, {
       id,
-      title: (typeof inputRecord.subject === 'string' && inputRecord.subject) || existing?.title || id,
-      activeText: (typeof inputRecord.activeForm === 'string' && inputRecord.activeForm) || existing?.activeText,
-      status:
-        status === 'pending' || status === 'in_progress' || status === 'completed'
-          ? status
-          : (existing?.status ?? 'pending'),
-      source: 'task'
+      title: getTaskTitle(inputRecord, existing?.title ?? id) ?? existing?.title ?? id,
+      activeText: getTaskActiveText(inputRecord) ?? existing?.activeText,
+      status: status ?? existing?.status ?? 'pending'
     })
     return
   }
 
   if (toolName === AgentToolsType.TaskList) {
-    const tasks = isRecord(output) && Array.isArray(output.tasks) ? output.tasks : []
+    const tasks = isTaskRecord(output) && Array.isArray(output.tasks) ? output.tasks : []
     for (const task of tasks) {
-      if (!isRecord(task) || typeof task.id !== 'string') continue
-      const status =
-        task.status === 'pending' || task.status === 'in_progress' || task.status === 'completed'
-          ? task.status
-          : 'pending'
-      taskMap.set(task.id, {
-        id: task.id,
-        title: typeof task.subject === 'string' && task.subject ? task.subject : task.id,
-        status,
-        source: 'task'
+      if (!isTaskRecord(task)) continue
+      const id = getTaskId(task)
+      const title = getTaskTitle(task, id)
+      if (!id || !title) continue
+      taskMap.set(id, {
+        id,
+        title,
+        status: normalizeTaskStatus(task.status) ?? 'pending'
       })
     }
   }
+}
+
+function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | undefined {
+  for (let index = 1; index <= taskMap.size + 1; index += 1) {
+    const id = String(index)
+    if (!taskMap.has(id)) return id
+  }
+  return undefined
+}
+
+function applyAgentTaskEvent(taskMap: Map<string, AgentStatusTask>, data: AgentTaskEventPartData): void {
+  const existing = taskMap.get(data.taskId)
+  const title = data.title?.trim() || data.summary?.trim() || data.description?.trim() || existing?.title
+  if (!title) return
+
+  taskMap.set(data.taskId, {
+    id: data.taskId,
+    title,
+    activeText: data.activeText ?? data.description ?? existing?.activeText,
+    status: data.status ?? existing?.status ?? 'pending'
+  })
 }
 
 function isReportArtifactsTool(toolName: string | undefined): boolean {
@@ -423,23 +422,16 @@ export function buildAgentRightPaneStatus(
   let latestCompactSummary: string | undefined
   const toolStats = { total: 0, active: 0, completed: 0, failed: 0 }
 
-  const latestTodos = getLatestTodoItems(messages, partsByMessageId)
-  latestTodos.forEach((todo, index) => {
-    taskMap.set(`todo-${index}`, {
-      id: `todo-${index}`,
-      title: todo.content,
-      activeText: todo.activeForm,
-      status: todo.status,
-      source: 'todo'
-    })
-  })
-
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-compact') {
         const content = (part.data as CompactPartData | undefined)?.content
         if (content?.trim()) latestCompactSummary = content
+      }
+
+      if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
+        applyAgentTaskEvent(taskMap, part.data)
       }
 
       if (!isToolUIPart(part)) return

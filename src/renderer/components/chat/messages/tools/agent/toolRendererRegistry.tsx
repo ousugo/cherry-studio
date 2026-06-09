@@ -1,4 +1,5 @@
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { AgentTool } from './AgentTool'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
 import { EditTool } from './EditTool'
@@ -11,24 +12,21 @@ import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
 import { SkillTool } from './SkillTool'
 import { createStructuredAgentTool } from './StructuredAgentTool'
-import { TaskTool } from './TaskTool'
+import { TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool } from './TaskTool'
 import { ToolSearchTool } from './ToolSearchTool'
-import { AgentToolsType, type TaskToolInput, type TaskToolOutput, type ToolInput, type ToolOutput } from './types'
+import { AgentToolsType, type ToolInputMap, type ToolOutputMap, type ToolRenderersMap } from './types'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
 
-export const toolRenderers = {
-  [AgentToolsType.Agent]: ({ input, output }: { input?: unknown; output?: unknown }) =>
-    TaskTool({
-      input: input as TaskToolInput,
-      output: output as TaskToolOutput,
-      toolName: AgentToolsType.Agent
-    }),
+const AGENT_TOOL_VALUES = new Set<string>(Object.values(AgentToolsType))
+
+export const toolRenderers: ToolRenderersMap = {
+  [AgentToolsType.Agent]: AgentTool,
   [AgentToolsType.Read]: ReadTool,
-  [AgentToolsType.Task]: TaskTool,
-  [AgentToolsType.TaskOutput]: createStructuredAgentTool(AgentToolsType.TaskOutput),
-  [AgentToolsType.TaskStop]: createStructuredAgentTool(AgentToolsType.TaskStop),
+  [AgentToolsType.Task]: createStructuredAgentTool(AgentToolsType.Task),
+  [AgentToolsType.TaskOutput]: TaskOutputTool,
+  [AgentToolsType.TaskStop]: TaskStopTool,
   [AgentToolsType.Bash]: BashTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
@@ -45,10 +43,10 @@ export const toolRenderers = {
   [AgentToolsType.ToolSearch]: ToolSearchTool,
   [AgentToolsType.ListMcpResources]: createStructuredAgentTool(AgentToolsType.ListMcpResources),
   [AgentToolsType.ReadMcpResource]: createStructuredAgentTool(AgentToolsType.ReadMcpResource),
-  [AgentToolsType.TaskCreate]: createStructuredAgentTool(AgentToolsType.TaskCreate),
-  [AgentToolsType.TaskGet]: createStructuredAgentTool(AgentToolsType.TaskGet),
-  [AgentToolsType.TaskUpdate]: createStructuredAgentTool(AgentToolsType.TaskUpdate),
-  [AgentToolsType.TaskList]: createStructuredAgentTool(AgentToolsType.TaskList),
+  [AgentToolsType.TaskCreate]: TaskCreateTool,
+  [AgentToolsType.TaskGet]: TaskGetTool,
+  [AgentToolsType.TaskUpdate]: TaskUpdateTool,
+  [AgentToolsType.TaskList]: TaskListTool,
   [AgentToolsType.SendMessage]: createStructuredAgentTool(AgentToolsType.SendMessage),
   [AgentToolsType.TeamCreate]: createStructuredAgentTool(AgentToolsType.TeamCreate),
   [AgentToolsType.TeamDelete]: createStructuredAgentTool(AgentToolsType.TeamDelete),
@@ -56,15 +54,16 @@ export const toolRenderers = {
   [AgentToolsType.ExitWorktree]: createStructuredAgentTool(AgentToolsType.ExitWorktree)
 }
 
-export function renderTool(
-  toolName: AgentToolsType,
-  input: ToolInput | Record<string, unknown> | string | undefined,
-  output?: ToolOutput | unknown
+export function renderTool<T extends AgentToolsType>(
+  toolName: T,
+  input?: ToolInputMap[T],
+  output?: ToolOutputMap[T]
 ): ToolDisclosureItem {
-  const renderer = toolRenderers[toolName] as (props: { input?: unknown; output?: unknown }) => ToolDisclosureItem
+  const renderer = toolRenderers[toolName]
+  if (!renderer) return { key: toolName, label: null }
   return renderer({ input, output })
 }
 
 export function isValidAgentToolsType(toolName: unknown): toolName is AgentToolsType {
-  return typeof toolName === 'string' && Object.values(AgentToolsType).includes(toolName as AgentToolsType)
+  return typeof toolName === 'string' && AGENT_TOOL_VALUES.has(toolName)
 }

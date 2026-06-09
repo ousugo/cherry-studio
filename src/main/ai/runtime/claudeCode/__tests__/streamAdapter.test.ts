@@ -117,23 +117,99 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts).toEqual([])
   })
 
-  it('acknowledges known control system messages without unhandled debug logs', () => {
+  it('acknowledges status control system messages without emitting chunks or unhandled debug logs', () => {
     const { adapter, parts } = createAdapter()
 
-    for (const subtype of ['status', 'thinking_tokens', 'thinking_token']) {
-      const result = adapter.handleMessage({
-        type: 'system',
-        subtype,
-        session_id: 'sdk-control',
-        uuid: crypto.randomUUID(),
-        status: subtype === 'status' ? 'requesting' : undefined,
-        estimated_tokens: 100,
-        estimated_tokens_delta: 5
-      } as any)
-      expect(result).toEqual({ type: 'continue' })
-    }
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID(),
+      status: 'requesting'
+    } as any)
 
+    expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(
+      expect.stringContaining('Unhandled claude system message subtype')
+    )
+  })
+
+  it('maps thinking token estimates to message metadata', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'thinking_tokens',
+      session_id: 'sdk-thinking',
+      uuid: crypto.randomUUID(),
+      estimated_tokens: 100,
+      estimated_tokens_delta: 5
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([
+      {
+        type: 'message-metadata',
+        messageMetadata: { thoughtsTokens: 100 }
+      }
+    ])
+  })
+
+  it('maps SDK task system messages to hidden task event data parts', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_started',
+      session_id: 'sdk-task',
+      uuid: 'task-started-uuid',
+      task_id: 'task-1',
+      tool_use_id: 'tool-1',
+      description: 'Build launch deck',
+      subagent_type: 'general-purpose',
+      task_type: 'local_workflow',
+      workflow_name: 'deck',
+      prompt: 'Create the slides'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'sdk-task',
+      uuid: 'task-finished-uuid',
+      task_id: 'task-1',
+      status: 'completed',
+      output_file: '/tmp/task.out',
+      summary: 'Build launch deck',
+      usage: { total_tokens: 120, tool_uses: 3, duration_ms: 4500 }
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-1-started-task-started-uuid',
+        data: expect.objectContaining({
+          event: 'started',
+          taskId: 'task-1',
+          toolUseId: 'tool-1',
+          status: 'in_progress',
+          title: 'Build launch deck',
+          subagentType: 'general-purpose'
+        })
+      },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-1-notification-task-finished-uuid',
+        data: expect.objectContaining({
+          event: 'notification',
+          taskId: 'task-1',
+          status: 'completed',
+          title: 'Build launch deck',
+          outputFile: '/tmp/task.out',
+          usage: { totalTokens: 120, toolUses: 3, durationMs: 4500 }
+        })
+      }
+    ])
     expect(loggerMocks.debug).not.toHaveBeenCalledWith(
       expect.stringContaining('Unhandled claude system message subtype')
     )

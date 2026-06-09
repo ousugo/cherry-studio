@@ -475,7 +475,7 @@ function AgentAgentRightPaneStatusPanel() {
           <div className="space-y-1.5">
             {status.tasks.map((task) => (
               <div
-                key={`${task.source}-${task.id}`}
+                key={task.id}
                 className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
                 <TaskStatusIcon status={task.status} />
                 <div className="min-w-0 flex-1">
@@ -675,7 +675,7 @@ function AgentRightPaneHighlights({
           compact={compact}>
           <ul className="space-y-1">
             {tasks.map((task) => (
-              <li key={`${task.source}-${task.id}`} className="flex min-w-0 items-start gap-2">
+              <li key={task.id} className="flex min-w-0 items-start gap-2">
                 <TaskStatusIcon status={task.status} />
                 <span
                   className={cn(
