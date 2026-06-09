@@ -160,4 +160,32 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.resetOverlay).toHaveBeenCalled()
     expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
+
+  it('merges live assistant metadata into displayed session messages', () => {
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [
+        {
+          ...assistantMessage,
+          metadata: {
+            ...assistantMessage.metadata,
+            thoughtsTokens: 256
+          }
+        } as CherryUIMessage
+      ],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        activeAgent: undefined,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+  })
 })

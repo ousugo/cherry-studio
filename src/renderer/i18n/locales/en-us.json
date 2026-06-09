@@ -1741,6 +1741,7 @@
       "title": "Suggested Questions"
     },
     "thinking": "Thinking ({{seconds}} seconds)",
+    "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Auto Rename",
       "clear": {

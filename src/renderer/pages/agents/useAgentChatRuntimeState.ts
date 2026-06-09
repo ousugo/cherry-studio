@@ -31,6 +31,35 @@ export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 
+// FIXME: perf problem maybe
+function mergeLiveAgentMessages(baseMessages: CherryUIMessage[], liveMessages: CherryUIMessage[]): CherryUIMessage[] {
+  const order: string[] = []
+  const byId = new Map<string, CherryUIMessage>()
+
+  for (const messages of [baseMessages, liveMessages]) {
+    for (const message of messages) {
+      const existing = byId.get(message.id)
+      if (!existing) {
+        order.push(message.id)
+        byId.set(message.id, message)
+        continue
+      }
+
+      const metadata = existing.metadata || message.metadata ? { ...existing.metadata, ...message.metadata } : undefined
+      byId.set(message.id, {
+        ...existing,
+        ...message,
+        ...(metadata && { metadata })
+      })
+    }
+  }
+
+  return order.flatMap((id) => {
+    const message = byId.get(id)
+    return message ? [message] : []
+  })
+}
+
 export interface AgentChatRuntimeState {
   sessionId: string
   uiMessages: CherryUIMessage[]
@@ -134,6 +163,7 @@ export function useAgentChatRuntimeState({
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
   const {
     overlay,
+    liveAssistants,
     disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
@@ -177,6 +207,11 @@ export function useAgentChatRuntimeState({
     return next
   }, [basePartsMap, overlay])
 
+  const displayMessages = useMemo(
+    () => mergeLiveAgentMessages(uiMessages, liveAssistants),
+    [liveAssistants, uiMessages]
+  )
+
   const respondToolApproval = useCallback(
     async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
       const approvalId = match.approvalId
@@ -210,7 +245,7 @@ export function useAgentChatRuntimeState({
 
   return {
     sessionId,
-    uiMessages,
+    uiMessages: displayMessages,
     partsByMessageId,
     isLoading,
     hasOlder,

@@ -336,6 +336,7 @@ function renderPart(
           content={reasoningPart.text || ''}
           isStreaming={reasoningPart.state === 'streaming'}
           thinkingMs={thinkingMs}
+          thoughtsTokens={message.stats?.thoughtsTokens}
         />
       )
     }

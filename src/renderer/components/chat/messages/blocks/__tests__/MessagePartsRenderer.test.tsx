@@ -155,12 +155,15 @@ vi.mock('../ErrorBlock', () => ({
 
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
-  default: function ThinkingBlockMock({ content, thinkingMs }: any) {
+  default: function ThinkingBlockMock({ content, thinkingMs, thoughtsTokens }: any) {
     React.useEffect(() => {
       mockThinkingBlockMounted()
     }, [])
     return (
-      <div data-testid="mock-thinking-block" data-thinking-ms={String(thinkingMs)}>
+      <div
+        data-testid="mock-thinking-block"
+        data-thinking-ms={String(thinkingMs)}
+        data-thoughts-tokens={String(thoughtsTokens ?? '')}>
         {content}
       </div>
     )
@@ -586,6 +589,15 @@ describe('MessagePartsRenderer', () => {
     const wrappers = thinkingBlocks.map((block) => block.closest('.block-wrapper'))
     expect(wrappers[0]).toHaveClass('message-thought-wrapper')
     expect(wrappers[1]).toHaveClass('message-thought-wrapper')
+  })
+
+  it('passes message reasoning token estimates to reasoning blocks', () => {
+    renderParts(
+      [{ type: 'reasoning', text: 'live thought', state: 'streaming' } as unknown as CherryMessagePart],
+      msg({ status: 'pending', stats: { thoughtsTokens: 1234 } })
+    )
+
+    expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-thoughts-tokens', '1234')
   })
 
   it('keeps reasoning blocks mounted when a pending message settles', () => {

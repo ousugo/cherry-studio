@@ -1741,6 +1741,7 @@
       "title": "建议的问题"
     },
     "thinking": "思考中（用时 {{seconds}} 秒）",
+    "thinking_tokens": "约 {{tokens}} tokens",
     "topics": {
       "auto_rename": "生成对话名",
       "clear": {

@@ -20,9 +20,11 @@ interface Props {
   isStreaming: boolean
   /** Thinking duration in milliseconds */
   thinkingMs: number
+  /** Live estimated reasoning tokens for the current thinking block. */
+  thoughtsTokens?: number
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens }) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -82,7 +84,13 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
         <ThinkingEffect
           expanded={isExpanded}
           isThinking={isThinking}
-          thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
+          thinkingTimeText={
+            <ThinkingTimeSeconds
+              blockThinkingTime={thinkingMs}
+              isThinking={isThinking}
+              thoughtsTokens={thoughtsTokens}
+            />
+          }
           trailing={
             copyText ? (
               <Tooltip content={t('common.copy')} delay={800}>
@@ -120,9 +128,19 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
 }
 
 const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+const normalizeThoughtsTokens = (value?: number) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
 
 const ThinkingTimeSeconds = memo(
-  ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
+  ({
+    blockThinkingTime,
+    isThinking,
+    thoughtsTokens
+  }: {
+    blockThinkingTime: number
+    isThinking: boolean
+    thoughtsTokens?: number
+  }) => {
     const { t } = useTranslation()
     const [displayTime, setDisplayTime] = useState(isThinking ? 0 : normalizeThinkingTime(blockThinkingTime))
 
@@ -159,13 +177,20 @@ const ThinkingTimeSeconds = memo(
       return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
     }, [displayTime])
 
-    return isThinking
+    const statusText = isThinking
       ? t('chat.thinking', {
           seconds: thinkingTimeSeconds
         })
       : t('chat.deeply_thought', {
           seconds: thinkingTimeSeconds
         })
+
+    const normalizedTokens = normalizeThoughtsTokens(thoughtsTokens)
+    if (!normalizedTokens) return statusText
+
+    return `${statusText} · ${t('chat.thinking_tokens', {
+      tokens: new Intl.NumberFormat().format(normalizedTokens)
+    })}`
   }
 )
 

@@ -22,6 +22,7 @@ type ThinkingBlockFixture = {
   content: string
   status: 'success' | 'streaming'
   thinkingMs: number
+  thoughtsTokens?: number
 }
 
 vi.mock('../../MessageListProvider', () => ({
@@ -84,6 +85,9 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.deeply_thought' && params?.seconds) {
           return `Thought for ${params.seconds}s`
         }
+        if (key === 'chat.thinking_tokens' && params?.tokens) {
+          return `~${params.tokens} tokens`
+        }
         if (key === 'common.copy') return 'Copy'
         if (key === 'message.copied') return 'Copied'
         if (key === 'common.copy_failed') return 'Copy failed'
@@ -117,6 +121,7 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         thinkingMs={block.thinkingMs}
+        thoughtsTokens={block.thoughtsTokens}
       />
     )
   }
@@ -167,6 +172,7 @@ describe('ThinkingBlock', () => {
           content={completedBlock.content}
           isStreaming={completedBlock.status === 'streaming'}
           thinkingMs={completedBlock.thinkingMs}
+          thoughtsTokens={completedBlock.thoughtsTokens}
         />
       )
 
@@ -197,6 +203,29 @@ describe('ThinkingBlock', () => {
 
       const activeTimeText = getThinkingTimeText()
       expect(activeTimeText).toHaveTextContent('Thinking...')
+    })
+
+    it('should display live estimated thinking tokens when available', () => {
+      const thinkingBlock = createThinkingBlock({
+        status: 'streaming',
+        thoughtsTokens: 1234
+      })
+      const { rerender } = renderThinkingBlock(thinkingBlock)
+
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking...')
+      expect(getThinkingTimeText()).toHaveTextContent('~1,234 tokens')
+
+      rerender(
+        <ThinkingBlock
+          id={thinkingBlock.id}
+          content={thinkingBlock.content}
+          isStreaming
+          thinkingMs={thinkingBlock.thinkingMs}
+          thoughtsTokens={2048}
+        />
+      )
+
+      expect(getThinkingTimeText()).toHaveTextContent('~2,048 tokens')
     })
 
     it('should handle extreme thinking times correctly', () => {

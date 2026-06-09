@@ -203,6 +203,7 @@ export function useChatRuntimeState({
   })
 
   const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
+  const displayMessages = useMemo(() => mergeBranchLiveMessages(messages, liveAssistants), [messages, liveAssistants])
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -380,7 +381,7 @@ export function useChatRuntimeState({
   )
 
   return {
-    messages,
+    messages: displayMessages,
     partsByMessageId,
     shouldRenderHomeComposer,
     chatWriteActions,

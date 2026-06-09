@@ -1,6 +1,6 @@
 import type { Model } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -42,6 +42,16 @@ export function modelToSnapshot(model: Model | SharedModel | undefined): ModelSn
   }
 }
 
+function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats | undefined {
+  if (!metadata) return undefined
+  const stats: MessageStats = { ...metadata.stats }
+  if (metadata.totalTokens !== undefined) stats.totalTokens = metadata.totalTokens
+  if (metadata.promptTokens !== undefined) stats.promptTokens = metadata.promptTokens
+  if (metadata.completionTokens !== undefined) stats.completionTokens = metadata.completionTokens
+  if (metadata.thoughtsTokens !== undefined) stats.thoughtsTokens = metadata.thoughtsTokens
+  return Object.keys(stats).length > 0 ? stats : undefined
+}
+
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
   const modelSnapshot = metadata.modelSnapshot ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
@@ -63,7 +73,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     modelSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
-    stats: metadata.stats
+    stats: statsFromMetadata(message.metadata)
   }
 }
 

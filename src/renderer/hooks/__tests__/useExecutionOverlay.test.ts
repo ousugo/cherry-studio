@@ -167,6 +167,20 @@ describe('useExecutionOverlay', () => {
     expect(textOf(priorParts)).toBe('PRIOR ')
   })
 
+  it('keeps live message metadata from message-metadata chunks', async () => {
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
+
+    fake.emit(A, {
+      type: 'message-metadata',
+      messageMetadata: { thoughtsTokens: 321 }
+    } as CherryUIMessageChunk)
+
+    await waitFor(() => {
+      expect(result.current.liveAssistants.at(-1)?.metadata?.thoughtsTokens).toBe(321)
+    })
+  })
+
   it('N4 — terminal classification drives onFinish (success / paused / error)', async () => {
     const onFinish = vi.fn()
     const ui = [asst('anchor-a')]
