@@ -740,4 +740,14 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(108))
   })
+
+  it('honors a measured zero available list height', async () => {
+    mockAvailablePopoverHeight.value = 52
+    mockSelectorChromeHeight(52)
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(0))
+  })
 })

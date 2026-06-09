@@ -293,7 +293,7 @@ describe('SelectorShell', () => {
     expect(screen.queryByTestId('lazy-body')).not.toBeInTheDocument()
   })
 
-  it('stabilizes bottom lazy-kept placement before available height is measured', () => {
+  it('does not expose a lazy-kept placement placeholder as available height', () => {
     render(
       <SelectorShell
         trigger={<button type="button">Open</button>}
@@ -305,7 +305,7 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    expect(screen.getByTestId('available-height')).toHaveTextContent('0')
+    expect(screen.getByTestId('available-height')).toHaveTextContent('undefined')
   })
 
   it('does not rebind measurement listeners when config object identities change', async () => {

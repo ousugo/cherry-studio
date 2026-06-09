@@ -739,9 +739,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         data-testid="model-selector-content">
         {({ availableListHeight }) => {
           const visibleListHeight =
-            availableListHeight === undefined || availableListHeight === 0
-              ? initialListHeight
-              : Math.min(listHeight, Math.max(ITEM_HEIGHT, availableListHeight))
+            availableListHeight === undefined ? initialListHeight : Math.min(listHeight, availableListHeight)
 
           return listItems.length > 0 ? (
             <div className="py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>

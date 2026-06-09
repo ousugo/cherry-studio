@@ -246,6 +246,28 @@ describe('ResourceSelectorShell', () => {
       await waitFor(() => expect(content).toHaveAttribute('hidden'))
       expect(document.querySelector('[data-selector-shell-content]')).toBe(content)
     })
+
+    it('uses default list bounds before lazy-kept available height is measured', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+          mountStrategy="lazy-keep"
+        />
+      )
+
+      openPopover()
+
+      expect(screen.getByRole('listbox')).toHaveStyle({
+        maxHeight: '360px',
+        minHeight: '144px'
+      })
+    })
   })
 
   describe('value adapter', () => {

@@ -329,9 +329,7 @@ export function SelectorShell({
     }
   }, [])
 
-  const shouldStabilizeInitialPlacement = mountStrategy === 'lazy-keep' && open && side === 'bottom'
-  const effectiveAvailableListHeight = availableListHeight ?? (shouldStabilizeInitialPlacement ? 0 : undefined)
-  const layout = useMemo(() => ({ availableListHeight: effectiveAvailableListHeight }), [effectiveAvailableListHeight])
+  const layout = useMemo(() => ({ availableListHeight }), [availableListHeight])
   const shouldRenderContent = mountStrategy === 'lazy-keep' ? open || hasOpened : true
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
   const resolvedPortalContainer = portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
