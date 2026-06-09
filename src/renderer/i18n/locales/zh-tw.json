@@ -5357,14 +5357,6 @@
       "agentTodoList": {
         "title": "Agent 任務列表"
       },
-      "askUserQuestion": {
-        "currentRequest": "[to be translated]:Current request",
-        "description": "[to be translated]:Preview the bottom AskUserQuestion composer with sample pending questions.",
-        "latestResponse": "[to be translated]:Latest response",
-        "noResponse": "[to be translated]:No response submitted yet",
-        "resetPreview": "[to be translated]:Reset preview",
-        "title": "[to be translated]:Ask User Question"
-      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "切換 props 預覽元件行為",

@@ -5357,14 +5357,6 @@
       "agentTodoList": {
         "title": "Agent 任务列表"
       },
-      "askUserQuestion": {
-        "currentRequest": "当前请求",
-        "description": "用示例 pending questions 预览底部 AskUserQuestion composer。",
-        "latestResponse": "最近一次提交",
-        "noResponse": "尚未提交",
-        "resetPreview": "重置预览",
-        "title": "AskUserQuestion 提问组件"
-      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "调整 props 预览组件行为",

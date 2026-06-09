@@ -5293,14 +5293,6 @@
       "agentTodoList": {
         "title": "Список задач агента"
       },
-      "askUserQuestion": {
-        "currentRequest": "[to be translated]:Current request",
-        "description": "[to be translated]:Preview the bottom AskUserQuestion composer with sample pending questions.",
-        "latestResponse": "[to be translated]:Latest response",
-        "noResponse": "[to be translated]:No response submitted yet",
-        "resetPreview": "[to be translated]:Reset preview",
-        "title": "[to be translated]:Ask User Question"
-      },
       "assistantSelector": {
         "clearSelection": "Прозрачный",
         "configDescription": "Переключайте свойства, чтобы просмотреть поведение компонента",

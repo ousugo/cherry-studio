@@ -5357,14 +5357,6 @@
       "agentTodoList": {
         "title": "Agent Todo List"
       },
-      "askUserQuestion": {
-        "currentRequest": "Current request",
-        "description": "Preview the bottom AskUserQuestion composer with sample pending questions.",
-        "latestResponse": "Latest response",
-        "noResponse": "No response submitted yet",
-        "resetPreview": "Reset preview",
-        "title": "Ask User Question"
-      },
       "assistantSelector": {
         "clearSelection": "Clear",
         "configDescription": "Toggle props to preview component behavior",
