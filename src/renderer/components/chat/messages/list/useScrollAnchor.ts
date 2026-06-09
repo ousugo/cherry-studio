@@ -12,15 +12,15 @@
  *     always the last item; data indices are unaffected)
  *
  * The spacer height is maintained so the invariant `anchorOffset +
- * viewportHeight <= scrollSize` holds — as the assistant streams content
- * below the user message, the spacer shrinks 1:1 with the natural growth
- * so the user's visual position never drifts.
+ * viewportHeight <= scrollSize` holds. While pinned, the spacer is
+ * monotonic: it grows only when the natural scroll range is not enough to
+ * keep the user message at the top. It is not shrunk per streaming chunk,
+ * because changing scrollHeight under the viewport can visibly jitter.
  *
  * Release triggers:
  *   - User scrolls more than `RELEASE_TOLERANCE_PX` away from the anchor
  *   - Natural content has grown enough that the anchor is satisfied and
- *     the spacer would be 0 anyway (auto-release lets auto-stick take
- *     over for long responses that overflow the viewport)
+ *     the spacer can be removed without clamping the current scrollTop
  *   - External caller invokes `release()`
  */
 
@@ -39,6 +39,7 @@ export interface ScrollAnchorInputs {
   scrollerRef: RefObject<HTMLElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
   smoothScroll: SmoothScrollController
+  canRelease(): boolean
 }
 
 export interface ScrollAnchor {
@@ -64,7 +65,12 @@ export interface ScrollAnchor {
   onUserScroll(offset: number): void
 }
 
-export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: ScrollAnchorInputs): ScrollAnchor {
+export function useScrollAnchor({
+  scrollerRef,
+  vlistHandleRef,
+  smoothScroll,
+  canRelease
+}: ScrollAnchorInputs): ScrollAnchor {
   // dataIndex of the pinned item, or null if not pinned.
   const anchorIndexRef = useRef<number | null>(null)
   // Last known offset of the anchored item — used to detect user scroll-away.
@@ -74,6 +80,16 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
   // item is identical to its data index. The orchestrator passes us the
   // wrapped scrollToIndex via vlistHandleRef.
 
+  const getNaturalScrollableSize = useCallback((): number => {
+    const el = scrollerRef.current
+    const handle = vlistHandleRef.current
+    if (!el || !handle) return 0
+    // `virtua`'s handle.scrollSize only covers its measured item table.
+    // The real scroller also includes CSS padding from the composer inset,
+    // so use DOM scrollHeight when deciding how much spacer is still needed.
+    return Math.max(0, el.scrollHeight - spacerHeight)
+  }, [scrollerRef, spacerHeight, vlistHandleRef])
+
   const computeNeededSpacer = useCallback((): number => {
     const el = scrollerRef.current
     const handle = vlistHandleRef.current
@@ -81,11 +97,9 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
     if (!el || !handle || dataIdx == null) return 0
     const anchorOffset = handle.getItemOffset(dataIdx)
     const viewport = el.clientHeight
-    // scrollSize from virtua INCLUDES the spacer (spacer is one of its items).
-    // Subtract current spacer to get "natural" size; then compute needed.
-    const natural = handle.scrollSize - spacerHeight
+    const natural = getNaturalScrollableSize()
     return Math.max(0, anchorOffset + viewport - natural)
-  }, [scrollerRef, spacerHeight, vlistHandleRef])
+  }, [getNaturalScrollableSize, scrollerRef, vlistHandleRef])
 
   const pinTo = useCallback(
     (dataIndex: number) => {
@@ -93,25 +107,26 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
       const handle = vlistHandleRef.current
       if (!el || !handle) return
       anchorIndexRef.current = dataIndex
+      anchorOffsetRef.current = handle.getItemOffset(dataIndex)
       // The user message has just been rendered; virtua may not have measured
       // it yet, but its index into the WRAPPED items is still dataIndex
       // (spacer goes at the end). Use scrollToIndex — virtua handles the
       // measurement race internally and re-positions on next frame if needed.
-      // We seed spacerHeight to the full viewport so scrollSize is large
-      // enough on the very first scroll attempt, even before measurement.
-      const viewport = el.clientHeight
-      setSpacerHeight(viewport)
+      const needed = computeNeededSpacer()
+      setSpacerHeight(Math.max(el.clientHeight, needed))
       // Schedule the scroll for after the spacer-applying render commits.
-      // RAF is enough because virtua's scrollToIndex internally calls
-      // scrollTo after layout once the data array has updated.
+      // RAF is enough because virtua's scrollToIndex resolves the item offset
+      // after the spacer-applying render has committed. Keep this instant:
+      // browser smooth-scroll emits intermediate scroll events that look like
+      // the user leaving the anchor and can release the pin.
       requestAnimationFrame(() => {
         const h = vlistHandleRef.current
         if (!h) return
-        h.scrollToIndex(dataIndex, { align: 'start', smooth: true })
+        h.scrollToIndex(dataIndex, { align: 'start' })
         anchorOffsetRef.current = h.getItemOffset(dataIndex)
       })
     },
-    [scrollerRef, vlistHandleRef]
+    [computeNeededSpacer, scrollerRef, vlistHandleRef]
   )
 
   const release = useCallback(() => {
@@ -139,15 +154,11 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
         return
       }
       const needed = computeNeededSpacer()
-      if (needed !== spacerHeight) {
-        setSpacerHeight(needed)
-      }
-      // Auto-release once natural content has filled enough that the anchor
-      // is permanently reachable without our help AND the assistant content
-      // has overflowed past the viewport (so auto-stick can take over for
-      // following the stream). The spacer hitting 0 is the natural signal.
-      if (needed === 0) {
+      if (needed === 0 && canRelease()) {
+        if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
+      } else if (needed > spacerHeight) {
+        setSpacerHeight(needed)
       }
       return
     }
@@ -159,13 +170,13 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
       // Since we don't have prev natural recorded here, do simple decay:
       // recompute "needed if we were still pinned" using the last known
       // anchor offset; if smaller, shrink toward 0.
-      const naturalAvailable = handle.scrollSize - spacerHeight
+      const naturalAvailable = getNaturalScrollableSize()
       const wouldBeNeeded = Math.max(0, anchorOffsetRef.current + el.clientHeight - naturalAvailable)
       if (wouldBeNeeded < spacerHeight) {
         setSpacerHeight(wouldBeNeeded)
       }
     }
-  }, [computeNeededSpacer, scrollerRef, spacerHeight, vlistHandleRef])
+  }, [canRelease, computeNeededSpacer, getNaturalScrollableSize, scrollerRef, spacerHeight, vlistHandleRef])
 
   const onUserScroll = useCallback(
     (offset: number) => {

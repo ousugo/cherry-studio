@@ -250,7 +250,6 @@ export function useHomeMessageListProviderValue({
       flushPendingTopicImageActions(runtime)
 
       const unsubscribes = [
-        EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
         EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
           consumeTopicImageAction(runtime, 'copy', data)
         ),
@@ -428,13 +427,31 @@ export function useHomeMessageListProviderValue({
           logger.error('Message translation failed', error as Error)
           window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
+        // Clean up the empty data-translation part inserted by
+        // createTranslationUpdater so BeatLoader doesn't spin forever.
+        // Only clean up when this translation is still the current one —
+        // a superseding call will have set a new controller by now and
+        // owns the current data-translation part.
+        if (translationAbortControllersRef.current.get(messageId) === controller) {
+          const currentParts = partsByMessageIdRef.current[messageId]
+          if (currentParts) {
+            const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+            if (baseParts.length !== currentParts.length) {
+              void requireChatWrite('removeMessageTranslation')
+                .editMessage(messageId, baseParts)
+                .catch((cleanupError) => {
+                  logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
+                })
+            }
+          }
+        }
       } finally {
         if (translationAbortControllersRef.current.get(messageId) === controller) {
           translationAbortControllersRef.current.delete(messageId)
         }
       }
     },
-    [createTranslationUpdater, t]
+    [createTranslationUpdater, requireChatWrite, t]
   )
 
   const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
@@ -442,6 +459,17 @@ export function useHomeMessageListProviderValue({
       translationAbortControllersRef.current.get(messageId)?.abort()
     },
     []
+  )
+
+  const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
+    async (messageId) => {
+      const currentParts = partsByMessageIdRef.current[messageId]
+      if (!currentParts) return
+      const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+      if (baseParts.length === currentParts.length) return
+      await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
+    },
+    [requireChatWrite]
   )
 
   const getMessageSiblings = useCallback(
@@ -646,6 +674,7 @@ export function useHomeMessageListProviderValue({
       regenerateMessage,
       translateMessage,
       abortMessageTranslation,
+      removeMessageTranslation,
       renderRegenerateModelPicker
     }),
     [
@@ -678,6 +707,7 @@ export function useHomeMessageListProviderValue({
       startNewContext,
       selectionController.actions,
       translateMessage,
+      removeMessageTranslation,
       updateRenderConfig
     ]
   )

@@ -1209,6 +1209,32 @@ describe('ResourceList', () => {
     ).toBeNull()
   })
 
+  it('renders a chevron that reflects the group header collapsed state', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS} groupBy={(item) => ({ id: item.kind, label: item.kind })}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionButton = screen.getByRole('button', { name: 'session' })
+    const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
+    expect(sessionChevron).not.toBeNull()
+    expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
+
+    fireEvent.click(sessionButton)
+    expect(sessionButton.querySelector<SVGSVGElement>('svg')!.style.transform).toBe('none')
+  })
+
   it('hides item leading slots when the group header has no icon', () => {
     const Provider = ResourceList.Provider<TestItem>
 
@@ -2331,7 +2357,7 @@ describe('ResourceList', () => {
     )
     expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('px-1.5')
     expect(screen.getByRole('listbox')).not.toHaveClass('px-1.5')
-    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-2')
+    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-1.5')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass(
       'relative',
       'gap-1.5',

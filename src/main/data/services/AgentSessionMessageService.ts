@@ -13,23 +13,26 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   AgentSessionMessageEntity,
-  AgentSessionSearchMessageResult,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto,
-  SearchAgentSessionMessagesQueryParams,
-  SearchAgentSessionMessagesResponse
+  CreateAgentSessionMessagesDto
 } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
-import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
-import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
+import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-const logger = loggerService.withContext('SessionMessageService')
-const SEARCH_CHUNK_SIZE = 200
+import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+
+const logger = loggerService.withContext('AgentSessionMessageService')
+const MESSAGE_CURSOR_CONFIG = {
+  fieldMessage: 'must be a valid message cursor',
+  errorMessage: 'Invalid message cursor'
+}
 
 type SessionMessageSearchRow = {
   rowId: string
@@ -42,143 +45,85 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
-type InternalSessionSearchMessageResult = AgentSessionSearchMessageResult & {
-  cursorCreatedAt: number
-  cursorId: string
+type SessionMessageContentSearchInput = {
+  q: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+  sessionId?: string
 }
 
-// Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
-// to first page (warn) instead of throwing — opaque server-issued tokens.
+// Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  const sep = raw.indexOf(':')
-  if (sep < 0) {
-    logger.warn('decodeMessageCursor: missing separator, falling back to first page', { cursor: raw })
+  try {
+    return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+  } catch (error) {
+    logger.warn('Ignoring malformed session message list cursor', { cursor: raw, error })
     return null
   }
-  const key = raw.slice(0, sep)
-  const id = raw.slice(sep + 1)
-  if (!key || !id) {
-    logger.warn('decodeMessageCursor: empty key or id, falling back to first page', { cursor: raw })
-    return null
-  }
-  const createdAt = Number(key)
-  if (!Number.isFinite(createdAt)) return null
-  return { createdAt, id }
-}
-
-function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefined {
-  if (!createdAtFrom) return undefined
-  const value = Date.parse(createdAtFrom)
-  return Number.isFinite(value) ? value : undefined
-}
-
-function buildFtsLikePattern(term: string): string {
-  // Keep LIKE free of ESCAPE so SQLite can use the trigram FTS LIKE index;
-  // regex validation below preserves literal substring semantics.
-  return `%${term}%`
-}
-
-function encodeMessageCursor(createdAt: number | string, id: string): string {
-  return `${createdAt}:${id}`
 }
 
 export class AgentSessionMessageService {
-  async search(query: SearchAgentSessionMessagesQueryParams): Promise<SearchAgentSessionMessagesResponse> {
-    const terms = splitKeywordsToTerms(query.q)
-    if (terms.length === 0) return { items: [] }
-
+  async search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
-    const matchMode = 'substring'
-    const limit = query.limit ?? 500
-    const fetchLimit = limit + 1
-    const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
-    const cursor = query.cursor ? decodeMessageCursor(query.cursor) : null
-    const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
-    const results: InternalSessionSearchMessageResult[] = []
-    const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
-    let offset = 0
 
-    while (results.length < fetchLimit) {
-      const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
-      const rows = await db.all<SessionMessageSearchRow>(sql`
-        SELECT
-          sm.id AS "rowId",
-          sm.searchable_text AS "searchableText",
-          sm.session_id AS "sessionId",
-          s.name AS "sessionName",
-          s.agent_id AS "agentId",
-          a.name AS "agentName",
-          sm.role,
-          sm.created_at AS "createdAt"
-        FROM agent_session_message sm
-        JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
-        JOIN agent_session s ON s.id = sm.session_id
-        LEFT JOIN agent a ON a.id = s.agent_id
-        WHERE sm.searchable_text != ''
-          AND ${messageSessionCondition}
-          AND ${createdAtCondition}
-          AND ${sql.join(ftsConditions, sql` AND `)}
-          AND ${
-            cursor
-              ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
-              : sql`1 = 1`
-          }
-        ORDER BY sm.created_at DESC, sm.id DESC
-        LIMIT ${SEARCH_CHUNK_SIZE}
-        OFFSET ${offset}
-      `)
+    return await searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+      createdAtFrom: query.createdAtFrom,
+      cursorConfig: MESSAGE_CURSOR_CONFIG,
+      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
+        const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
-      if (rows.length === 0) break
-      offset += rows.length
-
-      for (const row of rows) {
-        const searchableText = row.searchableText
-        if (!searchableText) continue
-
-        const plainText = stripMarkdownFormatting(searchableText)
-        const matches = regexes.every((regex) => {
-          regex.lastIndex = 0
-          return regex.test(plainText)
-        })
-        if (!matches) continue
-
-        results.push({
+        return await db.all<SessionMessageSearchRow>(sql`
+          SELECT
+            sm.id AS "rowId",
+            sm.searchable_text AS "searchableText",
+            sm.session_id AS "sessionId",
+            s.name AS "sessionName",
+            s.agent_id AS "agentId",
+            a.name AS "agentName",
+            sm.role,
+            sm.created_at AS "createdAt"
+          FROM agent_session_message sm
+          JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
+          JOIN agent_session s ON s.id = sm.session_id
+          LEFT JOIN agent a ON a.id = s.agent_id
+          WHERE sm.searchable_text != ''
+            AND ${messageSessionCondition}
+            AND ${createdAtCondition}
+            AND ${sql.join(ftsConditions, sql` AND `)}
+            AND ${
+              cursor
+                ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
+                : sql`1 = 1`
+            }
+          ORDER BY sm.created_at DESC, sm.id DESC
+          LIMIT ${chunkSize}
+          OFFSET ${offset}
+        `)
+      },
+      getSearchableText: (row) => row.searchableText,
+      buildSnippet: buildSearchSnippet,
+      mapRow: (row, { snippet }) => ({
+        item: {
           messageId: row.rowId,
           sessionId: row.sessionId,
           sessionName: row.sessionName,
           agentId: row.agentId ?? undefined,
           agentName: row.agentName ?? undefined,
-          role: ['user', 'assistant', 'tool', 'system'].includes(row.role)
-            ? (row.role as 'user' | 'assistant' | 'tool' | 'system')
-            : undefined,
-          snippet: buildSearchSnippet(searchableText, terms, matchMode),
-          createdAt: timestampToISO(Number(row.createdAt)),
-          cursorCreatedAt: Number(row.createdAt),
-          cursorId: row.rowId
-        })
-
-        if (results.length >= fetchLimit) break
-      }
-    }
-
-    const itemsWithCursor = results.slice(0, limit)
-    const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
-    return {
-      items: itemsWithCursor.map((item) => ({
-        messageId: item.messageId,
-        sessionId: item.sessionId,
-        sessionName: item.sessionName,
-        agentId: item.agentId,
-        agentName: item.agentName,
-        role: item.role,
-        snippet: item.snippet,
-        createdAt: item.createdAt
-      })),
-      nextCursor: nextCursorBoundary
-        ? encodeMessageCursor(nextCursorBoundary.cursorCreatedAt, nextCursorBoundary.cursorId)
-        : undefined
-    }
+          role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.rowId
+        }
+      })
+    })
   }
 
   async sessionMessageExists(id: string): Promise<boolean> {
@@ -254,7 +199,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? `${tail.createdAt}:${tail.id}` : undefined
+    const nextCursor = hasNext && tail ? encodeSearchCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
   }

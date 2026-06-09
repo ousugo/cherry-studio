@@ -568,6 +568,30 @@ describe('messageMenuBarActions', () => {
     expect(translationItems.map((item) => item.key)).toEqual(['translate-copy'])
   })
 
+  it('adds a close-translation item that removes the translation and notifies', async () => {
+    const removeMessageTranslation = vi.fn()
+    const notifySuccess = vi.fn()
+    const translationItems = resolveMessageMenuBarTranslationItems(
+      createContext({
+        hasTranslationBlocks: true,
+        messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any,
+        actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess } as MessageListActions
+      })
+    )
+
+    expect(translationItems.map((item) => item.key)).toEqual(['translate-copy', 'translate-close'])
+
+    const closeItem = translationItems.find((item) => item.key === 'translate-close')
+    if (!closeItem || 'type' in closeItem) {
+      throw new Error('Expected a translate-close action item')
+    }
+
+    await closeItem.onSelect()
+
+    expect(removeMessageTranslation).toHaveBeenCalledWith('message-1')
+    expect(notifySuccess).toHaveBeenCalledWith('translate.closed')
+  })
+
   it('enables the translate toolbar action as abort while translation is running', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({

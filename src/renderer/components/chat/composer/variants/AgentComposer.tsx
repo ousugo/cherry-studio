@@ -41,7 +41,7 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -261,6 +261,7 @@ interface AgentComposerWorkspaceControlProps {
   workspace?: AgentSessionEntity['workspace']
   workspaceId?: string | null
   workspaceChanging?: boolean
+  workspaceWarning?: string
   selectWorkspaceLabel: string
   side: 'top' | 'bottom'
   iconOnly?: boolean
@@ -359,12 +360,14 @@ const AgentComposerWorkspaceControl = ({
   workspace,
   workspaceId,
   workspaceChanging,
+  workspaceWarning,
   selectWorkspaceLabel,
   side,
   iconOnly = false,
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
   const workspaceLabel = isSystemWorkspace
@@ -382,9 +385,16 @@ const AgentComposerWorkspaceControl = ({
         <Button
           variant="ghost"
           size="sm"
-          className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)}
-          disabled={!onWorkspaceChange || workspaceChanging}>
-          {isSystemWorkspace ? (
+          className={cn(
+            COMPOSER_SELECTOR_BUTTON_CLASS,
+            iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+            hasWarning && 'text-warning hover:text-warning'
+          )}
+          disabled={!onWorkspaceChange || workspaceChanging}
+          aria-label={workspaceWarning}>
+          {hasWarning ? (
+            <TriangleAlert size={14} aria-hidden />
+          ) : isSystemWorkspace ? (
             <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
           ) : (
             <Folder size={14} aria-hidden className="text-muted-foreground" />
@@ -396,7 +406,8 @@ const AgentComposerWorkspaceControl = ({
     />
   )
 
-  return selector
+  if (!hasWarning) return selector
+  return <Tooltip content={workspaceWarning}>{selector}</Tooltip>
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -447,6 +458,7 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   workspace?: AgentSessionEntity['workspace']
   workspaceId?: string | null
   workspaceChanging?: boolean
+  workspaceWarning?: string
   showWorkspaceSelector?: boolean
   selectWorkspaceLabel: string
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
@@ -523,6 +535,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
+  const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -545,6 +558,34 @@ const AgentComposerInner = ({
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+
+  useEffect(() => {
+    const workspacePath = workspace?.path
+    if (!workspacePath) {
+      setWorkspaceWarning(undefined)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const isDirectory = await window.api.file.isDirectory(workspacePath)
+        if (cancelled) return
+        if (isDirectory) {
+          setWorkspaceWarning(undefined)
+          return
+        }
+        setWorkspaceWarning(t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+      } catch (error) {
+        logger.warn('Failed to check agent workspace path status', error as Error)
+        if (!cancelled) setWorkspaceWarning(undefined)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [t, workspace?.path])
 
   const setText = useCallback(
     (nextText: string) => {
@@ -763,6 +804,10 @@ const AgentComposerInner = ({
         window.toast?.error(t('code.model_required'))
         return
       }
+      if (workspaceWarning) {
+        window.toast?.error(workspaceWarning)
+        return
+      }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
@@ -779,7 +824,17 @@ const AgentComposerInner = ({
         logger.warn('Failed to send message:', error as Error)
       })
     },
-    [buildQueuedPayload, clearCurrentDraft, enqueueFollowup, isStreaming, model, sendDisabled, sendQueuedPayload, t]
+    [
+      buildQueuedPayload,
+      clearCurrentDraft,
+      enqueueFollowup,
+      isStreaming,
+      model,
+      sendDisabled,
+      sendQueuedPayload,
+      t,
+      workspaceWarning
+    ]
   )
 
   const suggestionSources = useAgentResourceSuggestion({
@@ -796,6 +851,7 @@ const AgentComposerInner = ({
     modelFilter,
     workspace,
     workspaceId,
+    workspaceWarning,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
@@ -925,6 +981,7 @@ const MissingAgentHomeComposerInner = ({
     modelFilter: undefined,
     workspace: undefined,
     workspaceId: null,
+    workspaceWarning: undefined,
     selectAgentLabel: selectAgentMessage,
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),

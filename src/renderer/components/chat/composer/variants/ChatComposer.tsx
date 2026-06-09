@@ -21,7 +21,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useCommandHandler } from '@renderer/features/command'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -374,7 +374,6 @@ const ChatComposerInner = ({
     isModelMissing,
     setModel
   } = useAssistant(topic.assistantId)
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { providers } = useProviders()
@@ -396,11 +395,12 @@ const ChatComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
+  const restoredEditingSessionIdRef = useRef<number | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
-  const displayAssistant = assistant ?? (!topic.assistantId && !isAssistantLoading ? defaultAssistant : undefined)
+  const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!topic.assistantId && !isAssistantLoading && !assistant
-  const runtimeModel = displayAssistant ? model : undefined
-  const runtimeModelPending = isAssistantLoading || (!!displayAssistant && isModelPending)
+  const runtimeModel = assistant || !topic.assistantId ? model : undefined
+  const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
 
   const handleModelSelect = useCallback(
@@ -513,7 +513,13 @@ const ChatComposerInner = ({
   })
 
   useEffect(() => {
-    if (!editingMessageForCurrentTopic) return
+    if (!editingMessageForCurrentTopic) {
+      restoredEditingSessionIdRef.current = null
+      return
+    }
+    if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
+    restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
+
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
       const currentDraft = actionsRef.current.getDraft()
       savedDraftBeforeEditingRef.current = {
@@ -525,7 +531,8 @@ const ChatComposerInner = ({
     }
 
     restoreEditableMessageDraft(editingMessageForCurrentTopic)
-  }, [actionsRef, editingMessageForCurrentTopic, filesRef, restoreEditableMessageDraft, selectedKnowledgeBasesRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
+  }, [actionsRef, editingMessageForCurrentTopic, filesRef, selectedKnowledgeBasesRef])
 
   useEffect(() => {
     if (!staleEditingMessage) return

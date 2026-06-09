@@ -329,6 +329,7 @@ function renderPart(
       const thinkingMs =
         cherryMeta?.thinkingMs ??
         (typeof metadataBlock?.thinking_millsec === 'number' ? metadataBlock.thinking_millsec : 0)
+      const startedAt = cherryMeta?.startedAt
       return (
         <ThinkingBlock
           key={partId}
@@ -337,6 +338,7 @@ function renderPart(
           isStreaming={reasoningPart.state === 'streaming'}
           thinkingMs={thinkingMs}
           thoughtsTokens={message.stats?.thoughtsTokens}
+          startedAt={startedAt}
         />
       )
     }
@@ -562,7 +564,7 @@ const ToolHistoryGroup = React.memo(function ToolHistoryGroup({
           type="button"
           aria-expanded={isExpanded}
           aria-controls={contentId}
-          className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          className={`-ml-0.5 flex min-h-7 ${isExpanded ? 'w-full' : 'w-fit'} items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2`}
           onClick={() => setIsExpanded((expanded) => !expanded)}>
           <ChevronDown
             size={16}
@@ -757,6 +759,11 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   return (
     <AnimatePresence mode="sync">
+      {isProcessing && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+        </AnimatedBlockWrapper>
+      )}
       {toolHistoryGroup && (
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
           <ToolHistoryGroup
@@ -774,11 +781,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
-        </AnimatedBlockWrapper>
-      )}
-      {isProcessing && (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

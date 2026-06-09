@@ -75,6 +75,7 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  settingsProviderId?: string
 }
 
 export interface ModelSelectorModelItem {

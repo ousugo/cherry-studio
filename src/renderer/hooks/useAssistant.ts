@@ -1,11 +1,9 @@
 /**
  * Assistant data layer — three tiers in one module:
  *
- *  1. `composeDefaultAssistant` — pure, non-React synthesis of the default
- *     assistant template (also imported by `services/AssistantService`).
- *  2. DataApi tier — raw SQLite-backed queries/mutations
+ *  1. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useAssistantsApi` / `useAssistantApiById` / `useAssistantMutations`).
- *  3. Composed hooks — `useAssistants` / `useDefaultAssistant` / `useAssistant`.
+ *  2. Composed hooks — `useAssistants` / `useAssistant`.
  *
  * Returns the canonical {@link Assistant} entity straight from SQLite via
  * `/assistants`. No v1 shape adaptation — consumers use the v2 shape
@@ -22,51 +20,17 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
-import i18n from '@renderer/i18n'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 
-// ─── Tier 1: pure default-assistant composition ───────────────────────────
-
-const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
-
-/**
- * Pure runtime composition of the default assistant. v2 has no `id='default'`
- * row in SQLite (legacy `'default'` was remapped to a UUID by AssistantMigrator);
- * the default assistant is always synthesized from a static template plus the
- * caller-supplied `modelId` (sourced from `chat.default_model_id` preference).
- *
- * React contexts: prefer `useDefaultAssistant()` below.
- */
-export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistant {
-  return {
-    id: DEFAULT_ASSISTANT_ID,
-    source: ASSISTANT_SOURCE_USER,
-    name: i18n.t('chat.default.name'),
-    emoji: '😀',
-    prompt: '',
-    description: '',
-    settings: DEFAULT_ASSISTANT_SETTINGS,
-    modelId,
-    modelName: null,
-    orderKey: '',
-    mcpServerIds: [],
-    knowledgeBaseIds: [],
-    tags: [],
-    createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
-    updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
-  }
-}
-
-// ─── Tier 2: raw DataApi queries/mutations ────────────────────────────────
+// ─── Tier 1: raw DataApi queries/mutations ────────────────────────────────
 
 const ASSISTANTS_LIST_LIMIT = 500
 
@@ -82,7 +46,7 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  * consumer.
  */
 export function useAssistantsApi(options: { enabled?: boolean } = {}) {
-  const { data, isLoading, error, refetch, mutate } = useQuery('/assistants', {
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/assistants', {
     enabled: options.enabled ?? true,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
@@ -90,7 +54,9 @@ export function useAssistantsApi(options: { enabled?: boolean } = {}) {
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
     total: data?.total ?? 0,
+    hasLoaded: data !== undefined,
     isLoading,
+    isRefreshing,
     error,
     refetch,
     mutate
@@ -166,36 +132,23 @@ export function useAssistantMutations() {
   }
 }
 
-// ─── Tier 3: composed hooks ───────────────────────────────────────────────
+// ─── Tier 2: composed hooks ───────────────────────────────────────────────
 
 export function useAssistants() {
-  const { assistants, isLoading, error, refetch } = useAssistantsApi()
+  const { assistants, hasLoaded, isLoading, isRefreshing, error, refetch } = useAssistantsApi()
   const { createAssistant, deleteAssistant, updateAssistant } = useAssistantMutations()
 
   return {
     assistants,
+    hasLoaded,
     isLoading,
+    isRefreshing,
     error,
     refetch,
     addAssistant: (dto: CreateAssistantDto) => createAssistant(dto),
     removeAssistant: (id: string) => deleteAssistant(id),
     updateAssistant: (id: string, patch: UpdateAssistantDto) => updateAssistant(id, patch)
   }
-}
-
-/**
- * Returns the runtime-composed default-assistant template. Use this only at
- * UI sites that need to render the "Default" preset card or seed a new
- * assistant from the template (e.g. settings pages). It is
- * NOT meant for chat call sites — a topic without an assistant should be
- * rendered by handling `useAssistant(...).assistant === undefined` directly,
- * not by faking up an Assistant.
- */
-export function useDefaultAssistant(): { assistant: Assistant } {
-  const [defaultModelId] = usePreference('chat.default_model_id')
-  const modelId = (defaultModelId ?? null) as UniqueModelId | null
-  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
-  return { assistant }
 }
 
 /**

@@ -1,4 +1,3 @@
-import type * as AssistantHookModule from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -157,20 +156,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
     }
   }
 }))
-
-vi.mock('@renderer/hooks/useAssistant', async () => {
-  const actual = await vi.importActual<typeof AssistantHookModule>('@renderer/hooks/useAssistant')
-  return {
-    ...actual,
-    useDefaultAssistant: () => ({
-      assistant: {
-        id: 'default',
-        name: 'Default Assistant',
-        emoji: '😀'
-      }
-    })
-  }
-})
 
 vi.mock('@renderer/services/ApiService', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })

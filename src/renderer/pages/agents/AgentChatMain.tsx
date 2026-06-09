@@ -15,6 +15,7 @@ interface AgentChatMainProps {
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
+  optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
@@ -32,6 +33,7 @@ export default function AgentChatMain({
   messages,
   activeAgent,
   partsByMessageId,
+  optimisticAskUserQuestionInputsByToolCallId,
   modelFallback,
   isLoading,
   hasOlder,
@@ -53,6 +55,7 @@ export default function AgentChatMain({
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
+          optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
           modelFallback={modelFallback}
           isLoading={isLoading}
           hasOlder={hasOlder}

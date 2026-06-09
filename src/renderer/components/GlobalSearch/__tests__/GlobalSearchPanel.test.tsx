@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SearchAgentSessionMessagesResponse } from '@shared/data/api/schemas/agentSessions'
-import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
-import type { SearchMessagesResponse } from '@shared/data/api/schemas/messages'
+import type {
+  EntitySearchResponse,
+  SessionMessageContentSearchItem,
+  TopicMessageContentSearchItem
+} from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -19,12 +21,9 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   onClose: vi.fn(),
   useQuery: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  queryResult: undefined as GlobalSearchResponse | undefined,
-  messageQueryResult: undefined as SearchMessagesResponse | undefined,
-  sessionMessageQueryResult: undefined as SearchAgentSessionMessagesResponse | undefined,
-  messageLoadNext: vi.fn(),
-  sessionMessageLoadNext: vi.fn(),
+  queryResult: undefined as EntitySearchResponse | undefined,
+  messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
+  sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   recentItems: [] as GlobalSearchRecentEntry[],
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
@@ -214,7 +213,6 @@ vi.mock('@data/hooks/useCache', () => ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => mocks.invalidateCache,
-  useInfiniteQuery: (...args: unknown[]) => mocks.useInfiniteQuery(...args),
   useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
   useQuery: (...args: unknown[]) => mocks.useQuery(...args)
 }))
@@ -489,31 +487,55 @@ describe('GlobalSearchPanel', () => {
       url: '/app/chat',
       title: 'Chat'
     }
-    mocks.useQuery.mockImplementation((path: string) => ({
-      data:
-        path === '/messages/search'
-          ? mocks.messageQueryResult
-          : path === '/agent-sessions/messages/search'
-            ? mocks.sessionMessageQueryResult
-            : mocks.queryResult,
-      isLoading: false,
-      error: undefined
-    }))
-    mocks.useInfiniteQuery.mockImplementation((path: string) => {
-      const page =
-        path === '/messages/search'
-          ? mocks.messageQueryResult
-          : path === '/agent-sessions/messages/search'
-            ? mocks.sessionMessageQueryResult
-            : undefined
+    mocks.useQuery.mockImplementation((path: string, options?: { query?: { q?: string; sources?: string[] } }) => {
+      if (path === '/search/entities') {
+        return {
+          data: mocks.queryResult,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined
+        }
+      }
+
+      if (path === '/search/contents') {
+        const sources = options?.query?.sources ?? ['topic-message', 'session-message']
+        const groups = [
+          ...(sources.includes('topic-message') && mocks.messageQueryResult
+            ? [
+                {
+                  sourceType: 'topic-message' as const,
+                  items: mocks.messageQueryResult.items,
+                  nextCursor: mocks.messageQueryResult.nextCursor
+                }
+              ]
+            : []),
+          ...(sources.includes('session-message') && mocks.sessionMessageQueryResult
+            ? [
+                {
+                  sourceType: 'session-message' as const,
+                  items: mocks.sessionMessageQueryResult.items,
+                  nextCursor: mocks.sessionMessageQueryResult.nextCursor
+                }
+              ]
+            : [])
+        ]
+
+        return {
+          data: {
+            query: options?.query?.q ?? '',
+            groups
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined
+        }
+      }
 
       return {
-        pages: page ? [page] : [],
+        data: undefined,
         isLoading: false,
         isRefreshing: false,
-        error: undefined,
-        hasNext: !!page?.nextCursor,
-        loadNext: path === '/messages/search' ? mocks.messageLoadNext : mocks.sessionMessageLoadNext
+        error: undefined
       }
     })
   })
@@ -583,7 +605,7 @@ describe('GlobalSearchPanel', () => {
     })
 
     expect(mocks.useQuery).toHaveBeenLastCalledWith(
-      '/global-search',
+      '/search/entities',
       expect.objectContaining({
         enabled: true,
         query: expect.objectContaining({
@@ -692,7 +714,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/global-search',
+        '/search/entities',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -714,7 +736,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/global-search',
+        '/search/entities',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -741,7 +763,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/global-search',
+        '/search/entities',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -763,7 +785,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/global-search',
+        '/search/entities',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -850,13 +872,14 @@ describe('GlobalSearchPanel', () => {
     expect(screen.queryByRole('option', { name: /needle message 0/ })).not.toBeInTheDocument()
 
     await waitFor(() => {
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/messages/search',
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
         expect.objectContaining({
           enabled: true,
-          limit: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
           query: expect.objectContaining({
-            q: 'needle'
+            q: 'needle',
+            sources: ['topic-message', 'session-message'],
+            limitPerSource: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT
           })
         })
       )
@@ -931,23 +954,14 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('button', { name: 'Created time' })).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/messages/search',
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
         expect.objectContaining({
           enabled: true,
-          limit: 50,
           query: expect.objectContaining({
-            q: 'needle'
-          })
-        })
-      )
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/agent-sessions/messages/search',
-        expect.objectContaining({
-          enabled: true,
-          limit: 50,
-          query: expect.objectContaining({
-            q: 'needle'
+            q: 'needle',
+            sources: ['topic-message', 'session-message'],
+            limitPerSource: 50
           })
         })
       )
@@ -989,8 +1003,19 @@ describe('GlobalSearchPanel', () => {
 
     await user.click(loadMoreButton)
 
-    expect(mocks.messageLoadNext).toHaveBeenCalledTimes(1)
-    expect(mocks.sessionMessageLoadNext).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'needle',
+            sources: ['topic-message'],
+            cursors: { 'topic-message': 'cursor-1' }
+          })
+        })
+      )
+    })
   })
 
   it('passes selected time filter to message search queries', async () => {
@@ -1007,23 +1032,14 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
 
     await waitFor(() => {
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/messages/search',
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
             q: 'needle',
-            createdAtFrom: expect.any(String)
-          })
-        })
-      )
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/agent-sessions/messages/search',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'needle',
-            createdAtFrom: expect.any(String)
+            createdAtFrom: expect.any(String),
+            sources: ['topic-message', 'session-message']
           })
         })
       )
@@ -1051,7 +1067,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenCalledWith(
-        '/global-search',
+        '/search/entities',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
@@ -1075,18 +1091,13 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Message source: Task messages' }))
 
     await waitFor(() => {
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/messages/search',
-        expect.objectContaining({
-          enabled: false
-        })
-      )
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/agent-sessions/messages/search',
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
-            q: 'report'
+            q: 'report',
+            sources: ['session-message']
           })
         })
       )
@@ -1112,21 +1123,13 @@ describe('GlobalSearchPanel', () => {
     expect(sessionSourceFilter).toHaveAttribute('aria-pressed', 'false')
 
     await waitFor(() => {
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/messages/search',
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
-            q: 'report'
-          })
-        })
-      )
-      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
-        '/agent-sessions/messages/search',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'report'
+            q: 'report',
+            sources: ['topic-message', 'session-message']
           })
         })
       )

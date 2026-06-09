@@ -218,7 +218,11 @@
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
         "error": {
-          "loadFailed": ""
+          "createFailed": "[to be translated]:Failed to create task",
+          "deleteFailed": "[to be translated]:Failed to delete task",
+          "loadFailed": "",
+          "runFailed": "[to be translated]:Failed to run task",
+          "updateFailed": "[to be translated]:Failed to update task"
         },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
@@ -1455,7 +1459,8 @@
       },
       "new_session": "新任務 {{Command}}",
       "new_topic": "新對話 {{Command}}",
-      "paste_text_file": "貼到輸入框",
+      "paste_text_file": "在文字框中顯示",
+      "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "resource_panel": {
@@ -2005,6 +2010,7 @@
     "copied": "已複製",
     "copy": "複製",
     "copy_failed": "複製失敗",
+    "create_success": "[to be translated]:Created successfully",
     "current": "目前",
     "cut": "剪下",
     "default": "預設",
@@ -3124,6 +3130,8 @@
           }
         },
         "generate": "產生提示",
+        "generate_failed_description": "請檢查或調整預設模型後重試。",
+        "generate_failed_title": "產生提示失敗",
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入系統提示。支援像 {{date}} 和 {{model_name}} 這樣的變數...",
@@ -6721,8 +6729,8 @@
       "api_key": "API 金鑰",
       "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
-      "bulk_disable": "全部關閉",
-      "bulk_enable": "全選",
+      "bulk_disable": "全部停用",
+      "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型檢查皆成功",

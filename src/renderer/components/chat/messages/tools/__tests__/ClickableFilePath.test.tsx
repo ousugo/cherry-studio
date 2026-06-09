@@ -12,7 +12,13 @@ const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
+const mockGetMetadata = vi.fn()
 
+vi.stubGlobal('api', {
+  file: {
+    getMetadata: mockGetMetadata
+  }
+})
 const externalCodeEditors: ExternalAppInfo[] = [
   { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'], path: '/app/vscode' },
   { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'], path: '/app/cursor' }
@@ -68,6 +74,14 @@ describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setInlineFilePathHomePath(undefined)
+    mockGetMetadata.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
   })
 
   it('should render the path as text', () => {
@@ -90,6 +104,7 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
     })
+    expect(mockGetMetadata).not.toHaveBeenCalled()
   })
 
   it('should open relative paths directly', async () => {
@@ -100,6 +115,7 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
+    expect(mockGetMetadata).not.toHaveBeenCalled()
   })
 
   it('should keep home-relative paths readable and open the resolved file path', async () => {

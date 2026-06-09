@@ -20,7 +20,6 @@ import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
-import { globalSearchHandlers } from './globalSearch'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
@@ -33,6 +32,7 @@ import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
+import { searchHandlers } from './search'
 import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
@@ -70,5 +70,5 @@ export const apiHandlers: ApiImplementation = {
   ...promptHandlers,
   ...agentWorkspaceHandlers,
   ...jobHandlers,
-  ...globalSearchHandlers
+  ...searchHandlers
 }

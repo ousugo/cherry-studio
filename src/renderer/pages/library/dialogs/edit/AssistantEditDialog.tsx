@@ -20,6 +20,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { useToasts } from '@renderer/components/TopView/toast'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
@@ -408,6 +409,7 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
+  const toast = useToasts()
   const [generating, setGenerating] = useState(false)
   const [showUndoButton, setShowUndoButton] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState('')
@@ -420,6 +422,10 @@ function AssistantPromptField({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
   })
+  const promptGenerationFailedToast = {
+    title: t('library.config.prompt.generate_failed_title'),
+    description: t('library.config.prompt.generate_failed_description')
+  }
 
   const handlePromptChange = (nextPrompt: string) => {
     setShowUndoButton(false)
@@ -443,10 +449,15 @@ function AssistantPromptField({
     try {
       const generatedPrompt = await fetchGenerate({
         prompt: AGENT_PROMPT,
-        content: generateSource
+        content: generateSource,
+        throwOnError: true
       })
 
-      if (generateRequestIdRef.current !== requestId || !generatedPrompt) return
+      if (generateRequestIdRef.current !== requestId) return
+      if (!generatedPrompt) {
+        toast.error(promptGenerationFailedToast)
+        return
+      }
 
       setOriginalPrompt(prompt)
       form.setValue('prompt', generatedPrompt, { shouldDirty: true, shouldTouch: true })
@@ -456,6 +467,7 @@ function AssistantPromptField({
       logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
         assistantId: resource.id
       })
+      toast.error(promptGenerationFailedToast)
     } finally {
       if (generateRequestIdRef.current === requestId) {
         setGenerating(false)

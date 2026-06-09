@@ -4,8 +4,8 @@ import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/features/command'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 
 import { SelectorShell } from '../shell/SelectorShell'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
-import { FreeTrialModelTag } from './FreeTrialModelTag'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -151,7 +150,6 @@ function ModelRow({
   isFocused,
   onPin,
   onSelect,
-  onNavigateBeforeTrial,
   showCheckbox,
   showPinActions,
   isPinActionDisabled,
@@ -162,7 +160,6 @@ function ModelRow({
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
-  onNavigateBeforeTrial: () => void
   showCheckbox: boolean
   showPinActions: boolean
   isPinActionDisabled: boolean
@@ -172,7 +169,6 @@ function ModelRow({
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
   const rowTags = useMemo(() => MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(item.model, tag)), [item.model])
   const providerName = getProviderDisplayName(item.provider)
-  const isCherryAi = item.provider.id === 'cherryai'
 
   const leading = icon ? (
     <icon.Avatar size={20} />
@@ -239,9 +235,6 @@ function ModelRow({
         </span>
       )}
       {item.isPinned && <span className="shrink-0 truncate text-muted-foreground text-xs">| {providerName}</span>}
-      {isCherryAi && (
-        <FreeTrialModelTag model={item.model} showLabel={false} onBeforeNavigate={onNavigateBeforeTrial} />
-      )}
     </ModelSelectorRow>
   )
 }
@@ -268,7 +261,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -476,11 +468,11 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+      openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`).catch((error) => {
         logger.error('Failed to navigate to provider settings', error as Error, { providerId })
       })
     },
-    [navigate, setOpen]
+    [setOpen]
   )
 
   const handleTogglePin = useCallback(
@@ -621,7 +613,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                   className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
-                    handleNavigateToProviderSettings(item.provider!.id)
+                    handleNavigateToProviderSettings(item.settingsProviderId ?? item.provider!.id)
                   }}>
                   <Settings2 className="size-3" />
                 </Button>
@@ -647,7 +639,6 @@ export function ModelSelector(props: ModelSelectorProps) {
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
-            onNavigateBeforeTrial={handleClose}
             showCheckbox={multiple && multiSelectMode}
             showPinActions={showPinActions}
             t={t}

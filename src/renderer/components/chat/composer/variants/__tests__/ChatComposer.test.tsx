@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
   getDraft: vi.fn(),
+  reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   eventListeners: new Map<string, (payload: unknown) => void>(),
   eventEmit: vi.fn(),
@@ -172,6 +173,7 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
     mentionedModels: mocks.mentionedModels ?? [],
@@ -202,8 +204,7 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  }),
-  useComposerTokenReconcile: () => vi.fn()
+  })
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -362,13 +363,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
     updateAssistant: mocks.updateAssistant
-  }),
-  useDefaultAssistant: () => ({
-    assistant: {
-      id: 'default-assistant',
-      name: 'Default Assistant',
-      emoji: 'D'
-    }
   })
 }))
 
@@ -516,6 +510,29 @@ describe('ChatComposer', () => {
     mocks.insertToken.mockReset()
     mocks.getDraft.mockReset()
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
+    mocks.reconcileTokens.mockReset()
+    mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
+      const knowledgeTokenIds = new Set(
+        draftTokens.filter((token) => token.kind === 'knowledge').map((token) => token.id)
+      )
+      const configuredKnowledgeBaseIds = new Set(mocks.assistant?.knowledgeBaseIds ?? [])
+      const selectableKnowledgeBases = mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
+      mocks.setSelectedKnowledgeBases((previousBases: KnowledgeBase[]) => {
+        const nextBases = previousBases.filter((base) => knowledgeTokenIds.has(`knowledge:${base.id}`))
+        const nextBaseIds = new Set(nextBases.map((base) => `knowledge:${base.id}`))
+        let changed = nextBases.length !== previousBases.length
+
+        for (const base of selectableKnowledgeBases) {
+          const tokenId = `knowledge:${base.id}`
+          if (!knowledgeTokenIds.has(tokenId) || nextBaseIds.has(tokenId)) continue
+          nextBases.push(base)
+          nextBaseIds.add(tokenId)
+          changed = true
+        }
+
+        return changed ? nextBases : previousBases
+      })
+    })
     mocks.commandHandlers.clear()
     mocks.eventListeners.clear()
     mocks.eventEmit.mockReset()
@@ -834,19 +851,19 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('shows the default assistant for unlinked home topics', () => {
+  it('shows assistant selection with the default model for unlinked home topics', () => {
     mocks.assistant = undefined
 
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('button.select_assistant')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('sends unlinked home topics through the default assistant display state', async () => {
+  it('sends unlinked home topics through the default model fallback', async () => {
     mocks.assistant = undefined
     const onSend = vi.fn()
 
@@ -1208,6 +1225,37 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(mocks.surfaceProps?.text).toBe('original draft')
+  })
+
+  it('restores the edited message draft only once per editing session', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old' }] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps).toBeDefined())
+    mocks.setFiles.mockClear()
+    mocks.setSelectedKnowledgeBases.mockClear()
+    mocks.getDraft.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('old'))
+
+    expect(mocks.setFiles).toHaveBeenCalledTimes(1)
+    expect(mocks.setSelectedKnowledgeBases).toHaveBeenCalledTimes(1)
+    expect(mocks.getDraft).toHaveBeenCalledTimes(1)
   })
 
   it('locates the edited message from the Composer editing state', async () => {

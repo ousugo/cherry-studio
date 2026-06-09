@@ -22,9 +22,11 @@ interface Props {
   thinkingMs: number
   /** Live estimated reasoning tokens for the current thinking block. */
   thoughtsTokens?: number
+  /** Thinking start timestamp in epoch ms */
+  startedAt?: number
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens, startedAt }) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -88,6 +90,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
             <ThinkingTimeSeconds
               blockThinkingTime={thinkingMs}
               isThinking={isThinking}
+              startedAt={startedAt}
               thoughtsTokens={thoughtsTokens}
             />
           }
@@ -135,22 +138,40 @@ const ThinkingTimeSeconds = memo(
   ({
     blockThinkingTime,
     isThinking,
+    startedAt,
     thoughtsTokens
   }: {
     blockThinkingTime: number
     isThinking: boolean
+    startedAt?: number
     thoughtsTokens?: number
   }) => {
     const { t } = useTranslation()
-    const [displayTime, setDisplayTime] = useState(isThinking ? 0 : normalizeThinkingTime(blockThinkingTime))
+
+    const safeStartedAt = typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : undefined
+
+    const [displayTime, setDisplayTime] = useState(() => {
+      if (!isThinking) return normalizeThinkingTime(blockThinkingTime)
+      if (safeStartedAt !== undefined) {
+        return Math.max(0, Date.now() - safeStartedAt)
+      }
+      return 0
+    })
 
     const timer = useRef<NodeJS.Timeout | null>(null)
 
     useEffect(() => {
       if (isThinking) {
+        if (safeStartedAt !== undefined) {
+          setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
+        }
         if (!timer.current) {
           timer.current = setInterval(() => {
-            setDisplayTime((prev) => prev + 100)
+            if (safeStartedAt !== undefined) {
+              setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
+            } else {
+              setDisplayTime((prev) => prev + 100)
+            }
           }, 100)
         }
       } else {
@@ -159,9 +180,7 @@ const ThinkingTimeSeconds = memo(
           timer.current = null
         }
         const normalized = normalizeThinkingTime(blockThinkingTime)
-        if (normalized > 0) {
-          setDisplayTime(normalized)
-        }
+        setDisplayTime(normalized)
       }
 
       return () => {
@@ -170,20 +189,23 @@ const ThinkingTimeSeconds = memo(
           timer.current = null
         }
       }
-    }, [isThinking, blockThinkingTime])
+    }, [isThinking, blockThinkingTime, safeStartedAt])
 
     const thinkingTimeSeconds = useMemo(() => {
       const safeTime = normalizeThinkingTime(displayTime)
-      return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
+      return ((safeTime < 100 ? 100 : safeTime) / 1000).toFixed(1)
     }, [displayTime])
 
-    const statusText = isThinking
-      ? t('chat.thinking', {
-          seconds: thinkingTimeSeconds
-        })
-      : t('chat.deeply_thought', {
-          seconds: thinkingTimeSeconds
-        })
+    const statusText =
+      !isThinking && normalizeThinkingTime(blockThinkingTime) <= 0
+        ? t('common.reasoning_content')
+        : isThinking
+          ? t('chat.thinking', {
+              seconds: thinkingTimeSeconds
+            })
+          : t('chat.deeply_thought', {
+              seconds: thinkingTimeSeconds
+            })
 
     const normalizedTokens = normalizeThoughtsTokens(thoughtsTokens)
     if (!normalizedTokens) return statusText

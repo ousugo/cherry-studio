@@ -139,6 +139,21 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(3)
   })
 
+  it('routes the CherryAI provider group settings action to CherryIN settings', () => {
+    wireDeps({
+      providers: [makeProvider('cherryai')],
+      models: [makeModel('qwen', 'cherryai')]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
+      key: 'provider-cherryai',
+      canNavigateToSettings: true,
+      settingsProviderId: 'cherryin'
+    })
+  })
+
   it('drops orphan models whose providerId is not in the providers list', () => {
     // Cross-filter invariant: a model whose provider is disabled/missing must not appear
     wireDeps({

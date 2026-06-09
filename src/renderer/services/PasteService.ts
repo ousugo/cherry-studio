@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
-import type { FileMetadata } from '@renderer/types'
+import { COMPOSER_FILE_KIND, type FileMetadata, type PastedTextFileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
 
 const logger = loggerService.withContext('PasteService')
@@ -47,7 +47,12 @@ export const handlePaste = async (
         await window.api.file.write(tempFilePath, clipboardText)
         const selectedFile = await window.api.file.get(tempFilePath)
         if (selectedFile) {
-          setFiles((prevFiles) => [...prevFiles, selectedFile])
+          const pastedTextFile: PastedTextFileMetadata = {
+            ...selectedFile,
+            origin_name: t?.('chat.input.pasted_text_file_name') ?? selectedFile.origin_name,
+            composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+          }
+          setFiles((prevFiles) => [...prevFiles, pastedTextFile])
           if (setText && text) setText(text) // 保持输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }

@@ -170,6 +170,14 @@ describe('useScrollPositionMemory', () => {
     expect(scroller.scrollTop).toBe(0) // not touched directly while the handle exists
   })
 
+  it('restores newest message without enabling bottom-follow when suppressed', () => {
+    renderHook(() => useScrollPositionMemory(buildInputs({ suppressBottomFollow: () => true })))
+    flushRaf()
+
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
+    expect(notifyProgrammaticStick).not.toHaveBeenCalled()
+  })
+
   it('falls back to scrollTop when no virtua handle is available', () => {
     renderHook(() =>
       useScrollPositionMemory(buildInputs({ vlistHandleRef: { current: null } as RefObject<VListHandle | null> }))

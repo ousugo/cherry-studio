@@ -12,7 +12,7 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/features/command'
-import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -35,10 +35,18 @@ import type { AddNewTopicPayload } from './types'
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 
+type TemporaryAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
+type TemporaryAssistantSelection = { assistantId?: string; source: TemporaryAssistantSelectionSource }
+type TemporaryStartState = {
+  firstLaunchStarted: boolean
+  isStarting: boolean
+  startingAssistantId?: string
+  queuedAssistantId?: string | null
+}
+
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
- * Generic creation inherits the last used assistant, while explicit
- * assistant-group creation still wins.
+ * Missing assistant id intentionally uses the runtime fallback temporary chat path.
  */
 function buildPendingTemporaryTopic(id: string, assistantId?: string | null): Topic {
   const nowIso = new Date().toISOString()
@@ -64,13 +72,10 @@ const HomePage: FC = () => {
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
-  const startingTemporaryTopicRef = useRef(false)
-  const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
-  const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
-  const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
+  const temporaryStartStateRef = useRef<TemporaryStartState>({ firstLaunchStarted: false, isStarting: false })
+  const temporaryLeaseRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
   const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -110,20 +115,46 @@ const HomePage: FC = () => {
   } = temporaryConversation
 
   const { refreshTopics } = useTopicMutations()
+  const {
+    assistants,
+    hasLoaded: hasAssistantsLoaded,
+    isLoading: isAssistantsLoading,
+    isRefreshing: isAssistantsRefreshing
+  } = useAssistants()
+  const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
+  const validLastUsedAssistantId =
+    lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
+  const fallbackAssistantId = assistants[0]?.id
+  const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
+  const resolveTemporaryAssistantTarget = useCallback(
+    (explicitAssistantId?: string | null): TemporaryAssistantSelection => {
+      if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
+        return { assistantId: explicitAssistantId, source: 'explicit' }
+      }
+      if (validLastUsedAssistantId) {
+        return { assistantId: validLastUsedAssistantId, source: 'last-used' }
+      }
+      if (fallbackAssistantId) {
+        return { assistantId: fallbackAssistantId, source: 'first-assistant' }
+      }
+      return { source: 'runtime-fallback' }
+    },
+    [assistantIdSet, fallbackAssistantId, validLastUsedAssistantId]
+  )
 
   useEffect(() => {
     if (temporaryTopicConversation?.type !== 'assistant') {
-      pendingTemporaryTopicRef.current = null
+      temporaryLeaseRef.current = null
       setIgnoredTemporaryTopicId(null)
       return
     }
 
     if (ignoredTemporaryTopicId === temporaryTopicConversation.topicId) {
-      pendingTemporaryTopicRef.current = null
+      temporaryLeaseRef.current = null
       return
     }
 
-    pendingTemporaryTopicRef.current = {
+    temporaryLeaseRef.current = {
       topicId: temporaryTopicConversation.topicId,
       assistantId: temporaryTopicConversation.assistantId
     }
@@ -139,7 +170,7 @@ const HomePage: FC = () => {
     }
     return undefined
   }, [ignoredTemporaryTopicId, isMessageOnlyView, state?.topic, temporaryTopicConversation])
-  const pendingTemporaryTopic = pendingTemporaryTopicRef.current
+  const pendingTemporaryTopic = temporaryLeaseRef.current
   const pendingTemporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
     if (isMessageOnlyView || !pendingTemporaryTopic) return undefined
     if (pendingTemporaryTopic.topicId === ignoredTemporaryTopicId) return undefined
@@ -184,13 +215,13 @@ const HomePage: FC = () => {
     : (temporaryTopicSnapshot ?? activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
 
   useEffect(() => {
-    lastUsedAssistantIdRef.current = lastUsedAssistantId ?? undefined
-  }, [lastUsedAssistantId])
+    if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
+    setLastUsedAssistantId(null)
+  }, [assistantIdSet, isAssistantListResolved, lastUsedAssistantId, setLastUsedAssistantId])
 
   useEffect(() => {
     const assistantId = getTopicAssistantId(activeTopic)
     if (assistantId) {
-      lastUsedAssistantIdRef.current = assistantId
       setLastUsedAssistantId(assistantId)
     }
   }, [activeTopic, setLastUsedAssistantId])
@@ -334,61 +365,57 @@ const HomePage: FC = () => {
   const startTemporaryTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       try {
-        const hasExplicitAssistantTarget = !!payload && 'assistantId' in payload
-        const targetAssistantId = hasExplicitAssistantTarget
-          ? (payload.assistantId ?? undefined)
-          : lastUsedAssistantIdRef.current
-        const shouldReuseTemporaryTopic = (currentAssistantId: string | undefined) =>
-          hasExplicitAssistantTarget
-            ? currentAssistantId === targetAssistantId
-            : currentAssistantId !== undefined || targetAssistantId === undefined
+        const selection = resolveTemporaryAssistantTarget(payload?.assistantId)
+        const targetAssistantId = selection.assistantId
 
         if (temporaryTopicConversation?.type === 'assistant') {
           const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
-          if (shouldReuseTemporaryTopic(currentAssistantId)) {
+          if (currentAssistantId === targetAssistantId) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
             return
           }
         }
 
-        if (pendingTemporaryTopicRef.current) {
-          const pending = pendingTemporaryTopicRef.current
+        if (temporaryLeaseRef.current) {
+          const pending = temporaryLeaseRef.current
           const pendingAssistantId = pending.assistantId ?? undefined
-          if (shouldReuseTemporaryTopic(pendingAssistantId)) {
+          if (pendingAssistantId === targetAssistantId) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
             return
           }
         }
 
-        if (startingTemporaryTopicRef.current) {
-          if (startingTemporaryAssistantIdRef.current !== targetAssistantId) {
-            queuedTemporaryTopicTargetRef.current = { assistantId: targetAssistantId }
+        const temporaryStartState = temporaryStartStateRef.current
+        if (temporaryStartState.isStarting) {
+          if (temporaryStartState.startingAssistantId !== targetAssistantId) {
+            temporaryStartState.queuedAssistantId = targetAssistantId ?? null
           }
           return
         }
 
-        startingTemporaryTopicRef.current = true
-        startingTemporaryAssistantIdRef.current = targetAssistantId
+        temporaryStartState.isStarting = true
+        temporaryStartState.startingAssistantId = targetAssistantId
         const next = await startTemporaryConversation({ assistantId: targetAssistantId })
         if (next?.type !== 'assistant') return
         setIgnoredTemporaryTopicId(null)
-        pendingTemporaryTopicRef.current = { topicId: next.topicId, assistantId: next.assistantId }
+        temporaryLeaseRef.current = { topicId: next.topicId, assistantId: next.assistantId }
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
       } catch (err) {
         logger.error('Failed to start temporary topic', err as Error)
       } finally {
-        startingTemporaryTopicRef.current = false
-        startingTemporaryAssistantIdRef.current = undefined
-        const queuedTarget = queuedTemporaryTopicTargetRef.current
-        queuedTemporaryTopicTargetRef.current = null
-        if (queuedTarget) {
-          void startTemporaryTopic({ assistantId: queuedTarget.assistantId ?? null })
+        const temporaryStartState = temporaryStartStateRef.current
+        temporaryStartState.isStarting = false
+        temporaryStartState.startingAssistantId = undefined
+        const queuedAssistantId = temporaryStartState.queuedAssistantId
+        temporaryStartState.queuedAssistantId = undefined
+        if (queuedAssistantId !== undefined) {
+          void startTemporaryTopic({ assistantId: queuedAssistantId })
         }
       }
     },
-    [setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
+    [resolveTemporaryAssistantTarget, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
   )
 
   const updateTemporaryTopicAssistant = useCallback(
@@ -408,16 +435,17 @@ const HomePage: FC = () => {
     [setActiveTopic, temporaryTopicConversation, updateTemporaryAssistant]
   )
 
-  const firstTemporaryStartedRef = useRef(false)
   useEffect(() => {
-    if (!shouldUseTemporary || firstTemporaryStartedRef.current || state?.topic) return
+    if (!shouldUseTemporary || temporaryStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (temporaryTopicSnapshot || activeTopic || isActiveTopicLoading) return
+    if (!isAssistantListResolved) return
 
-    firstTemporaryStartedRef.current = true
+    temporaryStartStateRef.current.firstLaunchStarted = true
     void startTemporaryTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
   }, [
     activeTopic,
     isActiveTopicLoading,
+    isAssistantListResolved,
     routeAssistantId,
     shouldUseTemporary,
     startTemporaryTopic,
@@ -435,10 +463,10 @@ const HomePage: FC = () => {
       const currentTemporaryTopicId =
         temporaryTopicConversation?.type === 'assistant'
           ? temporaryTopicConversation.topicId
-          : pendingTemporaryTopicRef.current?.topicId
+          : temporaryLeaseRef.current?.topicId
 
       if (currentTemporaryTopicId && topic.id !== currentTemporaryTopicId) {
-        pendingTemporaryTopicRef.current = null
+        temporaryLeaseRef.current = null
         setIgnoredTemporaryTopicId(currentTemporaryTopicId)
         void discardTemporaryConversation()
       }

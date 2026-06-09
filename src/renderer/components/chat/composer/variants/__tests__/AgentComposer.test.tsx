@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
@@ -402,6 +403,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.isDirectory.mockReset()
+    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
@@ -411,6 +414,7 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
+        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory
       }
     }
@@ -1375,6 +1379,31 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select workspace 2'))
 
     expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
+  })
+
+  it('does not block sends when workspace status preflight fails', async () => {
+    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
+
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -513,6 +513,7 @@ const AgentChatSessionFrame = ({
       messages={runtime.uiMessages}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
+      optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
       modelFallback={runtime.fallbackSnapshot}
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}

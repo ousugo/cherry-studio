@@ -218,7 +218,11 @@
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
         "error": {
-          "loadFailed": "Failed to load tasks"
+          "createFailed": "Failed to create task",
+          "deleteFailed": "Failed to delete task",
+          "loadFailed": "Failed to load tasks",
+          "runFailed": "Failed to run task",
+          "updateFailed": "Failed to update task"
         },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
@@ -1455,7 +1459,8 @@
       },
       "new_session": "New Task {{Command}}",
       "new_topic": "New Conversation {{Command}}",
-      "paste_text_file": "Paste into input",
+      "paste_text_file": "Show in input",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send, / to include tools",
       "resource_panel": {
@@ -2005,6 +2010,7 @@
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "create_success": "Created successfully",
     "current": "Current",
     "cut": "Cut",
     "default": "Default",
@@ -3124,6 +3130,8 @@
           }
         },
         "generate": "Generate prompt",
+        "generate_failed_description": "Check or change the default model, then try again.",
+        "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
@@ -6721,8 +6729,8 @@
       "api_key": "API Key",
       "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",

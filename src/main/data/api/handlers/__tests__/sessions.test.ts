@@ -9,7 +9,6 @@ const {
   deleteByAgentIdMock,
   deleteByIdsMock,
   listSessionMessagesMock,
-  searchSessionMessagesMock,
   deleteSessionMessageMock,
   reorderMock,
   reorderBatchMock
@@ -22,7 +21,6 @@ const {
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
   listSessionMessagesMock: vi.fn(),
-  searchSessionMessagesMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
@@ -45,7 +43,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     listSessionMessages: listSessionMessagesMock,
-    search: searchSessionMessagesMock,
     deleteSessionMessage: deleteSessionMessageMock
   }
 }))
@@ -86,30 +83,6 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(listByCursorMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/agent-sessions/messages/search', () => {
-    it('forwards normalized session message search query', async () => {
-      const response = { items: [], nextCursor: undefined }
-      searchSessionMessagesMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions/messages/search'].GET({
-        query: {
-          q: '  needle  ',
-          sessionId: 'session-1',
-          limit: '10',
-          createdAtFrom: '2026-05-01T00:00:00.000Z'
-        }
-      } as never)
-
-      expect(searchSessionMessagesMock).toHaveBeenCalledWith({
-        q: 'needle',
-        sessionId: 'session-1',
-        limit: 10,
-        createdAtFrom: '2026-05-01T00:00:00.000Z'
-      })
-      expect(result).toBe(response)
     })
   })
 

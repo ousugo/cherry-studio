@@ -54,6 +54,7 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
+  const leftPaneOpen = Boolean(paneOpen && (panePosition ?? 'left') === 'left')
 
   // In window mode the page navbar IS the window title bar, so wrap it even without a
   // right tool to pick up the drag region, traffic-light inset, and title-leading slot.
@@ -61,6 +62,7 @@ export default function ConversationShell({
     topRightTool || isWindow ? (
       <ConversationShellTopBar
         isWindow={isWindow}
+        leftPaneOpen={leftPaneOpen}
         leading={chrome?.titleLeading}
         topRightToolReserve={topRightToolReserve}>
         {topBar}
@@ -107,24 +109,30 @@ export default function ConversationShell({
 
 type TopBarProps = {
   isWindow: boolean
+  leftPaneOpen: boolean
   leading?: ReactNode
   topRightToolReserve: 'single' | 'double'
   children?: ReactNode
 }
 
-const ConversationShellTopBar = ({ isWindow, leading, topRightToolReserve, children }: TopBarProps) => {
+const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightToolReserve, children }: TopBarProps) => {
   const shellState = useOptionalShellState()
   const maximized = shellState?.maximized ?? false
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
+  const shouldReserveTrafficLightInset = isWindow && isMac && !leftPaneOpen
   return (
     <div
       data-conversation-shell-topbar
       style={windowNavbarHeightStyle}
       className={cn(
         'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]',
-        // Window mode: the navbar is the window title bar — make it draggable, inset past the
-        // macOS traffic lights, and show the injected title (emoji + name) on the left.
-        isWindow && [TITLE_BAR_HEIGHT_CLASS, '[-webkit-app-region:drag]', isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'],
+        // Window mode: the navbar is the window title bar. Only reserve the macOS traffic-light
+        // inset when the left pane is closed; an open pane already owns that area.
+        isWindow && [
+          TITLE_BAR_HEIGHT_CLASS,
+          '[-webkit-app-region:drag]',
+          shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+        ],
         // Reserve room for the floating right group: wider in window mode (pin + back + tool).
         !maximized && (isWindow ? 'pr-28' : topRightToolReserve === 'double' ? 'pr-[76px]' : 'pr-11')
       )}>

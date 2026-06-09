@@ -323,7 +323,7 @@ export class AgentWorkspaceService {
     const [target] = await tx
       .select({ id: agentWorkspaceTable.id })
       .from(agentWorkspaceTable)
-      .where(eq(agentWorkspaceTable.id, id))
+      .where(and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, 'user')))
     if (!target) throw DataApiErrorFactory.notFound('AgentWorkspace', id)
     await applyMoves(tx, agentWorkspaceTable, [{ id, anchor }], {
       pkColumn: agentWorkspaceTable.id,

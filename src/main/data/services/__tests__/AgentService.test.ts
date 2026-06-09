@@ -233,6 +233,16 @@ describe('AgentService', () => {
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
 
+    it('sorts by updatedAt without pin-first ordering', async () => {
+      await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
+      await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+
+      expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
+    })
+
     it('does not expose tags in agent rows', async () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
@@ -306,6 +316,50 @@ describe('AgentService', () => {
 
       expect(agents.map((agent) => agent.id)).toEqual(['agent_newest', 'agent_newer'])
       expect(total).toBe(2)
+    })
+  })
+
+  describe('search', () => {
+    it('returns lean navigation items ordered by updatedAt', async () => {
+      await insertAgent({
+        id: 'agent_search_old',
+        name: 'Needle Old Agent',
+        description: 'old agent',
+        configuration: { avatar: 'A' },
+        updatedAt: 100
+      })
+      await insertAgent({
+        id: 'agent_search_new',
+        name: 'Needle New Agent',
+        description: 'new agent',
+        configuration: { avatar: 'B' },
+        updatedAt: 200
+      })
+      await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
+
+      const result = await agentService.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'agent',
+          id: 'agent_search_new',
+          title: 'Needle New Agent',
+          subtitle: 'new agent',
+          emoji: 'B',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { agentId: 'agent_search_new' }
+        },
+        {
+          type: 'agent',
+          id: 'agent_search_old',
+          title: 'Needle Old Agent',
+          subtitle: 'old agent',
+          emoji: 'A',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { agentId: 'agent_search_old' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('modelName')
     })
   })
 })

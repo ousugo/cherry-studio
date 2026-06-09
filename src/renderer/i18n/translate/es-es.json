@@ -218,7 +218,11 @@
         "edit": "Editar",
         "empty": "No hay tareas programadas. Agregue una para comenzar.",
         "error": {
-          "loadFailed": "Error al cargar las tareas"
+          "createFailed": "[to be translated]:Failed to create task",
+          "deleteFailed": "[to be translated]:Failed to delete task",
+          "loadFailed": "Error al cargar las tareas",
+          "runFailed": "[to be translated]:Failed to run task",
+          "updateFailed": "[to be translated]:Failed to update task"
         },
         "intervalPlaceholder": "Intervalo en minutos",
         "intervalUnit": "minutos",
@@ -1408,6 +1412,7 @@
       "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
       "paste_text_file": "Pegar en la entrada",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "resource_panel": {
@@ -1956,6 +1961,7 @@
     "copied": "Copiado",
     "copy": "Copiar",
     "copy_failed": "Error al copiar",
+    "create_success": "[to be translated]:Created successfully",
     "current": "Actual",
     "cut": "Cortar",
     "default": "Predeterminado",
@@ -2533,16 +2539,10 @@
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Haz clic para seleccionar archivos o arrástralos aquí"
         },
-        "sitemap": {
-          "description": "Introduce una URL del mapa del sitio:",
-          "help": "Las páginas listadas en el mapa del sitio serán leídas e indexadas",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Carpeta",
           "file": "Archivo",
           "note": "Nota",
-          "sitemap": "Sitio web",
           "url": "URL"
         },
         "submit": {
@@ -2580,9 +2580,6 @@
           "file": {
             "title": "Archivo"
           },
-          "sitemap": {
-            "title": "Sincronización del sitio web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2595,7 +2592,6 @@
         "directory": "Carpetas",
         "file": "Archivos",
         "note": "Notas",
-        "sitemap": "Sitios web",
         "url": "URLs"
       },
       "preview": {
@@ -3077,6 +3073,8 @@
           }
         },
         "generate": "Generar indicación",
+        "generate_failed_description": "Comprueba o cambia el modelo predeterminado y vuelve a intentarlo.",
+        "generate_failed_title": "No se pudo generar la indicación",
         "insert_variable": "Insertar variable",
         "label": "Indicación del sistema",
         "placeholder": "Introduce el prompt del sistema. Se admiten variables como {{date}} y {{model_name}}...",
@@ -6680,6 +6678,9 @@
         "enabled": "Habilitado",
         "failed": "Fallido",
         "failed_to_start": "Error al iniciar la verificación de estado",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "Pasados: {{count_passed}} claves, fallidos: {{count_failed}} claves",
         "model_status_failed": "{{count}} modelos no son accesibles en absoluto",
         "model_status_partial": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
@@ -6688,6 +6689,7 @@
         "no_api_keys": "No se encontraron claves API, agrega una clave API primero.",
         "no_results": "Sin resultados",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Pasado",
@@ -6699,8 +6701,11 @@
         "retry": "Check again",
         "select_api_key": "Seleccionar clave API a usar:",
         "single": "Individual",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Iniciar",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "Tiempo de espera agotado",
         "title": "Verificación de salud del modelo",
         "use_all_keys": "Usar todas las claves"
@@ -6709,6 +6714,8 @@
       "default_assistant_model": "Modelo predeterminado del asistente",
       "default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",
       "empty": "Sin modelos",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

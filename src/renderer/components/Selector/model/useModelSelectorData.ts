@@ -2,6 +2,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getSearchMatchScore } from '@renderer/utils/modelSearch'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
@@ -18,6 +19,7 @@ import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
 const SELECTOR_LIST_SWR_OPTIONS = { revalidateOnFocus: true } as const
+const CHERRYAI_SETTINGS_PROVIDER_ID = 'cherryin'
 
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
@@ -63,6 +65,10 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
   const remaining = providers.filter((provider) => !prioritizedIds.has(provider.id))
 
   return [...prioritized, ...remaining]
+}
+
+function getProviderSettingsProviderId(provider: Provider): string {
+  return provider.id === CHERRYAI_PROVIDER_ID ? CHERRYAI_SETTINGS_PROVIDER_ID : provider.id
 }
 
 export function useModelSelectorData({
@@ -287,7 +293,8 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: provider.id !== 'cherryai'
+        canNavigateToSettings: true,
+        settingsProviderId: getProviderSettingsProviderId(provider)
       })
 
       items.push(

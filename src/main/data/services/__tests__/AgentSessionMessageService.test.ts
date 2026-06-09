@@ -135,6 +135,37 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
+  it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: USER_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'older' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: ASSISTANT_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newer' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      cursor: 'not-a-cursor',
+      limit: 1
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual([ASSISTANT_MESSAGE_ID])
+    expect(result.nextCursor).toBe(`200:${ASSISTANT_MESSAGE_ID}`)
+  })
+
   it('keeps searchable_text and FTS index in sync from message data', async () => {
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,
@@ -317,6 +348,81 @@ describe('AgentSessionMessageService', () => {
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa'])
   })
 
+  it('requires all search terms to match a session message', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-search-and',
+      name: 'Session Search And',
+      orderKey: 'ssa0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba',
+        sessionId: 'session-search-and',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'alpha needle appear together.' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bb',
+        sessionId: 'session-search-and',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle appears without the other term.' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.search({ q: 'alpha needle' })
+
+    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba'])
+  })
+
+  it('treats LIKE wildcards as literal session-message search text after FTS prefiltering', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-search-literal',
+      name: 'Session Search Literal',
+      orderKey: 'ssl0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc',
+        sessionId: 'session-search-literal',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Save 50% off today.' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bd',
+        sessionId: 'session-search-literal',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Save 50X off today.' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be',
+        sessionId: 'session-search-literal',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Save 50_ off today.' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      }
+    ])
+
+    const percentResult = await agentSessionMessageService.search({ q: '50%' })
+    const underscoreResult = await agentSessionMessageService.search({ q: '50_' })
+
+    expect(percentResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc'])
+    expect(underscoreResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be'])
+  })
+
   it('uses the session message FTS index as the search candidate source', async () => {
     await dbh.db.insert(agentSessionTable).values({
       id: 'session-fts-candidate',
@@ -485,5 +591,73 @@ describe('AgentSessionMessageService', () => {
     expect(firstPage.nextCursor).toBe('200:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d106')
     expect(secondPage.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d105'])
     expect(secondPage.nextCursor).toBeUndefined()
+  })
+
+  it('uses session message id as the search cursor tiebreaker when createdAt values match', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-page-tie',
+      name: 'Session Page Tie',
+      orderKey: 'spt0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d205',
+        sessionId: 'session-page-tie',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle tie oldest' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206',
+        sessionId: 'session-page-tie',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle tie middle' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d207',
+        sessionId: 'session-page-tie',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle tie newest' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const firstPage = await agentSessionMessageService.search({
+      q: 'needle',
+      sessionId: 'session-page-tie',
+      limit: 2
+    })
+    const secondPage = await agentSessionMessageService.search({
+      q: 'needle',
+      sessionId: 'session-page-tie',
+      limit: 2,
+      cursor: firstPage.nextCursor
+    })
+
+    expect(firstPage.items.map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d207',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206'
+    ])
+    expect(firstPage.nextCursor).toBe('100:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206')
+    expect(secondPage.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d205'])
+    expect(secondPage.nextCursor).toBeUndefined()
+  })
+
+  it('rejects malformed session message search cursors', async () => {
+    await expect(agentSessionMessageService.search({ q: 'needle', cursor: 'not-a-cursor' })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR'
+    })
+    await expect(
+      agentSessionMessageService.search({ q: 'needle', cursor: 'abc:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206' })
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR'
+    })
   })
 })

@@ -56,8 +56,8 @@ export const ToolBlockGroupHeaderContent = React.memo(
 
     if (allCompleted && !showLatestWhenComplete) {
       return (
-        <div className="flex min-w-0 items-center text-[13px]">
-          <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+        <div className="flex items-center text-[13px]">
+          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
             {fallbackLabel}
           </span>
         </div>

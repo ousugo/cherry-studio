@@ -15,6 +15,7 @@ import type {
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeBaseDto,
@@ -32,11 +33,7 @@ import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
-type ListKnowledgeBasesServiceQuery = ListKnowledgeBasesQuery & {
-  updatedAtFrom?: number
-  sortBy?: 'updatedAt'
-  orderBy?: 'asc' | 'desc'
-}
+type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
@@ -85,7 +82,35 @@ export class KnowledgeBaseService {
     return application.get('DbService').getDb()
   }
 
-  async list(query: ListKnowledgeBasesServiceQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<KnowledgeBaseEntitySearchItem[]> {
+    const conditions: SQL[] = []
+    const search = buildSearchPredicate(query.q)
+    if (search) conditions.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await this.db
+      .select({
+        id: knowledgeBaseTable.id,
+        name: knowledgeBaseTable.name,
+        updatedAt: knowledgeBaseTable.updatedAt
+      })
+      .from(knowledgeBaseTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id))
+      .limit(query.limit)
+
+    return rows.map((row) => ({
+      type: 'knowledge-base',
+      id: row.id,
+      title: row.name,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { knowledgeBaseId: row.id }
+    }))
+  }
+
+  async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
     const conditions: SQL[] = []
@@ -95,11 +120,15 @@ export class KnowledgeBaseService {
       conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-    const orderFn = query.orderBy === 'asc' ? asc : desc
-    const orderByClauses =
-      query.sortBy === 'updatedAt'
-        ? [orderFn(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id)]
-        : [desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id)]
+    const sortBy = query.sortBy ?? 'createdAt'
+    const orderBy = query.orderBy ?? 'desc'
+    const orderFn = orderBy === 'asc' ? asc : desc
+    const sortByToColumn = {
+      createdAt: knowledgeBaseTable.createdAt,
+      updatedAt: knowledgeBaseTable.updatedAt,
+      name: knowledgeBaseTable.name
+    } as const
+    const sortColumn = sortByToColumn[sortBy] ?? knowledgeBaseTable.createdAt
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select({
@@ -113,7 +142,7 @@ export class KnowledgeBaseService {
         )
         .groupBy(knowledgeBaseTable.id)
         .where(whereClause)
-        .orderBy(...orderByClauses)
+        .orderBy(orderFn(sortColumn), orderFn(knowledgeBaseTable.id))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).where(whereClause)

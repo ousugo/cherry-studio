@@ -218,7 +218,11 @@
         "edit": "编辑",
         "empty": "暂无定时任务。添加一个开始吧。",
         "error": {
-          "loadFailed": ""
+          "createFailed": "创建任务失败",
+          "deleteFailed": "删除任务失败",
+          "loadFailed": "加载任务列表失败",
+          "runFailed": "运行任务失败",
+          "updateFailed": "更新任务失败"
         },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
@@ -231,7 +235,7 @@
           "failed": "失败",
           "justNow": "刚刚",
           "label": "运行历史",
-          "loadError": "",
+          "loadError": "加载运行历史失败",
           "result": "结果",
           "runAt": "运行时间",
           "running": "运行中...",
@@ -1455,7 +1459,8 @@
       },
       "new_session": "新任务 {{Command}}",
       "new_topic": "新对话 {{Command}}",
-      "paste_text_file": "粘贴到输入框",
+      "paste_text_file": "在文本框中显示",
+      "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送，/ 选择工具",
       "resource_panel": {
@@ -2005,6 +2010,7 @@
     "copied": "已复制",
     "copy": "复制",
     "copy_failed": "复制失败",
+    "create_success": "创建成功",
     "current": "当前",
     "cut": "剪切",
     "default": "默认",
@@ -3124,6 +3130,8 @@
           }
         },
         "generate": "生成提示词",
+        "generate_failed_description": "请检查或调整默认模型后重试。",
+        "generate_failed_title": "生成提示词失败",
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",
@@ -4717,7 +4725,7 @@
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
     "longcat": "龙猫",
-    "mimo": "Xiaomi MiMo",
+    "mimo": "小米 MiMo",
     "mineru": "MinerU",
     "minimax": "MiniMax",
     "minimax-global": "MiniMax 海外版",
@@ -6721,8 +6729,8 @@
       "api_key": "API 密钥",
       "available_count": "可用模型 {{count}} 个",
       "base_url": "基础 URL",
-      "bulk_disable": "全部关闭",
-      "bulk_enable": "全选",
+      "bulk_disable": "全部禁用",
+      "bulk_enable": "全部启用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型检测通过",

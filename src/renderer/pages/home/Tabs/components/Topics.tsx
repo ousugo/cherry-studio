@@ -23,7 +23,7 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { CommandPopupMenu } from '@renderer/features/command'
-import { useAssistantsApi, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -42,6 +42,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/default-assistant'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { Bot, ListFilter, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
@@ -317,7 +318,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
-  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)

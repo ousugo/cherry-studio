@@ -1,4 +1,4 @@
-import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
+import type { EntitySearchResponse } from '@shared/data/api/schemas/search'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -65,7 +65,7 @@ describe('globalSearchGroups', () => {
       })
     ])
 
-    const response: GlobalSearchResponse = {
+    const response: EntitySearchResponse = {
       query: 'agent',
       groups: [
         {
@@ -93,7 +93,7 @@ describe('globalSearchGroups', () => {
   })
 
   it('includes knowledge bases in all search and supports knowledge filtering', () => {
-    const response: GlobalSearchResponse = {
+    const response: EntitySearchResponse = {
       query: 'docs',
       groups: [
         {
@@ -174,7 +174,7 @@ describe('globalSearchGroups', () => {
   })
 
   it('maps topic and session filters to separate search types and groups', () => {
-    const response: GlobalSearchResponse = {
+    const response: EntitySearchResponse = {
       query: 'plan',
       groups: [
         {
@@ -243,7 +243,7 @@ describe('globalSearchGroups', () => {
   })
 
   it('collapses topic and session groups only in all search', () => {
-    const response: GlobalSearchResponse = {
+    const response: EntitySearchResponse = {
       query: 'plan',
       groups: [
         {

@@ -218,7 +218,11 @@
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
         "error": {
-          "loadFailed": "Không tải được nhiệm vụ"
+          "createFailed": "[to be translated]:Failed to create task",
+          "deleteFailed": "[to be translated]:Failed to delete task",
+          "loadFailed": "Không tải được nhiệm vụ",
+          "runFailed": "[to be translated]:Failed to run task",
+          "updateFailed": "[to be translated]:Failed to update task"
         },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
@@ -1408,6 +1412,7 @@
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
       "paste_text_file": "Dán vào ô nhập",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "resource_panel": {
@@ -1956,6 +1961,7 @@
     "copied": "Đã sao chép",
     "copy": "Sao chép",
     "copy_failed": "Sao chép thất bại",
+    "create_success": "[to be translated]:Created successfully",
     "current": "Hiện tại",
     "cut": "Cắt",
     "default": "Mặc định",
@@ -2533,16 +2539,10 @@
           "supported_formats": "Hỗ trợ PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Nhấp để chọn tệp hoặc kéo thả chúng vào đây"
         },
-        "sitemap": {
-          "description": "Nhập URL sơ đồ trang web:",
-          "help": "Các trang được liệt kê trong sơ đồ trang web sẽ được đọc và lập chỉ mục",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Thư mục",
           "file": "Tệp",
           "note": "Ghi chú",
-          "sitemap": "Trang web",
           "url": "URL"
         },
         "submit": {
@@ -2580,9 +2580,6 @@
           "file": {
             "title": "Tệp"
           },
-          "sitemap": {
-            "title": "Đồng bộ Trang web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2595,7 +2592,6 @@
         "directory": "Thư mục",
         "file": "Tệp",
         "note": "Ghi chú",
-        "sitemap": "Trang web",
         "url": "URL"
       },
       "preview": {
@@ -3077,6 +3073,8 @@
           }
         },
         "generate": "Tạo lời nhắc",
+        "generate_failed_description": "Kiểm tra hoặc đổi mô hình mặc định rồi thử lại.",
+        "generate_failed_title": "Không thể tạo lời nhắc",
         "insert_variable": "Chèn biến",
         "label": "Lời nhắc hệ thống",
         "placeholder": "Nhập lời nhắc hệ thống. Các biến như {{date}} và {{model_name}} được hỗ trợ...",
@@ -6680,6 +6678,9 @@
         "enabled": "Đã bật",
         "failed": "Thất bại",
         "failed_to_start": "Không thể khởi động kiểm tra sức khỏe",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "Đã vượt qua: {{count_passed}} khóa, không vượt qua: {{count_failed}} khóa",
         "model_status_failed": "{{count}} mô hình hoàn toàn không thể truy cập",
         "model_status_partial": "{{count}} mô hình có các khóa không thể truy cập",
@@ -6688,6 +6689,7 @@
         "no_api_keys": "Không tìm thấy khóa API, vui lòng thêm khóa API trước.",
         "no_results": "Không có kết quả",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Đã thông qua",
@@ -6699,8 +6701,11 @@
         "retry": "Check again",
         "select_api_key": "Chọn khóa API để sử dụng:",
         "single": "Unico",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Bắt đầu",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "Hết thời gian",
         "title": "Kontrola zdraví modelu",
         "use_all_keys": "Clave(s)"
@@ -6709,6 +6714,8 @@
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "empty": "Không tìm thấy mô hình nào",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

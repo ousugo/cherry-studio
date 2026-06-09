@@ -148,8 +148,10 @@ export function useChatRuntimeState({
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
+  const runtimeBranchLiveStatePublishedRef = useRef(false)
   useEffect(() => {
     finishedBranchExecutionIdsRef.current.clear()
+    runtimeBranchLiveStatePublishedRef.current = false
     setBranchLiveMessages([])
     setBranchLiveExecutions([])
   }, [topic.id])
@@ -293,17 +295,34 @@ export function useChatRuntimeState({
   )
 
   useEffect(() => {
-    if (!onBranchLiveStateChange || (branchActiveExecutions.length === 0 && branchFlowLiveMessages.length === 0)) return
+    if (!onBranchLiveStateChange) return
 
-    onBranchLiveStateChange(
-      buildTopicMessageFlowLiveState({
-        topicId: topic.id,
-        messages: branchFlowLiveMessages,
-        partsByMessageId,
-        activeNodeId: branchFlowLiveMessages.at(-1)?.id ?? activeNodeId,
-        streamingMessageIds: activeStreamingMessageIds
-      })
-    )
+    if (branchActiveExecutions.length === 0 && branchFlowLiveMessages.length === 0) {
+      if (runtimeBranchLiveStatePublishedRef.current) {
+        runtimeBranchLiveStatePublishedRef.current = false
+        onBranchLiveStateChange(null)
+      }
+      return
+    }
+
+    const liveState = buildTopicMessageFlowLiveState({
+      topicId: topic.id,
+      messages: branchFlowLiveMessages,
+      partsByMessageId,
+      activeNodeId: branchFlowLiveMessages.at(-1)?.id ?? activeNodeId,
+      streamingMessageIds: activeStreamingMessageIds
+    })
+
+    if (!liveState) {
+      if (runtimeBranchLiveStatePublishedRef.current) {
+        runtimeBranchLiveStatePublishedRef.current = false
+        onBranchLiveStateChange(null)
+      }
+      return
+    }
+
+    runtimeBranchLiveStatePublishedRef.current = true
+    onBranchLiveStateChange(liveState)
   }, [
     activeNodeId,
     branchActiveExecutions.length,
@@ -338,6 +357,7 @@ export function useChatRuntimeState({
             setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
           } else {
             setBranchLiveMessages([])
+            runtimeBranchLiveStatePublishedRef.current = false
             onBranchLiveStateChange?.(null)
           }
         }

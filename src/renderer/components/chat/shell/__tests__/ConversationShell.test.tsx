@@ -1,3 +1,4 @@
+import type * as ConstantConfig from '@renderer/config/constant'
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -17,6 +18,14 @@ const shellProps = vi.hoisted(() => ({
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: { children: ReactNode }) => <div data-testid="quick-panel">{children}</div>
 }))
+
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const actual = await importOriginal<typeof ConstantConfig>()
+  return {
+    ...actual,
+    isMac: true
+  }
+})
 
 vi.mock('../ChatAppShell', () => ({
   ChatAppShell: (props: {
@@ -69,6 +78,7 @@ describe('ConversationShell', () => {
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
     expect(topBarWrapper).toHaveClass('h-[37.5px]')
     expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
+    expect(topBarWrapper).toHaveClass('pl-[env(titlebar-area-x)]')
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
 
@@ -92,5 +102,23 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).toHaveClass('pr-[76px]')
     expect(topRightTool).toHaveClass('gap-0.5')
     expect(topRightTool).not.toHaveClass('w-7.5')
+  })
+
+  it('uses normal title-bar padding when the left pane is open in window mode', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
+        <ConversationShell
+          pane={<div data-testid="pane" />}
+          paneOpen
+          panePosition="left"
+          topBar={<div data-testid="top-bar" />}
+          center={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    expect(topBarWrapper).toHaveClass('pl-2')
+    expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 })

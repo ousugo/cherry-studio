@@ -168,6 +168,6 @@ describe('PreferenceSeeder', () => {
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.icons.visible')))
 
-    expect(visible.value).toEqual(['assistants', 'agents', 'paintings', 'translate', 'store'])
+    expect(visible.value).toEqual(DefaultPreferences.default['ui.sidebar.icons.visible'])
   })
 })

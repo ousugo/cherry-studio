@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
@@ -32,11 +33,7 @@ const logger = loggerService.withContext('DataApi:AssistantService')
 type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
-type ListAssistantsServiceQuery = ListAssistantsQuery & {
-  updatedAtFrom?: number
-  sortBy?: 'updatedAt'
-  orderBy?: 'asc' | 'desc'
-}
+type AssistantEntitySearchItem = Extract<EntitySearchItem, { type: 'assistant' }>
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -67,6 +64,17 @@ function rowToAssistant(
     tags,
     modelName
   }
+}
+
+function buildSearchPredicate(q: string | undefined): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descMatch)
 }
 
 export class AssistantDataService {
@@ -202,6 +210,38 @@ export class AssistantDataService {
     return rowToAssistant(row.assistant, relations.get(id), tags.get(id), row.modelName || null)
   }
 
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<AssistantEntitySearchItem[]> {
+    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    const searchClause = buildSearchPredicate(query.q)
+    if (searchClause) conditions.push(searchClause)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await this.db
+      .select({
+        id: assistantTable.id,
+        name: assistantTable.name,
+        description: assistantTable.description,
+        emoji: assistantTable.emoji,
+        updatedAt: assistantTable.updatedAt
+      })
+      .from(assistantTable)
+      .where(and(...conditions))
+      .orderBy(desc(assistantTable.updatedAt), asc(assistantTable.id))
+      .limit(query.limit)
+
+    return rows.map((row) => ({
+      type: 'assistant',
+      id: row.id,
+      title: row.name,
+      subtitle: row.description || undefined,
+      emoji: row.emoji,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { assistantId: row.id }
+    }))
+  }
+
   /**
    * List assistants with optional filters.
    *
@@ -217,7 +257,7 @@ export class AssistantDataService {
    *
    * `page` and `limit` are filled by the schema default — no runtime fallback.
    */
-  async list(query: ListAssistantsServiceQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+  async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
@@ -233,26 +273,32 @@ export class AssistantDataService {
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
     }
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
     if (query.tagIds && query.tagIds.length > 0) {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
       conditions.push(assistantIds.length > 0 ? inArray(assistantTable.id, assistantIds) : sql`0 = 1`)
     }
-    if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
-    }
 
     const whereClause = and(...conditions)
-    const orderFn = query.orderBy === 'asc' ? asc : desc
+    const sortBy = query.sortBy ?? 'orderKey'
+    const orderBy = query.orderBy ?? (sortBy === 'orderKey' || sortBy === 'name' ? 'asc' : 'desc')
+    const orderFn = orderBy === 'asc' ? asc : desc
+    const sortByToColumn = {
+      createdAt: assistantTable.createdAt,
+      updatedAt: assistantTable.updatedAt,
+      name: assistantTable.name,
+      orderKey: assistantTable.orderKey
+    } as const
+    const sortColumn = sortByToColumn[sortBy] ?? assistantTable.orderKey
     const orderByClauses =
-      query.sortBy === 'updatedAt'
-        ? [orderFn(assistantTable.updatedAt), asc(assistantTable.id)]
+      sortBy === 'updatedAt'
+        ? [orderFn(sortColumn), asc(assistantTable.id)]
         : [
             sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
             asc(pinTable.orderKey),
-            asc(assistantTable.orderKey),
-            // Production orderKeys are unique so this tiebreaker is rarely hit;
-            // tests that seed multiple rows with the same default key fall back
-            // to insertion-ordered createdAt instead of SQLite ROWID order.
+            orderFn(sortColumn),
             asc(assistantTable.createdAt)
           ]
 

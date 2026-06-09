@@ -104,6 +104,8 @@ export interface ScrollPositionMemoryInputs {
   isAtBottom: () => boolean
   /** Mark the at-bottom tracker as stuck after restoring to the bottom. */
   notifyProgrammaticStick: () => void
+  /** When true, restoring may position the list but must not re-enable bottom-follow. */
+  suppressBottomFollow?: () => boolean
   /** Release any active scroll anchor pin before restoring. */
   releaseAnchor: () => void
   /** Whether a smooth-scroll animation is in flight (don't save mid-animation). */
@@ -173,10 +175,10 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
         i.releaseAnchor()
         handle.scrollToIndex(target.index, { align: target.align, offset: target.offset })
         // Following the newest message engages auto-stick so streaming keeps up.
-        if (target.align === 'end') i.notifyProgrammaticStick()
+        if (target.align === 'end' && !i.suppressBottomFollow?.()) i.notifyProgrammaticStick()
       } else if (el && target.align === 'end') {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
-        i.notifyProgrammaticStick()
+        if (!i.suppressBottomFollow?.()) i.notifyProgrammaticStick()
       }
       // Let the programmatic scroll flush (virtua's scrollToIndex measures then
       // re-positions) before re-enabling saves.

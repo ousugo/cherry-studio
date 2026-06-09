@@ -33,33 +33,6 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
 
-export const SearchAgentSessionMessagesQuerySchema = z.strictObject({
-  q: z.string().trim().min(1),
-  sessionId: z.string().min(1).optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(1000).optional(),
-  createdAtFrom: z.iso.datetime().optional()
-})
-export type SearchAgentSessionMessagesQueryParams = {
-  q: string
-  sessionId?: string
-  cursor?: string
-  limit?: number
-  createdAtFrom?: string
-}
-
-export interface AgentSessionSearchMessageResult {
-  messageId: string
-  sessionId: string
-  sessionName: string
-  agentId?: string
-  agentName?: string
-  role?: 'user' | 'assistant' | 'tool' | 'system'
-  snippet: string
-  createdAt: string
-}
-export type SearchAgentSessionMessagesResponse = CursorPaginationResponse<AgentSessionSearchMessageResult>
-
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
 // ============================================================================
@@ -216,13 +189,6 @@ export type AgentSessionSchemas = {
       params: { sessionId: string }
       query?: AgentSessionMessagesListQuery
       response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
-    }
-  }
-
-  '/agent-sessions/messages/search': {
-    GET: {
-      query: SearchAgentSessionMessagesQueryParams
-      response: SearchAgentSessionMessagesResponse
     }
   }
 
