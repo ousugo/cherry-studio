@@ -1,6 +1,14 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ChatAppShell, EmptyState, LoadingState } from '@renderer/components/chat'
+import {
+  ChatAppShell,
+  type ChatPanePosition,
+  ConversationShell,
+  ConversationStageCenter,
+  EmptyState,
+  LoadingState
+} from '@renderer/components/chat'
+import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
@@ -14,20 +22,22 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/features/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { FileMetadata, Topic } from '@renderer/types'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { useLocation, useSearch } from '@tanstack/react-router'
-import type { FC } from 'react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Chat from './Chat'
+import ChatNavbar from './components/ChatNavBar'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
@@ -35,46 +45,33 @@ import type { AddNewTopicPayload } from './types'
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 
-type TemporaryAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
-type TemporaryAssistantSelection = { assistantId?: string; source: TemporaryAssistantSelectionSource }
-type TemporaryStartState = {
+type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
+type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
+type DraftAssistantStartState = {
   firstLaunchStarted: boolean
-  isStarting: boolean
-  startingAssistantId?: string
-  queuedAssistantId?: string | null
 }
 
-/**
- * Synthesise a renderer Topic shape from a freshly-leased temporary id.
- * Missing assistant id intentionally uses the runtime fallback temporary chat path.
- */
-function buildPendingTemporaryTopic(id: string, assistantId?: string | null): Topic {
-  const nowIso = new Date().toISOString()
-  return {
-    id,
-    assistantId: assistantId ?? undefined,
-    name: '',
-    createdAt: nowIso,
-    updatedAt: nowIso,
-    messages: [],
-    pinned: false,
-    isNameManuallyEdited: false
-  }
+type DraftAssistantSelection = {
+  assistantId?: string
 }
 
-function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string | undefined {
-  return topic?.assistantId || undefined
+type DraftChatSendOptions = {
+  files?: FileMetadata[]
+  mentionedModels?: UniqueModelId[]
+  knowledgeBaseIds?: string[]
+  userMessageParts?: CherryMessagePart[]
 }
 
 const HomePage: FC = () => {
   const { t } = useTranslation()
+  const draftScopeId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
-  const temporaryStartStateRef = useRef<TemporaryStartState>({ firstLaunchStarted: false, isStarting: false })
-  const temporaryLeaseRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
-  const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
+  const draftAssistantStartStateRef = useRef<DraftAssistantStartState>({ firstLaunchStarted: false })
+  const draftAssistantSelectionRef = useRef<DraftAssistantSelection | null>(null)
+  const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
@@ -103,18 +100,14 @@ const HomePage: FC = () => {
     [routeApiTopic]
   )
 
-  const shouldUseTemporary = !state?.topic && !isMessageOnlyView
+  const shouldUseDraft = !state?.topic && !isMessageOnlyView
 
-  const temporaryConversation = useTemporaryConversation({ type: 'assistant' })
-  const {
-    conversation: temporaryTopicConversation,
-    start: startTemporaryConversation,
-    updateAssistant: updateTemporaryAssistant,
-    persist: persistTemporaryConversation,
-    discard: discardTemporaryConversation
-  } = temporaryConversation
+  const setDraftAssistantSelectionState = useCallback((selection?: DraftAssistantSelection) => {
+    draftAssistantSelectionRef.current = selection ?? null
+    setDraftAssistantSelection(selection)
+  }, [])
 
-  const { refreshTopics } = useTopicMutations()
+  const { createTopic, refreshTopics } = useTopicMutations()
   const {
     assistants,
     hasLoaded: hasAssistantsLoaded,
@@ -126,8 +119,8 @@ const HomePage: FC = () => {
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
   const fallbackAssistantId = assistants[0]?.id
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
-  const resolveTemporaryAssistantTarget = useCallback(
-    (explicitAssistantId?: string | null): TemporaryAssistantSelection => {
+  const resolveDraftAssistantTarget = useCallback(
+    (explicitAssistantId?: string | null): ResolvedDraftAssistantSelection => {
       if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
@@ -142,46 +135,10 @@ const HomePage: FC = () => {
     [assistantIdSet, fallbackAssistantId, validLastUsedAssistantId]
   )
 
-  useEffect(() => {
-    if (temporaryTopicConversation?.type !== 'assistant') {
-      temporaryLeaseRef.current = null
-      setIgnoredTemporaryTopicId(null)
-      return
-    }
-
-    if (ignoredTemporaryTopicId === temporaryTopicConversation.topicId) {
-      temporaryLeaseRef.current = null
-      return
-    }
-
-    temporaryLeaseRef.current = {
-      topicId: temporaryTopicConversation.topicId,
-      assistantId: temporaryTopicConversation.assistantId
-    }
-  }, [ignoredTemporaryTopicId, temporaryTopicConversation])
-
-  const temporaryTopic = useMemo<Topic | undefined>(() => {
-    if (isMessageOnlyView || state?.topic) return undefined
-    if (
-      temporaryTopicConversation?.type === 'assistant' &&
-      temporaryTopicConversation.topicId !== ignoredTemporaryTopicId
-    ) {
-      return buildPendingTemporaryTopic(temporaryTopicConversation.topicId, temporaryTopicConversation.assistantId)
-    }
-    return undefined
-  }, [ignoredTemporaryTopicId, isMessageOnlyView, state?.topic, temporaryTopicConversation])
-  const pendingTemporaryTopic = temporaryLeaseRef.current
-  const pendingTemporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
-    if (isMessageOnlyView || !pendingTemporaryTopic) return undefined
-    if (pendingTemporaryTopic.topicId === ignoredTemporaryTopicId) return undefined
-    return buildPendingTemporaryTopic(pendingTemporaryTopic.topicId, pendingTemporaryTopic.assistantId)
-  }, [ignoredTemporaryTopicId, isMessageOnlyView, pendingTemporaryTopic])
-
   const initialTopic = useMemo<Topic | undefined>(() => {
     if (isMessageOnlyView) return undefined
-    if (state?.topic) return state.topic
-    return temporaryTopic ?? pendingTemporaryTopicSnapshot
-  }, [isMessageOnlyView, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
+    return state?.topic
+  }, [isMessageOnlyView, state?.topic])
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
@@ -204,15 +161,16 @@ const HomePage: FC = () => {
     passive: isMessageOnlyView
   })
   const lastVisibleTopicRef = useRef<Topic | null>(null)
-  const temporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
-    if (temporaryTopic) return temporaryTopic
-    if (!pendingTemporaryTopicSnapshot) return undefined
-    if (state?.topic && activeTopic?.id !== pendingTemporaryTopicSnapshot.id) return undefined
-    return pendingTemporaryTopicSnapshot
-  }, [activeTopic?.id, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
+  const draftAssistantSelectionSnapshot = useMemo<DraftAssistantSelection | undefined>(() => {
+    if (isMessageOnlyView) return undefined
+    return draftAssistantSelection
+  }, [draftAssistantSelection, isMessageOnlyView])
   const visibleTopic = isMessageOnlyView
     ? routeTopic
-    : (temporaryTopicSnapshot ?? activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
+    : draftAssistantSelectionSnapshot
+      ? undefined
+      : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
+  const draftScopeKey = `home-draft:${draftScopeId}`
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -220,7 +178,7 @@ const HomePage: FC = () => {
   }, [assistantIdSet, isAssistantListResolved, lastUsedAssistantId, setLastUsedAssistantId])
 
   useEffect(() => {
-    const assistantId = getTopicAssistantId(activeTopic)
+    const assistantId = activeTopic?.assistantId
     if (assistantId) {
       setLastUsedAssistantId(assistantId)
     }
@@ -269,8 +227,8 @@ const HomePage: FC = () => {
   }, [currentTabId])
 
   useEffect(() => {
-    // Track "last focused topic" only for persisted topics — temp ids are
-    // ephemeral and would point to nothing on the next sidebar click. Drives
+    // Track "last focused topic" only for persisted topics — draft views have
+    // no stable topic id to restore on the next sidebar click. Drives
     // the sidebar `assistants` dedupe key (mirror of agent's last_used_session).
     // Gated on the active tab: `last_used` is a single global "what I'm looking
     // at now", so background tabs (also mounted) must not clobber it.
@@ -282,12 +240,11 @@ const HomePage: FC = () => {
 
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
-  const { assistant: visibleAssistant } = useAssistantApiById(visibleTopic?.assistantId ?? undefined)
-  // Unpersisted temp topics do not have a stable instance key.
-  const isTemporaryView =
-    !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic?.id === temporaryTopicSnapshot.id
+  const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
+  const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
-    !isMessageOnlyView && !isTemporaryView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
+    !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
@@ -302,9 +259,6 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (isMessageOnlyView) return
     if (!activeTopic) return
-    if (temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId)
-      return
-
     const signature = `${activeTopic.id}:${activeTopic.name}:${activeTopic.assistantId ?? ''}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
@@ -314,20 +268,35 @@ const HomePage: FC = () => {
     if (nextItems !== currentRecentItems) {
       setRecentItems(nextItems)
     }
-  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems, temporaryTopicConversation])
+  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
 
-  const persistTemporaryTopicAndRefresh = useCallback(
-    async (initialName?: string): Promise<TemporaryConversation | null> => {
-      const persisted = await persistTemporaryConversation(initialName)
-      if (persisted?.type !== 'assistant') {
-        throw new Error('Temporary topic handoff failed: no active assistant lease')
+  const sendDraftMessage = useCallback(
+    async (text: string, options?: DraftChatSendOptions) => {
+      const current = draftAssistantSelectionRef.current
+      if (!current) {
+        throw new Error('Draft topic handoff failed: no active draft topic')
       }
-      void refreshTopics().catch((err) => {
-        logger.warn('Failed to refresh topics after temporary topic persist', err as Error)
+
+      const topic = await createTopic({
+        ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      return persisted
+      const ack = await window.api.ai.streamOpen({
+        trigger: 'submit-message',
+        topicId: topic.id,
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
+        mentionedModelIds: options?.mentionedModels
+      })
+      const rendererTopic = mapApiTopicToRendererTopic(topic)
+      setDraftAssistantSelectionState(undefined)
+      setActiveTopic(rendererTopic)
+      void refreshTopics().catch((err) => {
+        logger.warn('Failed to refresh topics after draft topic create', err as Error)
+      })
+      if (ack.mode === 'blocked') {
+        window.toast?.error(ack.message)
+      }
     },
-    [persistTemporaryConversation, refreshTopics]
+    [createTopic, refreshTopics, setActiveTopic, setDraftAssistantSelectionState]
   )
   const setResourceListOpen = useCallback(
     (open: boolean) => {
@@ -359,121 +328,73 @@ const HomePage: FC = () => {
     if (isMessageOnlyView) return
     if (!state?.topic) return
     setActiveTopic(state.topic)
-    void discardTemporaryConversation()
-  }, [discardTemporaryConversation, isMessageOnlyView, setActiveTopic, state?.topic])
+    setDraftAssistantSelectionState(undefined)
+  }, [isMessageOnlyView, setActiveTopic, setDraftAssistantSelectionState, state?.topic])
 
-  const startTemporaryTopic = useCallback(
-    async (payload?: AddNewTopicPayload) => {
+  const startDraftAssistantSelection = useCallback(
+    (payload?: AddNewTopicPayload) => {
       try {
-        const selection = resolveTemporaryAssistantTarget(payload?.assistantId)
+        const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const targetAssistantId = selection.assistantId
+        const current = draftAssistantSelectionRef.current
 
-        if (temporaryTopicConversation?.type === 'assistant') {
-          const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
-          if (currentAssistantId === targetAssistantId) {
-            setIgnoredTemporaryTopicId(null)
-            setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
-            return
-          }
-        }
-
-        if (temporaryLeaseRef.current) {
-          const pending = temporaryLeaseRef.current
-          const pendingAssistantId = pending.assistantId ?? undefined
-          if (pendingAssistantId === targetAssistantId) {
-            setIgnoredTemporaryTopicId(null)
-            setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
-            return
-          }
-        }
-
-        const temporaryStartState = temporaryStartStateRef.current
-        if (temporaryStartState.isStarting) {
-          if (temporaryStartState.startingAssistantId !== targetAssistantId) {
-            temporaryStartState.queuedAssistantId = targetAssistantId ?? null
-          }
+        if (current && current.assistantId === targetAssistantId) {
+          setActiveTopicId(null)
           return
         }
 
-        temporaryStartState.isStarting = true
-        temporaryStartState.startingAssistantId = targetAssistantId
-        const next = await startTemporaryConversation({ assistantId: targetAssistantId })
-        if (next?.type !== 'assistant') return
-        setIgnoredTemporaryTopicId(null)
-        temporaryLeaseRef.current = { topicId: next.topicId, assistantId: next.assistantId }
-        setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
+        setDraftAssistantSelectionState({ assistantId: targetAssistantId })
+        setActiveTopicId(null)
       } catch (err) {
-        logger.error('Failed to start temporary topic', err as Error)
-      } finally {
-        const temporaryStartState = temporaryStartStateRef.current
-        temporaryStartState.isStarting = false
-        temporaryStartState.startingAssistantId = undefined
-        const queuedAssistantId = temporaryStartState.queuedAssistantId
-        temporaryStartState.queuedAssistantId = undefined
-        if (queuedAssistantId !== undefined) {
-          void startTemporaryTopic({ assistantId: queuedAssistantId })
-        }
+        logger.error('Failed to start draft topic', err as Error)
       }
     },
-    [resolveTemporaryAssistantTarget, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
+    [resolveDraftAssistantTarget, setDraftAssistantSelectionState]
   )
 
-  const updateTemporaryTopicAssistant = useCallback(
-    async (assistantId: string | null) => {
-      if (!assistantId || temporaryTopicConversation?.type !== 'assistant') return
-      if (assistantId === temporaryTopicConversation.assistantId) return
+  const updateDraftAssistantSelection = useCallback(
+    (assistantId: string | null) => {
+      const current = draftAssistantSelectionRef.current
+      if (!assistantId || !current) return
+      if (assistantId === current.assistantId) return
 
-      try {
-        const next = await updateTemporaryAssistant(assistantId)
-        if (!next || next.type !== 'assistant') return
-        setIgnoredTemporaryTopicId(null)
-        setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
-      } catch (err) {
-        logger.error('Failed to update temporary topic assistant', err as Error)
-      }
+      setDraftAssistantSelectionState({ assistantId })
     },
-    [setActiveTopic, temporaryTopicConversation, updateTemporaryAssistant]
+    [setDraftAssistantSelectionState]
   )
 
   useEffect(() => {
-    if (!shouldUseTemporary || temporaryStartStateRef.current.firstLaunchStarted || state?.topic) return
-    if (temporaryTopicSnapshot || activeTopic || isActiveTopicLoading) return
+    if (!shouldUseDraft || draftAssistantStartStateRef.current.firstLaunchStarted || state?.topic) return
+    if (draftAssistantSelectionSnapshot || activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
 
-    temporaryStartStateRef.current.firstLaunchStarted = true
-    void startTemporaryTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
+    draftAssistantStartStateRef.current.firstLaunchStarted = true
+    startDraftAssistantSelection(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
   }, [
     activeTopic,
+    draftAssistantSelectionSnapshot,
     isActiveTopicLoading,
     isAssistantListResolved,
     routeAssistantId,
-    shouldUseTemporary,
-    startTemporaryTopic,
-    state?.topic,
-    temporaryTopicSnapshot
+    shouldUseDraft,
+    startDraftAssistantSelection,
+    state?.topic
   ])
 
-  const setActiveTopicAndDiscardTemporary = useCallback(
+  const setActiveTopicAndDiscardDraft = useCallback(
     (topic: Topic) => {
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
       if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return false
 
-      const currentTemporaryTopicId =
-        temporaryTopicConversation?.type === 'assistant'
-          ? temporaryTopicConversation.topicId
-          : temporaryLeaseRef.current?.topicId
-
-      if (currentTemporaryTopicId && topic.id !== currentTemporaryTopicId) {
-        temporaryLeaseRef.current = null
-        setIgnoredTemporaryTopicId(currentTemporaryTopicId)
-        void discardTemporaryConversation()
+      if (draftAssistantSelectionRef.current) {
+        setDraftAssistantSelectionState(undefined)
       }
       setActiveTopic(topic)
       return true
     },
-    [conversationNav, currentTabId, discardTemporaryConversation, setActiveTopic, temporaryTopicConversation]
+    [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
 
   useEffect(() => {
@@ -491,7 +412,7 @@ const HomePage: FC = () => {
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
-      if (!setActiveTopicAndDiscardTemporary(topic)) return
+      if (!setActiveTopicAndDiscardDraft(topic)) return
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1
@@ -502,7 +423,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [setActiveTopicAndDiscardTemporary, setResourceListOpen]
+    [setActiveTopicAndDiscardDraft, setResourceListOpen]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
@@ -541,7 +462,7 @@ const HomePage: FC = () => {
     />
   )
 
-  if (!visibleTopic) {
+  if (!visibleTopic && !draftAssistantSelectionSnapshot) {
     if (isMessageOnlyView) {
       return (
         <Container id="home-page">
@@ -561,42 +482,128 @@ const HomePage: FC = () => {
   }
 
   const panePosition = 'left'
-  const isTemporaryTopicActive =
-    !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic.id === temporaryTopicSnapshot.id
+  const pane = (
+    <HomeTabs
+      activeTopic={visibleTopic}
+      setActiveTopic={setActiveTopicAndDiscardDraft}
+      onOpenHistory={openHistory}
+      onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+      revealRequest={topicRevealRequest}
+    />
+  )
+
+  if (draftAssistantSelectionSnapshot) {
+    return (
+      <Container id="home-page">
+        <ContentContainer $detached={isWindowFrame}>
+          <DraftWelcomeChat
+            assistantId={draftAssistantSelectionSnapshot.assistantId}
+            scopeKey={draftScopeKey}
+            pane={pane}
+            paneOpen={effectiveShowSidebar}
+            panePosition={panePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+            onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+            onDraftAssistantChange={updateDraftAssistantSelection}
+            onSend={sendDraftMessage}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            welcomeText={t('chat.home.welcome_title')}
+          />
+        </ContentContainer>
+        {historyOverlay}
+      </Container>
+    )
+  }
 
   return (
     <Container id="home-page">
       <ContentContainer $detached={isWindowFrame}>
         <Chat
           activeTopic={visibleTopic}
-          pane={
-            <HomeTabs
-              activeTopic={visibleTopic}
-              setActiveTopic={setActiveTopicAndDiscardTemporary}
-              onOpenHistory={openHistory}
-              onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
-              revealRequest={topicRevealRequest}
-            />
-          }
+          pane={pane}
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
-          onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
+          onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
-          // Wire the persist callback only while the temp lease is the
-          // currently-active topic. If the user clicks a sidebar topic
-          // before sending, the active id no longer matches the lease and
-          // the next send won't accidentally persist an empty lease.
-          onPersistTemporaryTopic={isTemporaryTopicActive ? persistTemporaryTopicAndRefresh : undefined}
-          onTemporaryAssistantChange={isTemporaryTopicActive ? updateTemporaryTopicAssistant : undefined}
           locateMessageId={pendingLocateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
       {historyOverlay}
     </Container>
+  )
+}
+
+type DraftWelcomeChatProps = {
+  assistantId?: string
+  scopeKey: string
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  onPaneCollapse?: () => void
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  onSend: (text: string, options?: DraftChatSendOptions) => Promise<void>
+  showResourceListControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
+  welcomeText: string
+}
+
+function DraftWelcomeChat({
+  assistantId,
+  scopeKey,
+  pane,
+  paneOpen,
+  panePosition,
+  onPaneCollapse,
+  onNewTopic,
+  onDraftAssistantChange,
+  onSend,
+  showResourceListControls,
+  sidebarOpen,
+  onSidebarToggle,
+  welcomeText
+}: DraftWelcomeChatProps) {
+  const [messageStyle] = usePreference('chat.message.style')
+
+  const composer = (
+    <ChatPlacementComposer
+      isHome
+      scopeKey={scopeKey}
+      assistantId={assistantId}
+      onSend={onSend}
+      onDraftAssistantChange={onDraftAssistantChange}
+      onNewTopic={onNewTopic}
+    />
+  )
+
+  return (
+    <ConversationShell
+      id="chat"
+      className={messageStyle}
+      pane={pane}
+      paneOpen={paneOpen}
+      panePosition={panePosition}
+      onPaneCollapse={onPaneCollapse}
+      topBar={
+        <ChatNavbar
+          showSidebarControls={showResourceListControls}
+          sidebarOpen={sidebarOpen}
+          onSidebarToggle={onSidebarToggle}
+        />
+      }
+      center={
+        <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
+      }
+      centerId="chat-main"
+      centerClassName="transform-[translateZ(0)] relative justify-between"
+    />
   )
 }
 

@@ -6,7 +6,6 @@ import {
   AgentWorkspaceEntitySchema,
   UpdateAgentWorkspaceSchema
 } from '../agentWorkspaces'
-import { CreateTemporarySessionSchema } from '../temporaryChats'
 
 describe('AgentWorkspaceEntitySchema', () => {
   const workspace = {
@@ -87,23 +86,6 @@ describe('AgentWorkspaceEntitySchema', () => {
       false
     )
     expect(AgentSessionWorkspaceSourceSchema.safeParse({ type: 'system', workspaceId: workspace.id }).success).toBe(
-      false
-    )
-  })
-
-  it('validates temporary session workspace sources with the same constraints', () => {
-    expect(CreateTemporarySessionSchema.parse({ agentId: 'agent-1', workspace: { type: 'system' } }).workspace).toEqual(
-      {
-        type: 'system'
-      }
-    )
-    expect(
-      CreateTemporarySessionSchema.safeParse({
-        agentId: 'agent-1',
-        workspace: { type: 'system', workspaceId: workspace.id }
-      }).success
-    ).toBe(false)
-    expect(CreateTemporarySessionSchema.safeParse({ agentId: 'agent-1', workspace: { type: 'invalid' } }).success).toBe(
       false
     )
   })

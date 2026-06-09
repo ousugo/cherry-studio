@@ -756,7 +756,7 @@ describe('Sessions', () => {
   })
 
   it('keeps the header new task action enabled without agents and starts a missing-agent draft', () => {
-    const onStartTemporarySession = vi.fn()
+    const onStartDraftSession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()
     setupSessions({ sessions: [] })
     agentDataMocks.useAgents.mockReturnValue({
@@ -767,10 +767,7 @@ describe('Sessions', () => {
     })
 
     render(
-      <SessionsForTest
-        onStartTemporarySession={onStartTemporarySession}
-        onStartMissingAgentDraft={onStartMissingAgentDraft}
-      />
+      <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
     )
 
     const newConversationButton = screen.getByRole('button', { name: 'Add task' })
@@ -779,23 +776,43 @@ describe('Sessions', () => {
     fireEvent.click(newConversationButton)
 
     expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
-    expect(onStartTemporarySession).not.toHaveBeenCalled()
+    expect(onStartDraftSession).not.toHaveBeenCalled()
+  })
+
+  it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
+    const onStartDraftSession = vi.fn()
+    const onStartMissingAgentDraft = vi.fn()
+    setupSessions({ sessions: [] })
+
+    render(
+      <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+    await vi.waitFor(() =>
+      expect(onStartDraftSession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspace: { type: 'system' }
+      })
+    )
+    expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
   })
 
   it('shows the empty task state without a creation action', () => {
-    const onStartTemporarySession = vi.fn()
+    const onStartDraftSession = vi.fn()
     setupSessions({ sessions: [] })
 
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
     expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Add task' })).toHaveLength(1)
-    expect(onStartTemporarySession).not.toHaveBeenCalled()
+    expect(onStartDraftSession).not.toHaveBeenCalled()
   })
 
   it('renders no-project sessions in a bottom no-project section', () => {
-    const onStartTemporarySession = vi.fn()
+    const onStartDraftSession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
       name: 'System Workspace',
@@ -821,7 +838,7 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
     const projectSection = screen.getByRole('button', { name: 'Project' })
     const noProjectSection = screen.getByRole('button', { name: 'No project' })
@@ -836,9 +853,8 @@ describe('Sessions', () => {
       within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     )
 
-    expect(onStartTemporarySession).toHaveBeenCalledWith({
+    expect(onStartDraftSession).toHaveBeenCalledWith({
       agentId: 'agent-a',
-      name: 'Untitled',
       workspace: { type: 'system' }
     })
   })
@@ -1070,7 +1086,7 @@ describe('Sessions', () => {
   })
 
   it('creates sessions from agent group actions', async () => {
-    const onStartTemporarySession = vi.fn()
+    const onStartDraftSession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -1112,16 +1128,15 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
     expect(betaGroup).not.toBeNull()
     fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
 
     await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({
+      expect(onStartDraftSession).toHaveBeenCalledWith({
         agentId: 'agent-b',
-        name: 'Untitled',
         workspace: { type: 'user', workspaceId: 'ws-c' }
       })
     )
@@ -1233,8 +1248,8 @@ describe('Sessions', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('starts a temporary session from the header without creating inline', async () => {
-    const onStartTemporarySession = vi.fn()
+  it('starts a draft session from the header without creating inline', async () => {
+    const onStartDraftSession = vi.fn()
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'b' })
@@ -1268,14 +1283,13 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(onStartTemporarySession).toHaveBeenCalledWith({
+    expect(onStartDraftSession).toHaveBeenCalledWith({
       agentId: 'agent-b',
-      name: 'Untitled',
       workspace: { type: 'user', workspaceId: 'ws-b' }
     })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
@@ -1894,7 +1908,7 @@ describe('Sessions', () => {
   })
 
   it('creates sessions from workspace group actions', async () => {
-    const onStartTemporarySession = vi.fn()
+    const onStartDraftSession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     cacheMocks.state.activeSessionId = 'session-b'
     setupSessions({
@@ -1919,16 +1933,15 @@ describe('Sessions', () => {
         })
       ]
     })
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
+    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
 
     await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({
+      expect(onStartDraftSession).toHaveBeenCalledWith({
         agentId: 'agent-a',
-        name: 'Untitled',
         workspace: { type: 'user', workspaceId: 'ws-a' }
       })
     )

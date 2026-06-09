@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   spanCacheSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
-  runtimeIsSessionBusy: vi.fn()
+  runtimeIsSessionBusy: vi.fn(),
+  runtimeValidateSession: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -75,7 +76,7 @@ describe('AgentChatContextProvider', () => {
       type: 'claude-code',
       capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: vi.fn(),
+      validateSession: mocks.runtimeValidateSession,
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
     mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
@@ -140,6 +141,9 @@ describe('AgentChatContextProvider', () => {
 
     const prepared = await provider.prepareDispatch(subscriber, openReq())
 
+    expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
+    )
     expect(mocks.saveMessages).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     const savedMessages = mocks.saveMessages.mock.calls[0][0].messages

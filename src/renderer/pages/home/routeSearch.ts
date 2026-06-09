@@ -12,7 +12,7 @@ export function buildChatMessageRouteUrl(topicId: string): string {
   return `${CHAT_ROUTE}?${params.toString()}`
 }
 
-/** Open a fresh temporary chat seeded with a specific assistant. */
+/** Open a fresh draft chat seeded with a specific assistant. */
 export function buildChatAssistantRouteUrl(assistantId: string): string {
   return `${CHAT_ROUTE}?assistantId=${encodeURIComponent(assistantId)}`
 }

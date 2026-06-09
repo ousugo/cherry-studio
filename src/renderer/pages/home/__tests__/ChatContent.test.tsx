@@ -1,6 +1,6 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -91,17 +91,14 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   ),
   ChatHomeComposer: ({
     onSend,
-    onTemporaryAssistantChange
+    onDraftAssistantChange
   }: {
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
-    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   }) => {
     capturedOnSend = onSend
     return (
-      <button
-        type="button"
-        data-testid="chat-home-composer"
-        onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
+      <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
         home composer
       </button>
     )
@@ -110,20 +107,17 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
     isHome,
     onSend,
     sendDisabled,
-    onTemporaryAssistantChange
+    onDraftAssistantChange
   }: {
     isHome: boolean
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
-    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   }) => {
     capturedOnSend = onSend
     if (isHome) {
       return (
-        <button
-          type="button"
-          data-testid="chat-home-composer"
-          onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
+        <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
           home composer
         </button>
       )
@@ -448,71 +442,6 @@ describe('ChatContent', () => {
     })
   })
 
-  it('keeps a message cache key without fetching history for freshly leased temporary topics', () => {
-    render(<ChatContent topic={topic} onPersistTemporaryTopic={vi.fn()} />)
-
-    expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { fetchOnMount: false })
-  })
-
-  it('fails before stream open when temporary topic handoff returns no persisted topic', async () => {
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    const persistTemporaryTopic = vi.fn().mockResolvedValue(null)
-
-    render(<ChatContent topic={topic} onPersistTemporaryTopic={persistTemporaryTopic} />)
-
-    await act(async () => {
-      await expect(
-        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
-      ).rejects.toThrow('Temporary topic handoff failed before stream open')
-    })
-
-    expect(persistTemporaryTopic).toHaveBeenCalledWith('hello')
-    expect(window.api.ai.streamOpen).not.toHaveBeenCalled()
-  })
-
-  it('uses a local rollback instead of revalidating DataApi when a fresh temporary topic send fails', async () => {
-    const mutate = vi.fn().mockResolvedValue(undefined)
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate
-    })
-    ;(window.api.ai.streamOpen as any).mockRejectedValueOnce(new Error('open failed'))
-    const persistTemporaryTopic = vi.fn().mockResolvedValue({
-      assistantId: 'assistant-1',
-      id: 'topic-1',
-      topic,
-      topicId: 'topic-1',
-      type: 'assistant'
-    })
-
-    render(<ChatContent topic={topic} onPersistTemporaryTopic={persistTemporaryTopic} />)
-
-    await act(async () => {
-      await expect(
-        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
-      ).rejects.toThrow('open failed')
-    })
-
-    expect(mutate).toHaveBeenCalledWith([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }], {
-      revalidate: false
-    })
-  })
-
   it('keeps the composer visible while topic history is loading', () => {
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('stale-user', 'user'), createUiMessage('stale-assistant', 'assistant')],
@@ -534,8 +463,7 @@ describe('ChatContent', () => {
     expect(screen.getByRole('button', { name: 'send' })).toHaveAttribute('data-use-mentioned-model-selector', 'true')
   })
 
-  it('centers the home composer for a fresh empty temporary topic and routes assistant changes', () => {
-    const onTemporaryAssistantChange = vi.fn()
+  it('keeps an empty real topic in docked composer mode', () => {
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [],
       siblingsMap: {},
@@ -556,22 +484,11 @@ describe('ChatContent', () => {
       activeExecutions: []
     })
 
-    render(
-      <ChatContent
-        topic={topic}
-        onPersistTemporaryTopic={vi.fn()}
-        onTemporaryAssistantChange={onTemporaryAssistantChange}
-      />
-    )
+    render(<ChatContent topic={topic} />)
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
-    expect(screen.getByTestId('composer-dock-home-header')).not.toBeEmptyDOMElement()
-    expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('home composer')
-
-    fireEvent.click(screen.getByTestId('chat-home-composer'))
-
-    expect(onTemporaryAssistantChange).toHaveBeenCalledWith('assistant-2')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
+    expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('send')
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {

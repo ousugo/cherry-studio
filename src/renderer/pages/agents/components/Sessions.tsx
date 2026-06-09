@@ -32,7 +32,7 @@ import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
-import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
+import type { DraftAgentSessionDefaults } from '@renderer/pages/agents/types'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -83,7 +83,7 @@ import {
 type SessionsBaseProps = {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
-  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
 }
@@ -327,7 +327,7 @@ const Sessions = ({
   activeSessionId,
   onOpenHistory,
   onSelectItem,
-  onStartTemporarySession,
+  onStartDraftSession,
   onStartMissingAgentDraft,
   revealRequest,
   setActiveSessionId: setControlledActiveSessionId
@@ -675,6 +675,16 @@ const Sessions = ({
     async (seed: CreateSessionSeed | null | undefined) => {
       if (creatingSession) return null
       if (!seed?.agentId) {
+        const defaultAgent = agentsForDisplay[0]
+        if (defaultAgent) {
+          await onStartDraftSession?.({
+            agentId: defaultAgent.id,
+            workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+          })
+          setActiveSessionId(null)
+          return null
+        }
+
         await onStartMissingAgentDraft?.()
         return null
       }
@@ -693,9 +703,8 @@ const Sessions = ({
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
 
-        await onStartTemporarySession?.({
+        await onStartDraftSession?.({
           agentId: seed.agentId,
-          name: t('common.unnamed'),
           workspace
         })
 
@@ -711,10 +720,11 @@ const Sessions = ({
     },
     [
       agentById,
+      agentsForDisplay,
       creatingSession,
       findOrCreateWorkspace,
       onStartMissingAgentDraft,
-      onStartTemporarySession,
+      onStartDraftSession,
       setActiveSessionId,
       t
     ]

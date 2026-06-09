@@ -979,7 +979,7 @@ describe('ChatComposer', () => {
     expect(mocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('renders selectors below the surface in temporary home mode', () => {
+  it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
@@ -988,7 +988,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
   })
 
-  it('shows only icons in the temporary home bottom toolbar when it is narrow', async () => {
+  it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
@@ -1003,10 +1003,10 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('routes temporary home assistant changes to the temporary handler', async () => {
-    const onTemporaryAssistantChange = vi.fn()
+  it('routes draft home assistant changes to the draft handler', async () => {
+    const onDraftAssistantChange = vi.fn()
     const view = render(
-      <ChatHomeComposer topic={topic} onSend={vi.fn()} onTemporaryAssistantChange={onTemporaryAssistantChange} />
+      <ChatHomeComposer topic={topic} onSend={vi.fn()} onDraftAssistantChange={onDraftAssistantChange} />
     )
 
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
@@ -1024,7 +1024,7 @@ describe('ChatComposer', () => {
       <ChatHomeComposer
         topic={{ ...topic, assistantId: 'assistant-2' }}
         onSend={vi.fn()}
-        onTemporaryAssistantChange={onTemporaryAssistantChange}
+        onDraftAssistantChange={onDraftAssistantChange}
       />
     )
 
@@ -1033,11 +1033,11 @@ describe('ChatComposer', () => {
       expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B | Provider')
     })
     expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([modelB])
-    expect(onTemporaryAssistantChange).toHaveBeenCalledWith('assistant-2')
+    expect(onDraftAssistantChange).toHaveBeenCalledWith('assistant-2')
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('uses the temporary home model selector as single-select until multi-select is enabled', async () => {
+  it('uses the draft home model selector as single-select until multi-select is enabled', async () => {
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     const selector = screen.getByTestId('model-selector')
@@ -1063,7 +1063,7 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('does not hydrate temporary home model selection from mentioned-model cache', () => {
+  it('does not hydrate draft home model selection from mentioned-model cache', () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
       key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
     )
@@ -1988,7 +1988,7 @@ describe('ChatComposer', () => {
     )
   })
 
-  it('keeps the temporary home model selector empty after manual clear', () => {
+  it('keeps the draft home model selector empty after manual clear', () => {
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
@@ -2006,7 +2006,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('reinitializes the temporary home selector when a new topic is created', async () => {
+  it('reinitializes the draft home selector when a new topic is created', async () => {
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('clear model selection'))
@@ -2020,7 +2020,7 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('renders multiple temporary home model selections through the selected-model trigger', () => {
+  it('renders multiple draft home model selections through the selected-model trigger', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
@@ -2030,7 +2030,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
 
-  it('keeps temporary multi-model selection when the composer placement docks', () => {
+  it('keeps draft multi-model selection when the composer placement docks', () => {
     const view = render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))

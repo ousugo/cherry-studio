@@ -1274,7 +1274,7 @@ describe('AgentComposer', () => {
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
   })
 
-  it('renders agent and model selectors below the surface in temporary home mode', () => {
+  it('renders agent and model selectors below the surface in draft home mode', () => {
     render(
       <AgentHomeComposer
         agentId="agent-1"
@@ -1323,7 +1323,7 @@ describe('AgentComposer', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('shows only icons in the temporary home bottom toolbar when it is narrow', async () => {
+  it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
     render(
       <AgentHomeComposer
         agentId="agent-1"

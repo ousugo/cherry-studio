@@ -1,29 +1,16 @@
-import { ErrorCode } from '@shared/data/api'
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  createTopicMock,
-  updateTopicMock,
-  deleteTopicMock,
-  appendMessageMock,
-  listMessagesMock,
-  persistMock,
-  createSessionMock,
-  deleteSessionMock,
-  persistSessionMock
-} = vi.hoisted(() => ({
-  createTopicMock: vi.fn(),
-  updateTopicMock: vi.fn(),
-  deleteTopicMock: vi.fn(),
-  appendMessageMock: vi.fn(),
-  listMessagesMock: vi.fn(),
-  persistMock: vi.fn(),
-  createSessionMock: vi.fn(),
-  deleteSessionMock: vi.fn(),
-  persistSessionMock: vi.fn()
-}))
+const { createTopicMock, updateTopicMock, deleteTopicMock, appendMessageMock, listMessagesMock, persistMock } =
+  vi.hoisted(() => ({
+    createTopicMock: vi.fn(),
+    updateTopicMock: vi.fn(),
+    deleteTopicMock: vi.fn(),
+    appendMessageMock: vi.fn(),
+    listMessagesMock: vi.fn(),
+    persistMock: vi.fn()
+  }))
 
 vi.mock('@data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -33,14 +20,6 @@ vi.mock('@data/services/TemporaryChatService', () => ({
     appendMessage: appendMessageMock,
     listMessages: listMessagesMock,
     persist: persistMock
-  }
-}))
-
-vi.mock('@data/services/TemporarySessionService', () => ({
-  temporarySessionService: {
-    createSession: createSessionMock,
-    deleteSession: deleteSessionMock,
-    persist: persistSessionMock
   }
 }))
 
@@ -84,19 +63,6 @@ function fakeMessage(overrides: Partial<Message> = {}): Message {
   }
 }
 
-function fakeSession() {
-  return {
-    id: 'sid-123',
-    agentId: 'agent-a',
-    name: 'Draft',
-    description: '',
-    accessiblePaths: [],
-    orderKey: '',
-    createdAt: '2025-01-01T00:00:00.000Z',
-    updatedAt: '2025-01-01T00:00:00.000Z'
-  }
-}
-
 // Minimal request envelope sufficient for handler destructuring; extra fields
 // demanded by the ApiHandler signature are cast because they are unused here.
 function reqEnvelope<T extends object>(parts: T): any {
@@ -111,9 +77,6 @@ describe('temporaryChatHandlers', () => {
     appendMessageMock.mockReset()
     listMessagesMock.mockReset()
     persistMock.mockReset()
-    createSessionMock.mockReset()
-    deleteSessionMock.mockReset()
-    persistSessionMock.mockReset()
   })
 
   describe('POST /temporary/topics', () => {
@@ -189,48 +152,6 @@ describe('temporaryChatHandlers', () => {
       )
       expect(persistMock).toHaveBeenCalledWith('tid-123')
       expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
-    })
-  })
-
-  describe('temporary sessions', () => {
-    it('forwards create, delete and persist to temporarySessionService', async () => {
-      const session = fakeSession()
-      createSessionMock.mockResolvedValue(session)
-      deleteSessionMock.mockResolvedValue(undefined)
-      persistSessionMock.mockResolvedValue(session)
-
-      await expect(
-        temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'system' } } })
-        )
-      ).resolves.toBe(session)
-      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a', workspace: { type: 'system' } })
-
-      await expect(
-        temporaryChatHandlers['/temporary/sessions/:id'].DELETE(reqEnvelope({ params: { id: 'sid-123' } }))
-      ).resolves.toBeUndefined()
-      expect(deleteSessionMock).toHaveBeenCalledWith('sid-123')
-
-      await expect(
-        temporaryChatHandlers['/temporary/sessions/:id/persist'].POST(reqEnvelope({ params: { id: 'sid-123' } }))
-      ).resolves.toBe(session)
-      expect(persistSessionMock).toHaveBeenCalledWith('sid-123')
-    })
-
-    it('validates temporary session create bodies before calling the service', async () => {
-      await expect(
-        temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'external' } } })
-        )
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-      expect(createSessionMock).not.toHaveBeenCalled()
-
-      await expect(
-        temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'system', workspaceId: 'ws-a' } } })
-        )
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-      expect(createSessionMock).not.toHaveBeenCalled()
     })
   })
 })

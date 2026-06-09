@@ -120,27 +120,16 @@ export class AgentSessionService {
     return await this.createSession(dto)
   }
 
-  async createSession(
-    dto: CreateAgentSessionDto,
-    options: { id?: string; systemWorkspaceId?: string } = {}
-  ): Promise<AgentSessionEntity> {
-    const id = options.id ?? uuidv4()
-    await withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, options)),
-      {
-        ...defaultHandlersFor('Session', id),
-        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-      }
-    )
+  async createSession(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
+    const id = uuidv4()
+    await withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto)), {
+      ...defaultHandlersFor('Session', id),
+      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+    })
     return await this.getById(id)
   }
 
-  private async createTx(
-    tx: DbOrTx,
-    id: string,
-    dto: CreateAgentSessionDto,
-    options: { systemWorkspaceId?: string } = {}
-  ): Promise<void> {
+  private async createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): Promise<void> {
     await this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string
@@ -157,20 +146,7 @@ export class AgentSessionService {
         break
       }
       case AGENT_WORKSPACE_TYPE.SYSTEM: {
-        if (options.systemWorkspaceId) {
-          const workspace = await agentWorkspaceService.getByIdTx(tx, options.systemWorkspaceId, {
-            includeSystem: true
-          })
-          if (workspace.type !== AGENT_WORKSPACE_TYPE.SYSTEM) {
-            throw DataApiErrorFactory.invalidOperation(
-              'create session',
-              'system workspace source must reference a system workspace'
-            )
-          }
-          workspaceId = workspace.id
-        } else {
-          workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
-        }
+        workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
         break
       }
       default: {

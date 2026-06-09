@@ -432,7 +432,7 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
   ),
   AgentHomeComposer: ({ sendMessage }: { sendMessage?: (message: { text: string }) => Promise<void> | void }) => (
     <button type="button" data-testid="agent-home-composer" onClick={() => void sendMessage?.({ text: 'hello' })}>
-      send temporary message
+      send draft message
     </button>
   ),
   MissingAgentHomeComposer: ({
@@ -707,17 +707,12 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
   })
 
-  it('prefers the temporary session over a stale active session while rendering home placement', () => {
+  it('prefers the draft session over a stale active session while rendering home placement', () => {
     renderAgentChat({
-      temporaryConversation: {
-        type: 'agent',
-        id: 'temp-session-1',
-        sessionId: 'temp-session-1',
-        topicId: 'agent-session:temp-session-1',
+      draftConversation: {
         agentId: 'agent-1',
-        workspace: { path: '/tmp/workspace' },
-        name: 'Temp Session',
-        session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
       } as any
     })
 
@@ -751,7 +746,7 @@ describe('AgentChat artifact pane', () => {
     expect(onMissingAgentDraftAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('disables the artifact pane when switching into a draft temporary session', async () => {
+  it('disables the artifact pane when switching into a draft session', async () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -765,24 +760,16 @@ describe('AgentChat artifact pane', () => {
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      temporaryConversation: {
-        type: 'agent',
-        id: 'temp-session-1',
-        sessionId: 'temp-session-1',
-        topicId: 'agent-session:temp-session-1',
+      draftConversation: {
         agentId: 'agent-1',
-        workspace: { path: '/tmp/workspace' },
-        name: 'Temp Session',
-        session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
       } as any
     })
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'common.open_sidebar' })).toBeDisabled()
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    expect(screen.queryByRole('button', { name: 'common.open_sidebar' })).toBeNull()
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
 
     rerenderAgentChat(rerender, {
@@ -795,82 +782,60 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps the resource list pane mounted when switching from a temporary draft to a persisted session', () => {
-    const mountPane = vi.fn()
-    const unmountPane = vi.fn()
-    const PaneProbe = () => {
-      useEffect(() => {
-        mountPane()
-        return unmountPane
-      }, [])
-      return <aside data-testid="session-pane" />
-    }
-    const temporaryConversation = {
-      type: 'agent',
-      id: 'temp-session-1',
-      sessionId: 'temp-session-1',
-      topicId: 'agent-session:temp-session-1',
+  it('keeps the resource list pane visible when switching from a draft to a persisted session', () => {
+    const draftConversation = {
       agentId: 'agent-1',
-      workspace: { path: '/tmp/workspace' },
-      name: 'Temp Session',
-      session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+      workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+      workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
     } as any
 
     const { rerender } = renderAgentChat({
-      pane: <PaneProbe />,
+      pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      temporaryConversation
+      draftConversation
     })
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(mountPane).toHaveBeenCalledTimes(1)
-    expect(unmountPane).not.toHaveBeenCalled()
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
 
     rerenderAgentChat(rerender, {
-      pane: <PaneProbe />,
+      pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left'
     })
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(mountPane).toHaveBeenCalledTimes(1)
-    expect(unmountPane).not.toHaveBeenCalled()
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
   })
 
-  it('reuses the docked composer frame during temporary session handoff', async () => {
+  it('renders a loading shell during draft session handoff before the persistent session is available', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,
       session: undefined,
       isLoading: false,
       setActiveSessionId: vi.fn()
     }
-    const onPersistTemporarySession = vi.fn(() => new Promise<never>(() => undefined))
+    const onEnsurePersistentSession = vi.fn(() => new Promise<never>(() => undefined))
 
     renderAgentChat({
-      temporaryConversation: {
-        type: 'agent',
-        id: 'temp-session-1',
-        sessionId: 'temp-session-1',
-        topicId: 'agent-session:temp-session-1',
+      draftConversation: {
         agentId: 'agent-1',
-        workspace: { path: '/tmp/workspace' },
-        name: 'Temp Session',
-        session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
+        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
       } as any,
-      onPersistTemporarySession
+      onEnsurePersistentSession
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'send temporary message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'send draft message' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+      expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
     })
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('composer-dock-home-header')).toBeEmptyDOMElement()
+    expect(onEnsurePersistentSession).toHaveBeenCalledWith('hello')
     expect(screen.queryByTestId('agent-home-composer')).not.toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'true')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-session-id', 'temp-session-1')
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
   })
 
@@ -1050,7 +1015,7 @@ describe('AgentChat artifact pane', () => {
     )
   })
 
-  it('shows the persisted temporary session while the active session query catches up', () => {
+  it('shows the persisted draft-created session while the active session query catches up', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1058,15 +1023,15 @@ describe('AgentChat artifact pane', () => {
     })
 
     activeSessionMocks.result = {
-      activeSessionId: 'temp-session-1',
-      session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } },
+      activeSessionId: 'draft-session-1',
+      session: { id: 'draft-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } },
       isLoading: false,
       sessionSource: 'pending',
       setActiveSessionId: vi.fn()
     }
     rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'temp-session-1')
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'draft-session-1')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'false')
   })
 

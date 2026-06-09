@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React, { useEffect } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
 import { useQuickPanel } from '../hook'
@@ -125,10 +125,45 @@ function PanelHarness({
   return <QuickPanelView inputAdapter={inputAdapter} />
 }
 
+function CaptureQuickPanel({ onCapture }: { onCapture: (context: QuickPanelContextType) => void }) {
+  const context = useQuickPanel()
+
+  useEffect(() => {
+    onCapture(context)
+  }, [context, onCapture])
+
+  return null
+}
+
 describe('QuickPanelView', () => {
   beforeEach(() => {
     virtualListMocks.scrollToIndex.mockClear()
     virtualListMocks.scrollToOffset.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('ignores stale close callbacks after the provider unmounts', () => {
+    vi.useFakeTimers()
+
+    let closePanel: QuickPanelContextType['close'] | undefined
+    const { unmount } = render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+      </QuickPanelProvider>
+    )
+
+    expect(closePanel).toBeDefined()
+
+    unmount()
+
+    act(() => {
+      closePanel?.('esc')
+    })
+
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('resets the virtual list scroll offset when a panel opens', async () => {
