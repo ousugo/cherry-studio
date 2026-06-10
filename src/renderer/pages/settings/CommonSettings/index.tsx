@@ -169,7 +169,7 @@ const CommonSettings: FC = () => {
       return resolved as LanguageVarious
     }
     return defaultLanguage
-  }, [language])
+  }, [language, i18n.language])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
