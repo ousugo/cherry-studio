@@ -189,7 +189,7 @@ export const useSessions = (
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        return await deleteManyTrigger({ body: { ids } })
+        return await deleteManyTrigger({ query: { ids: ids.join(',') } })
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null

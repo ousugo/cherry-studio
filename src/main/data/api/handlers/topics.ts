@@ -16,7 +16,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   CopyTopicBranchSchema,
   CreateTopicSchema,
-  DeleteTopicsSchema,
+  DeleteTopicsQuerySchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
@@ -43,8 +43,8 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topic
     },
 
-    DELETE: async ({ body }) => {
-      const parsed = DeleteTopicsSchema.parse(body)
+    DELETE: async ({ query }) => {
+      const parsed = DeleteTopicsQuerySchema.parse(query)
       return await topicService.deleteByIds(parsed.ids)
     }
   },

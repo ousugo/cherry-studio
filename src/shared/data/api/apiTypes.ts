@@ -479,7 +479,6 @@ export interface ApiClient {
   delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      body?: BodyForPath<TPath, 'DELETE'>
       query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }

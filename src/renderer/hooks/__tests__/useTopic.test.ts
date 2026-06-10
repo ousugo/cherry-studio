@@ -1,10 +1,10 @@
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActiveTopic } from '../useTopic'
+import { useActiveTopic, useTopicMutations } from '../useTopic'
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
@@ -99,5 +99,24 @@ describe('useActiveTopic', () => {
     expect(result.current.activeTopic).toBe(pendingTopic)
     expect(result.current.topicSource).toBe('pending')
     expect(setActiveTopicId).not.toHaveBeenCalled()
+  })
+})
+
+describe('useTopicMutations', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('deletes selected topics through comma-separated query ids', async () => {
+    const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
+    const deleteTrigger = vi.fn().mockResolvedValue(response)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const deleted = await act(async () => result.current.deleteTopics(['topic-a', 'topic-b']))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
+    expect(deleted).toBe(response)
   })
 })

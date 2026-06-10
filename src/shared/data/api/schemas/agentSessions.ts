@@ -127,10 +127,20 @@ export interface DeleteAgentSessionsResult {
   deletedCount: number
 }
 
-export const DeleteAgentSessionsSchema = z.strictObject({
-  ids: z.array(z.string().min(1)).min(1)
+const DeleteAgentSessionsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteAgentSessionsQuerySchema = z.strictObject({
+  ids: DeleteAgentSessionsIdsQueryValueSchema
 })
-export type DeleteAgentSessionsDto = z.infer<typeof DeleteAgentSessionsSchema>
+export type DeleteAgentSessionsQuery = z.input<typeof DeleteAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -152,7 +162,7 @@ export type AgentSessionSchemas = {
      * Used by multi-select table flows where the selection can span agents.
      */
     DELETE: {
-      body: DeleteAgentSessionsDto
+      query: DeleteAgentSessionsQuery
       response: DeleteAgentSessionsResult
     }
   }

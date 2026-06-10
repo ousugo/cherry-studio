@@ -331,7 +331,7 @@ export function useTopicMutations() {
 
   const deleteTopics = useCallback(
     async (ids: string[]): Promise<DeleteTopicsResult> => {
-      const result = await deleteManyTrigger({ body: { ids } })
+      const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
       logger.info('Deleted topics', { count: result.deletedCount })
       return result
     },

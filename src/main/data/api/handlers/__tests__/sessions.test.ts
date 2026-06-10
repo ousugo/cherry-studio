@@ -107,12 +107,34 @@ describe('agentSessionHandlers', () => {
       deleteByIdsMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].DELETE({
-        body: { ids: ['session-a', 'session-b'] }
+        query: { ids: 'session-a,session-b' }
       } as never)
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
       expect(deleteMock).not.toHaveBeenCalled()
       expect(result).toEqual(response)
+    })
+
+    it('trims comma-separated session ids before delegating', async () => {
+      const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
+      deleteByIdsMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions'].DELETE({
+        query: { ids: ' session-a, , session-b ' }
+      } as never)
+
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
+      expect(result).toEqual(response)
+    })
+
+    it('rejects empty selected session ids before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions'].DELETE({
+          query: { ids: ' , , ' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(deleteByIdsMock).not.toHaveBeenCalled()
     })
   })
 })

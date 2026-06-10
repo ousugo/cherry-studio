@@ -16,7 +16,7 @@ import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
-  DeleteAgentSessionsSchema,
+  DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -35,8 +35,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       return await agentSessionService.create(parsed.data)
     },
 
-    DELETE: async ({ body }) => {
-      const parsed = DeleteAgentSessionsSchema.safeParse(body)
+    DELETE: async ({ query }) => {
+      const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await agentSessionService.deleteByIds(parsed.data.ids)
     }
