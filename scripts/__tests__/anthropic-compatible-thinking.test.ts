@@ -1,11 +1,19 @@
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { describe, expect, it } from 'vitest'
 
-type CapturedRequest = {
+interface CapturedRequest {
   body?: Record<string, unknown>
 }
 
-const createModel = (modelId: string, captured: CapturedRequest) =>
+type ThinkingType = 'adaptive' | 'disabled'
+
+interface GenerateOptions {
+  thinkingType?: ThinkingType
+  maxOutputTokens?: number
+  omitMaxOutputTokens?: boolean
+}
+
+const createModel = (modelId: string, captured: CapturedRequest): AnthropicMessagesLanguageModel =>
   new AnthropicMessagesLanguageModel(modelId as any, {
     provider: 'test.anthropic',
     baseURL: 'https://example.com',
@@ -36,19 +44,22 @@ const createModel = (modelId: string, captured: CapturedRequest) =>
     }
   })
 
-const generateWithThinkingAndSampling = async (modelId: string) => {
+const generateWithThinkingAndSampling = async (
+  modelId: string,
+  { thinkingType = 'adaptive', maxOutputTokens = 128, omitMaxOutputTokens = false }: GenerateOptions = {}
+): Promise<CapturedRequest['body']> => {
   const captured: CapturedRequest = {}
   const model = createModel(modelId, captured)
 
   await model.doGenerate({
     prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-    maxOutputTokens: 128,
+    maxOutputTokens: omitMaxOutputTokens ? undefined : maxOutputTokens,
     temperature: 0.3,
     topK: 40,
     topP: 0.9,
     providerOptions: {
       anthropic: {
-        thinking: { type: 'adaptive' }
+        thinking: { type: thinkingType }
       }
     }
   })
@@ -81,5 +92,29 @@ describe('@ai-sdk/anthropic compatible thinking patch', () => {
     expect(body).not.toHaveProperty('temperature')
     expect(body).not.toHaveProperty('top_k')
     expect(body).not.toHaveProperty('top_p')
+  })
+
+  it('passes disabled thinking through for Claude and Anthropic-compatible models', async () => {
+    const minimaxBody = await generateWithThinkingAndSampling('MiniMax-M3', { thinkingType: 'disabled' })
+    const claudeBody = await generateWithThinkingAndSampling('claude-3-7-sonnet-latest', { thinkingType: 'disabled' })
+
+    expect(minimaxBody).toMatchObject({
+      model: 'MiniMax-M3',
+      thinking: { type: 'disabled' }
+    })
+    expect(claudeBody).toMatchObject({
+      model: 'claude-3-7-sonnet-latest',
+      thinking: { type: 'disabled' }
+    })
+  })
+
+  it('omits max_tokens for Anthropic-compatible non-Claude models when no limit is provided', async () => {
+    const body = await generateWithThinkingAndSampling('MiniMax-M3', { omitMaxOutputTokens: true })
+
+    expect(body).toMatchObject({
+      model: 'MiniMax-M3',
+      thinking: { type: 'adaptive' }
+    })
+    expect(body).not.toHaveProperty('max_tokens')
   })
 })
