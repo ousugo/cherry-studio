@@ -724,10 +724,12 @@ describe('reasoning utils', () => {
           }) as Assistant
 
         describe.each([
+          { name: 'M3 / unset', isM3: true, effort: undefined, expected: {} },
+          { name: 'M3 / default', isM3: true, effort: 'default', expected: {} },
           {
-            name: 'M3 / default',
+            name: 'M3 / auto',
             isM3: true,
-            effort: 'default',
+            effort: 'auto',
             expected: { thinking: { type: 'adaptive' as const } }
           },
           { name: 'M3 / none', isM3: true, effort: 'none', expected: { thinking: { type: 'disabled' as const } } },
@@ -1327,10 +1329,24 @@ describe('reasoning utils', () => {
         expected: { thinking: { type: 'disabled' as const }, sendReasoning: true }
       },
       {
+        name: 'M3 / unset',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: undefined,
+        expected: {}
+      },
+      {
         name: 'M3 / default',
         isM3: true,
         modelId: 'minimax-m3',
         effort: 'default',
+        expected: {}
+      },
+      {
+        name: 'M3 / auto',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: 'auto',
         expected: { thinking: { type: 'adaptive' as const }, sendReasoning: true }
       },
       {

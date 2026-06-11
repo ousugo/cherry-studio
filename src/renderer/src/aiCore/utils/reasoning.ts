@@ -91,17 +91,21 @@ type ReasoningEffortOptionalParams = {
 
 /**
  * Resolve the MiniMax M3 thinking directive from the assistant's reasoning_effort.
- * Returns 'adaptive' / 'disabled' for M3 only; undefined for M2.x and non-MiniMax
- * models so callers can leave the M2.x path to the generic Claude-endpoint branch.
+ * Returns 'adaptive' / 'disabled' for M3 only; undefined for M2.x, non-MiniMax
+ * models, or when reasoning_effort is unset/default (API defaults to thinking-off).
  *
  * MiniMax docs (https://platform.minimaxi.com/docs/api-reference/text-anthropic-api):
- *   - thinking.type: 'adaptive'   → keep thinking on
+ *   - thinking.type: 'adaptive'   → keep thinking on (only when user picks 'auto')
  *   - thinking.type: 'disabled'   → turn thinking off (M3 only; ignored on M2.x)
- *   - omitted                      → on by default
+ *   - omitted (undefined/default) → thinking OFF by default
  */
 function getMiniMaxThinkingType(assistant: Assistant, model: Model): 'adaptive' | 'disabled' | undefined {
   if (!isMiniMaxM3SeriesModel(model)) return undefined
-  return assistant?.settings?.reasoning_effort === 'none' ? 'disabled' : 'adaptive'
+  const effort = assistant?.settings?.reasoning_effort
+  if (effort === 'none') return 'disabled'
+  if (effort === 'auto') return 'adaptive'
+  // undefined / 'default': don't send thinking param — API default is thinking-off
+  return undefined
 }
 
 // The function is only for generic provider. May extract some logics to independent provider
