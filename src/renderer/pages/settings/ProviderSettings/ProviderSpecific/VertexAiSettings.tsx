@@ -53,9 +53,17 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     setLocalLocation(gcpConfig?.location ?? '')
     setLocalPrivateKey(credentials?.privateKey ?? '')
     setLocalClientEmail(credentials?.clientEmail ?? '')
-    setServiceAccountJson('')
-    setServiceAccountJsonError(false)
-  }, [credentials?.clientEmail, credentials?.privateKey, gcpConfig?.location, gcpConfig?.project])
+    if (!serviceAccountJsonError) {
+      setServiceAccountJson('')
+      setServiceAccountJsonError(false)
+    }
+  }, [
+    credentials?.clientEmail,
+    credentials?.privateKey,
+    gcpConfig?.location,
+    gcpConfig?.project,
+    serviceAccountJsonError
+  ])
 
   useEffect(() => {
     if (!isDraftDirtyRef.current && activeSaveRequestsRef.current === 0) {
@@ -134,9 +142,10 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           setServiceAccountJson('')
         }, 0)
         setServiceAccountJsonError(false)
-        if (activeSaveRequestsRef.current === 1) {
-          isDraftDirtyRef.current = false
-        }
+        // Intentionally do NOT clear isDraftDirtyRef here: the useEffect reset
+        // will run on the next server refetch and re-sync local state from
+        // gcpConfig (which already contains the values we just saved). Clearing
+        // here would clobber a concurrent user edit in another field.
         window.toast.success(t('settings.provider.vertex_ai.service_account.json_parse_success'))
       } catch (error) {
         logger.error('Failed to save Vertex AI auth config from JSON import', { providerId, error })
@@ -187,9 +196,6 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       })
       setServiceAccountJson('')
       setServiceAccountJsonError(false)
-      if (activeSaveRequestsRef.current === 1) {
-        isDraftDirtyRef.current = false
-      }
       window.toast.success(t('settings.provider.vertex_ai.service_account.json_parse_success'))
     } catch (error) {
       logger.error('Failed to save Vertex AI auth config from JSON import', { providerId, error })
