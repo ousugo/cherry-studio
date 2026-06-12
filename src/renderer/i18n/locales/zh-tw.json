@@ -5682,12 +5682,18 @@
           },
           "invalid": "無效的輸入，請檢查 JSON 格式",
           "json": "從 JSON 匯入",
+          "mcpb": "匯入 MCPB 套件",
+          "mcpbFile": "MCPB 套件檔案",
+          "mcpbHelp": "選擇包含 MCP 伺服器的 .mcpb 檔案",
+          "mcpbProcessFailed": "處理 MCPB 檔案失敗",
           "method": "匯入方式",
           "nameExists": "伺服器已存在：{{name}}",
           "noDxtFile": "請選擇一個 DXT 檔案",
+          "noMcpbFile": "請選擇一個 MCPB 檔案",
           "oneServer": "每次只能儲存一個 MCP 伺服器設定",
           "placeholder": "貼上 MCP 伺服器 JSON 設定",
           "selectDxtFile": "選擇 DXT 檔案",
+          "selectMcpbFile": "選擇 MCPB 檔案",
           "tooltip": "請從 MCP Servers 的介紹頁面複製設定 JSON（優先使用 NPX 或 UVX 設定），並貼上到輸入框中"
         },
         "label": "新增伺服器"
@@ -6657,7 +6663,6 @@
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "服務帳戶驗證成功",
           "client_email": "Client Email",
@@ -6673,10 +6678,7 @@
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
-          "title": "服務帳戶設定",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "title": "服務帳戶設定"
         }
       }
     },
