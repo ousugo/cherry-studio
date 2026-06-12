@@ -47,6 +47,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
   const isDraftDirtyRef = useRef(false)
   const activeSaveRequestsRef = useRef(0)
   const isJsonImportingRef = useRef(false)
+  const isSelectingLocationRef = useRef(false)
 
   const resetLocalAuthConfig = useCallback(() => {
     setLocalProjectId(gcpConfig?.project ?? '')
@@ -212,6 +213,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     setLocalLocation(value)
     setDropdownOpen(false)
     void saveAuthConfigWithLocation(value)
+    isSelectingLocationRef.current = false
   }
 
   const saveAuthConfigWithLocation = async (locationValue: string) => {
@@ -236,7 +238,9 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       window.toast.error(t('settings.provider.save_failed'))
       // Only roll back location — do not clear credentials the user already confirmed.
       setLocalLocation(previousLocation)
-      isDraftDirtyRef.current = false
+      if (activeSaveRequestsRef.current === 1) {
+        isDraftDirtyRef.current = false
+      }
     } finally {
       activeSaveRequestsRef.current--
     }
@@ -385,9 +389,12 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                   markDraftDirty()
                   setLocalLocation(e.target.value)
                 }}
+                onClick={() => setDropdownOpen(true)}
+                onFocus={() => setDropdownOpen(true)}
                 onBlur={() => {
-                  // Skip if Popover is open — the selection handler will save instead.
-                  if (!dropdownOpen) void saveAuthConfig()
+                  if (!isSelectingLocationRef.current) {
+                    void saveAuthConfig()
+                  }
                 }}
               />
               <PopoverTrigger asChild>
@@ -412,6 +419,9 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                     type="button"
                     role="option"
                     aria-selected={isSelected}
+                    onMouseDown={() => {
+                      isSelectingLocationRef.current = true
+                    }}
                     onClick={() => handleLocationSelect(loc.value)}
                     className="w-full cursor-pointer rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground">
                     {loc.label}
