@@ -44440,6 +44440,35 @@
       }
     },
     {
+      "id": "glm-5-2",
+      "name": "GLM 5.2",
+      "ownedBy": "zhipu",
+      "family": "glm",
+      "contextWindow": 1000000,
+      "maxOutputTokens": 131072,
+      "openWeights": true,
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": ["function-call", "structured-output", "reasoning"],
+      "reasoning": {
+        "supportedEfforts": ["high", "max"]
+      },
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
       "id": "glm-5v-turbo",
       "name": "GLM 5V Turbo",
       "ownedBy": "zhipu",
