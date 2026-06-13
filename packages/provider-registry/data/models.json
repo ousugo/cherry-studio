@@ -1732,7 +1732,7 @@
       "description": "Gemini-2.0-flash Lightweight Official Version",
       "family": "gemini-flash-lite",
       "id": "gemini-2-0-flash-lite",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "maxOutputTokens": 8192,
       "name": "gemini-2.0-flash-lite",
       "openWeights": false,
@@ -2688,7 +2688,7 @@
       "description": "GLM-4.6V is a large multimodal model designed for high-fidelity visual understanding and long-context reasoning across images, documents, and mixed media. It supports up to 128K tokens, processes complex page layouts and charts directly as visual inputs, and integrates native multimodal function calling to connect perception with downstream tool execution. The model also enables interleaved image-text generation and UI reconstruction workflows, including screenshot-to-HTML synthesis and iterative visual editing.",
       "family": "glm",
       "id": "glm-4-6v",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "maxOutputTokens": 32768,
       "name": "GLM-4.6V",
       "openWeights": false,
@@ -3767,7 +3767,7 @@
       "description": "The Qwen3.5 series 397B-A17B native vision-language model is built on a hybrid architecture that integrates a linear attention mechanism with a sparse mixture-of-experts model, achieving higher inference efficiency. It delivers state-of-the-art performance comparable to leading-edge models across a wide range of tasks, including language understanding, logical reasoning, code generation, agent-based tasks, image understanding, video understanding, and graphical user interface (GUI) interactions. With its robust code-generation and agent capabilities, the model exhibits strong generalization across diverse agent.",
       "family": "qwen",
       "id": "qwen3-5-a17b",
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "maxOutputTokens": 65536,
       "name": "Qwen3.5 397B-A17B",
       "openWeights": true,
@@ -6808,7 +6808,7 @@
       "description": "Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows. Building on the multimodal foundation of the Gemini 3 series, it combines high-precision reasoning across text, image, video, audio, and code with a 1M-token context window. Reasoning Details must be preserved when using multi-turn tool calling, see our docs here: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning. The 3.1 update introduces measurable gains in SWE benchmarks and real-world coding environments, along with stronger autonomous task execution in structured domains such as finance and spreadsheet-based workflows.\n\nDesigned for advanced development and agentic systems, Gemini 3.1 Pro Preview improves long-horizon stability and tool orchestration while increasing token efficiency. It introduces a new medium thinking level to better balance cost, speed, and performance. The model excels in agentic coding, structured planning, multimodal analysis, and workflow automation, making it well-suited for autonomous agents, financial modeling, spreadsheet automation, and high-context enterprise tasks.",
       "family": "gemini-pro",
       "id": "gemini-3-1-pro-preview",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "maxOutputTokens": 64000,
       "name": "Gemini 3.1 Pro Preview",
       "openWeights": false,
@@ -7120,7 +7120,7 @@
       "description": "OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding.\n\nThis model supports the `reasoning_effort` parameter, which can be set to \"high\", \"medium\", or \"low\" to control the thinking time of the model. The default is \"medium\". OpenRouter also offers the model slug `openai/o3-mini-high` to default the parameter to \"high\".\n\nThe model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
       "family": "o",
       "id": "o3-mini",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "name": "o3-mini",
       "openWeights": false,
@@ -8463,7 +8463,7 @@
       "description": "The 2024-11-20 version of GPT-4o offers a leveled-up creative writing ability with more natural, engaging, and tailored writing to improve relevance & readability. It’s also better at working with uploaded files, providing deeper insights & more thorough responses.\n\nGPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.",
       "family": "gpt",
       "id": "gpt-4o-2024-11-20",
-      "inputModalities": ["text", "image", "audio"],
+      "inputModalities": ["image", "text"],
       "maxOutputTokens": 16384,
       "name": "GPT-4o (2024-11-20)",
       "openWeights": false,
@@ -8824,7 +8824,7 @@
       "description": "NVIDIA Nemotron Nano 2 VL is a 12-billion-parameter open multimodal reasoning model designed for video understanding and document intelligence. It introduces a hybrid Transformer-Mamba architecture, combining transformer-level accuracy with Mamba’s memory-efficient sequence modeling for significantly higher throughput and lower latency.\n\nThe model supports inputs of text and multi-image documents, producing natural-language outputs. It is trained on high-quality NVIDIA-curated synthetic datasets optimized for optical-character recognition, chart reasoning, and multimodal comprehension.\n\nNemotron Nano 2 VL achieves leading results on OCRBench v2 and scores ≈ 74 average across MMMU, MathVista, AI2D, OCRBench, OCR-Reasoning, ChartQA, DocVQA, and Video-MME—surpassing prior open VL baselines. With Efficient Video Sampling (EVS), it handles long-form videos while reducing inference cost.\n\nOpen-weights, training data, and fine-tuning recipes are released under a permissive NVIDIA open license, with deployment supported across NeMo, NIM, and major inference runtimes.",
       "family": "nemotron",
       "id": "nemotron-nano-v2-vl",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "maxOutputTokens": 131072,
       "name": "Nvidia Nemotron Nano 12B V2 VL",
       "openWeights": false,
@@ -10654,7 +10654,7 @@
       "description": "Sonar is lightweight, affordable, fast, and simple to use — now featuring citations and the ability to customize sources. It is designed for companies seeking to integrate lightweight question-and-answer features optimized for speed.",
       "family": "sonar",
       "id": "sonar",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 8000,
       "name": "Sonar",
       "openWeights": false,
@@ -10706,7 +10706,7 @@
       "description": "Note: Sonar Pro pricing includes Perplexity search pricing. See [details here](https://docs.perplexity.ai/guides/pricing#detailed-pricing-breakdown-for-sonar-reasoning-pro-and-sonar-pro)\n\nSonar Reasoning Pro is a premier reasoning model powered by DeepSeek R1 with Chain of Thought (CoT). Designed for advanced use cases, it supports in-depth, multi-step queries with a larger context window and can surface more citations per search, enabling more comprehensive and extensible responses.",
       "family": "sonar-reasoning",
       "id": "sonar-reasoning-pro",
-      "inputModalities": ["text"],
+      "inputModalities": ["image", "text"],
       "maxOutputTokens": 8000,
       "name": "Sonar Reasoning Pro",
       "openWeights": false,
@@ -41323,7 +41323,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41359,7 +41359,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41395,7 +41395,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41532,7 +41532,7 @@
         }
       },
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "gemini-flash-lite",
       "reasoning": {
@@ -44050,7 +44050,7 @@
       "contextWindow": 262000,
       "maxOutputTokens": 262000,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44079,7 +44079,7 @@
       "contextWindow": 202800,
       "maxOutputTokens": 64000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44108,7 +44108,7 @@
       "contextWindow": 200000,
       "maxOutputTokens": 128000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44166,7 +44166,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 64000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44639,7 +44639,7 @@
       "contextWindow": 1050000,
       "maxOutputTokens": 131100,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44733,7 +44733,7 @@
       "contextWindow": 1050000,
       "maxOutputTokens": 131000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44986,7 +44986,7 @@
       "contextWindow": 131056,
       "maxOutputTokens": 131056,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45011,7 +45011,7 @@
       "contextWindow": 991000,
       "maxOutputTokens": 64000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "file-input"],
       "reasoning": {
@@ -45069,7 +45069,7 @@
       "contextWindow": 256000,
       "maxOutputTokens": 256000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45122,7 +45122,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 64000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45155,7 +45155,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 384000,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition"],
       "reasoning": {
@@ -45184,7 +45184,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 384000,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning"],
       "reasoning": {
@@ -45246,7 +45246,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 1000000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
