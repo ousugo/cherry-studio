@@ -44068,6 +44068,349 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "structured-output",
+        "reasoning",
+        "image-recognition",
+        "file-input",
+        "video-recognition"
+      ],
+      "contextWindow": 262144,
+      "family": "kimi-k2",
+      "id": "kimi-k2-7-code",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 262144,
+      "name": "Kimi K2.7 Code",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.16
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.95
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": []
+      }
+    },
+    {
+      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
+      "contextWindow": 262144,
+      "family": "mistral-medium",
+      "id": "mistral-medium-2604",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 262144,
+      "name": "Mistral Medium 3.5",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "contextWindow": 256000,
+      "family": "mistral-small",
+      "id": "mistral-small-2603",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 256000,
+      "name": "Mistral Small 4",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 32768,
+      "family": "gemini-pro",
+      "id": "gemini-2-5-pro-tts",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
+      "name": "Gemini 2.5 Pro TTS",
+      "openWeights": false,
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "structured-output",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "file-input",
+        "video-recognition"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-flash-lite",
+      "id": "gemini-3-1-flash-lite",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "name": "Gemini 3.1 Flash Lite",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 32768,
+      "family": "gemini-flash",
+      "id": "gemini-2-5-flash-tts",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
+      "name": "Gemini 2.5 Flash TTS",
+      "openWeights": false,
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "structured-output", "image-recognition", "file-input"],
+      "contextWindow": 128000,
+      "family": "gpt",
+      "id": "gpt-5-3-chat-latest",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 16384,
+      "name": "GPT-5.3 Chat (latest)",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 128000,
+      "family": "nemotron",
+      "id": "llama-3-1-nemotron-ultra-253b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 8192,
+      "name": "Llama 3.1 Nemotron Ultra 253B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "nvidia",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.8
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-5-pro-ultraspeed",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "name": "MiMo-V2.5-Pro-UltraSpeed",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0108
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.305
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.61
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 131072,
+      "family": "sarvam",
+      "id": "sarvam-105b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "name": "Sarvam 105B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "sarvam",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.16
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 128000,
+      "family": "sarvam",
+      "id": "sarvam-30b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 128000,
+      "name": "Sarvam 30B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "sarvam",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 256000,
+      "family": "step",
+      "id": "step-3-5-flash-2603",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "name": "Step 3.5 Flash 2603",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "stepfun",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "id": "glm-5-1",
       "name": "GLM 5.1",
       "ownedBy": "zhipu",
