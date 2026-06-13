@@ -45589,7 +45589,7 @@
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": []
       },
       "pricing": {
         "input": {
