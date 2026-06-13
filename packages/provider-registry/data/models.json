@@ -1635,7 +1635,7 @@
       "maxOutputTokens": 32768,
       "name": "gemini-2.5-flash-image",
       "openWeights": false,
-      "outputModalities": ["text"],
+      "outputModalities": ["image", "text"],
       "ownedBy": "google",
       "pricing": {
         "cacheRead": {
@@ -2075,7 +2075,7 @@
       "maxOutputTokens": 64000,
       "name": "gemini-3-pro-image-preview",
       "openWeights": false,
-      "outputModalities": ["text"],
+      "outputModalities": ["image", "text"],
       "ownedBy": "google",
       "pricing": {
         "cacheRead": {
