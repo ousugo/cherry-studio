@@ -67,10 +67,10 @@ Project-specific tools, paths, and conventions.
 
 Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
-- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format check
+- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Biome format + lint (write mode)
-- `pnpm build:check` — **REQUIRED before commits** (`pnpm lint && pnpm test`). If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first.
+- `pnpm build:check` — **REQUIRED before commits**. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
 
 ### Testing
 
@@ -245,7 +245,7 @@ The following four files are **auto-generated — NEVER edit them by hand**:
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
-To change any of them, edit `classification.json` or `target-key-definitions.json`, then regenerate:
+To change any of them, edit `classification.json` or `target-key-definitions.json` (both in `v2-refactor-temp/tools/data-classify/data/`), then regenerate:
 
 ```bash
 cd v2-refactor-temp/tools/data-classify && npm run generate
@@ -254,11 +254,3 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 ### Breaking Changes Log
 
 When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
-
-## Security
-
-- Never expose Node.js APIs directly to renderer; use `contextBridge` in preload
-- Validate all IPC inputs in main process handlers
-- URL sanitization via `strict-url-sanitise`
-- IP validation via `ipaddr.js` (API server)
-- `express-validator` for API server request validation
