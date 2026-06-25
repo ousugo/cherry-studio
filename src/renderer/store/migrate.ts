@@ -46,7 +46,8 @@ import {
   SystemProviderIds
 } from '@renderer/types/provider'
 import type { WebSearchProvider } from '@renderer/types/webSearchProvider'
-import { getDefaultGroupName, getLeadingEmoji, uuid } from '@renderer/utils'
+import { getDefaultGroupName, getLeadingEmoji } from '@renderer/utils/naming'
+import { uuid } from '@renderer/utils/uuid'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isBuiltinMcpServer } from '@shared/utils/mcp'
