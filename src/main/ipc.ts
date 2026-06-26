@@ -436,12 +436,6 @@ export async function registerIpc() {
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-  //   configManager.setDisableHardwareAcceleration(isDisable)
-  // })
-  // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
-  //   configManager.setUseSystemTitleBar(isActive)
-  // })
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
