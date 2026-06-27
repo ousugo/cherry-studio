@@ -32,7 +32,7 @@ vi.mock('@renderer/components/composer/tools/components/WebSearchButton', () => 
   WebSearchToolRuntime: () => null
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({ agent: undefined })
 }))
 
