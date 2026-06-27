@@ -7,7 +7,7 @@ const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse }
   mockIsSupportedToolUse: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isGenerateImageModel: (...args: unknown[]) => mockIsGenerateImageModel(...args),
   isReasoningModel: (...args: unknown[]) => mockIsReasoningModel(...args)
 }))
