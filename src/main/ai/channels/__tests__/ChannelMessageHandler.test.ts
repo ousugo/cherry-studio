@@ -354,8 +354,14 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
   })
 
-  it('handleCommand /new creates a new session', async () => {
+  it('handleCommand /new creates a new session in the channel-bound workspace', async () => {
     const adapter = createMockAdapter()
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce({
+      id: 'channel-1',
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'user', workspaceId: 'workspace-bound' }
+    } as any)
     vi.mocked(agentSessionService.create).mockResolvedValueOnce({ id: 'new-session' } as any)
 
     await channelMessageHandler.handleCommand(adapter, {
@@ -368,7 +374,7 @@ describe('ChannelMessageHandler', () => {
     expect(agentSessionService.create).toHaveBeenCalledWith({
       agentId: 'agent-1',
       name: 'Channel session',
-      workspace: { type: 'system' }
+      workspace: { type: 'user', workspaceId: 'workspace-bound' }
     })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })
