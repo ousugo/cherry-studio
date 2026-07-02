@@ -326,8 +326,8 @@ const TranslatePage: FC = () => {
         setDetectedLanguage(actualSourceLanguage)
       } catch (error) {
         logger.error('Failed to detect language', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.detect.failed')))
-        return
+        actualSourceLanguage = UNKNOWN_LANG_CODE
+        setDetectedLanguage(UNKNOWN_LANG_CODE)
       } finally {
         setIsDetecting(false)
       }
@@ -335,15 +335,12 @@ const TranslatePage: FC = () => {
       setDetectedLanguage(null)
     }
 
-    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
-      window.toast.error(t('translate.error.detect.unknown'))
-      return
-    }
+    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
 
     const targetResult = determineTargetLanguage(
       actualSourceLanguage,
       targetLanguage,
-      isBidirectional,
+      shouldUseBidirectionalTarget,
       bidirectionalPair
     )
 
