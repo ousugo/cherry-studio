@@ -257,7 +257,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
     expect(adapter.onStreamError).not.toHaveBeenCalled()
   })
 
@@ -295,7 +295,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
 
   it('skips final send when adapter handles stream completion', async () => {
@@ -376,7 +376,7 @@ describe('ChannelMessageHandler', () => {
       name: 'Channel session',
       workspace: { type: 'user', workspaceId: 'workspace-bound' }
     })
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
   })
 
   it('handleCommand /compact sends /compact as message content', async () => {
@@ -451,7 +451,8 @@ describe('ChannelMessageHandler', () => {
 
     expect(adapter.sendMessage).toHaveBeenCalledWith(
       'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.'
+      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.',
+      { replyToMessageId: undefined }
     )
   })
 
