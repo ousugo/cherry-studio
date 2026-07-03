@@ -1,6 +1,8 @@
 import { getAppLanguage, getI18n, t } from '@main/i18n'
+import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { app } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('main i18n', () => {
   beforeEach(() => {
@@ -16,6 +18,15 @@ describe('main i18n', () => {
     it('falls back to the system locale (app.getLocale) when no preference is set', () => {
       // The shared electron mock returns 'en-US' from app.getLocale().
       expect(getAppLanguage()).toBe('en-US')
+    })
+
+    it('falls back to the default language when the system locale is not in the catalog', () => {
+      // No preference set and 'ko-KR' has no catalog → resolves to the default,
+      // not the raw system locale.
+      vi.mocked(app.getLocale).mockReturnValueOnce('ko-KR')
+      const resolved = getAppLanguage()
+      expect(resolved).not.toBe('ko-KR')
+      expect(resolved).toBe(defaultLanguage)
     })
   })
 

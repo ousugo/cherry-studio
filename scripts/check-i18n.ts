@@ -149,32 +149,56 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
 }
 
 /**
- * Verify that every literal `t('some.key')` call in files that import `t` from `@main/i18n`
+ * Verify that every `t('some.key')` call in files that import `t` from `@main/i18n`
  * resolves to a string in the main catalog. This catches the common drift where main code
  * starts using a key the small main catalog does not carry.
  *
- * Scope: literal keys only. Keys accessed through `getI18n()` subtree destructuring
- * (app menu / tray / dialog namespaces) are guaranteed structurally by the catalog check
- * above and are not statically re-verified here.
+ * A non-literal key — `t(someVar)`, a template string, a ternary — cannot be checked
+ * against the catalog statically, so it is reported as a loud failure rather than skipped
+ * silently: main code must use literal keys so this guard can cover them.
+ *
+ * Keys accessed through `getI18n()` subtree destructuring (app menu / tray / dialog
+ * namespaces) are guaranteed structurally by the catalog check above and are not
+ * statically re-verified here.
  */
 function checkMainKeyCoverage(mainBaseJson: I18N): void {
   const importsMainT = /import\s*(?:type\s*)?\{[^}]*\bt\b[^}]*\}\s*from\s*['"]@main\/i18n['"]/
-  const literalTCall = /(?<![\w.])t\(\s*(['"])([\w.]+)\1/g
+  const anyTCall = /(?<![\w.])t\(/g
+  const literalTCall = /^t\(\s*(['"])([\w.]+)\1/
 
   const missing = new Set<string>()
+  const dynamic = new Set<string>()
   for (const file of collectSourceFiles(mainSrcDir)) {
     const content = fs.readFileSync(file, 'utf-8')
     if (!importsMainT.test(content)) continue
-    for (const match of content.matchAll(literalTCall)) {
-      const key = match[2]
+    const rel = path.relative(mainSrcDir, file)
+    for (const call of content.matchAll(anyTCall)) {
+      if (call.index === undefined) continue
+      const literal = literalTCall.exec(content.slice(call.index))
+      if (!literal) {
+        const snippet = content
+          .slice(call.index, call.index + 40)
+          .split('\n')[0]
+          .trim()
+        dynamic.add(`${snippet}…  (${rel})`)
+        continue
+      }
+      const key = literal[2]
       if (!keyExists(mainBaseJson, key)) {
-        missing.add(`${key}  (${path.relative(mainSrcDir, file)})`)
+        missing.add(`${key}  (${rel})`)
       }
     }
   }
 
+  const errors: string[] = []
+  if (dynamic.size > 0) {
+    errors.push(`main 源码存在无法静态校验的非字面量 t() 调用（请改用字面量 key）：\n${[...dynamic].join('\n')}`)
+  }
   if (missing.size > 0) {
-    throw new Error(`main 源码使用了 main catalog（src/main/i18n）中不存在的 i18n key：\n${[...missing].join('\n')}`)
+    errors.push(`main 源码使用了 main catalog（src/main/i18n）中不存在的 i18n key：\n${[...missing].join('\n')}`)
+  }
+  if (errors.length > 0) {
+    throw new Error(errors.join('\n\n'))
   }
 }
 

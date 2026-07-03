@@ -1,11 +1,17 @@
 import i18n, { initI18n } from '@renderer/i18n'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // The global renderer setup already calls initI18n(); these tests assert the
 // lazy-load contract (on-demand pack loading, fallback, idempotency) explicitly.
 // The mock preference language is zh-CN (tests/__mocks__/renderer/PreferenceService).
 describe('renderer i18n lazy init', () => {
-  const originalLanguage = i18n.language
+  let originalLanguage: string
+
+  beforeAll(() => {
+    // Capture after the global setup's initI18n() has run — at module-collection
+    // time lazy init hasn't fired yet, so i18n.language would still be undefined.
+    originalLanguage = i18n.language
+  })
 
   afterAll(async () => {
     await i18n.changeLanguage(originalLanguage)
