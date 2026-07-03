@@ -1,13 +1,13 @@
 import { Alert, Button, Scrollbar } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { DEFAULT_KNOWLEDGE_SEARCH_MODE, type KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
-import { useKnowledgeRagConfig } from '../../hooks'
+import { useEmbeddingDimensions, useKnowledgeRagConfig } from '../../hooks'
 import {
   buildKnowledgeSearchModeOptions,
   getKnowledgeBaseFailureReason,
@@ -24,6 +24,9 @@ export interface KnowledgeRestoreBaseInitialValues {
 
 interface RagConfigPanelProps {
   base: KnowledgeBase
+  // Undefined means unknown (e.g. items are still loading) and is treated as
+  // "not empty" so the safer restore flow is offered until it is confirmed 0.
+  itemCount?: number
   onRestoreBase: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
 }
 
@@ -50,9 +53,10 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   )
 }
 
-const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
+const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
   const { initialValues, fileProcessorOptions, save, isLoading } = useKnowledgeRagConfig(base)
+  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
@@ -68,18 +72,55 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   )
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
-  // Changing the embedding model re-embeds existing content, so it routes through the
-  // restore flow (which auto-detects the new model's dimensions) instead of a plain save.
   const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
-  const canSubmit = canSave || embeddingModelChanged
+  // Changing the embedding model re-embeds existing content, so it normally routes
+  // through the restore flow (which auto-detects the new model's dimensions) instead
+  // of a plain save. A base with no items yet has nothing to re-embed, so the change
+  // can be saved in place — itemCount is undefined while unknown/loading, which is
+  // treated as "not empty" so the safer restore flow stays the default.
+  const canSaveEmbeddingModelDirectly = embeddingModelChanged && itemCount === 0
+  const requiresRestore = embeddingModelChanged && !canSaveEmbeddingModelDirectly
+  // Restore only ever reads embeddingModelId (it ignores the rest of the dirty
+  // draft), so it can bypass canSave the way it always could. A direct save
+  // re-submits the whole dirty form, including chunk fields, so it must respect
+  // the same chunk validation as a plain save.
+  const canSubmit = canSave || requiresRestore
 
   const handleSave = async () => {
     if (!canSubmit) {
       return
     }
 
-    if (embeddingModelChanged) {
+    if (requiresRestore) {
       onRestoreBase(base, { embeddingModelId: values.embeddingModelId })
+      return
+    }
+
+    if (canSaveEmbeddingModelDirectly) {
+      let dimensions: number | null = null
+
+      if (values.embeddingModelId) {
+        try {
+          dimensions = await fetchDimensions(values.embeddingModelId)
+        } catch (error) {
+          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+          return
+        }
+      }
+
+      try {
+        const saveValues =
+          initialValues.embeddingModelId === null &&
+          values.embeddingModelId !== null &&
+          values.searchMode === initialValues.searchMode
+            ? { ...values, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
+            : values
+
+        await save(saveValues, { embeddingModelId: values.embeddingModelId, dimensions })
+        window.toast.success(t('knowledge.rag.saved'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      }
       return
     }
 
@@ -163,8 +204,13 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           <RotateCcw />
           {t('knowledge.rag.reset_action')}
         </Button>
-        <Button type="button" variant="emphasis" loading={isLoading} disabled={!canSubmit} onClick={handleSave}>
-          {embeddingModelChanged ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}
+        <Button
+          type="button"
+          variant="emphasis"
+          loading={isLoading || isFetchingDimensions}
+          disabled={!canSubmit}
+          onClick={handleSave}>
+          {requiresRestore ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}
         </Button>
       </KnowledgeDialogFooter>
     </KnowledgePanelShell>
