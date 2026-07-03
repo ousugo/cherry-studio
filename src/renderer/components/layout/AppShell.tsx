@@ -20,6 +20,7 @@ export const AppShell = () => {
     useTabs()
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const canCycleTabs = tabs.length > 1 && !!activeTab
 
   const handleOpenGlobalSearch = useCallback(() => {
     void SearchPopup.show()
@@ -47,8 +48,8 @@ export const AppShell = () => {
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useMainSettingsTab()
-  useCommandHandler('tab.next', () => cycleTab('next'))
-  useCommandHandler('tab.prev', () => cycleTab('prev'))
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {

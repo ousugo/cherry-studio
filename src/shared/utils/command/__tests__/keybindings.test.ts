@@ -309,6 +309,24 @@ describe('resolveCommandByKeybinding', () => {
         scope: 'renderer'
       })
     ).toBe('tab.next')
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['Ctrl', 'Shift', 'Tab'],
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBe('tab.prev')
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Shift', 'Tab'],
+        context: {},
+        platform: 'win32',
+        scope: 'renderer'
+      })
+    ).toBe('tab.prev')
   })
 
   it('does not resolve disabled, cleared, unsupported, or unavailable commands', () => {
