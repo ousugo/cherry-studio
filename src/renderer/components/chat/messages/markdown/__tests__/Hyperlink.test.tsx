@@ -37,6 +37,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     PopoverTrigger: ({ children, asChild, ...props }) => {
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
       }
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
@@ -62,6 +63,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     PopoverTrigger: ({ children, asChild, ...props }) => {
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
       }
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
