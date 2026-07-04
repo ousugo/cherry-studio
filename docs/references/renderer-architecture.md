@@ -136,7 +136,7 @@ After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/f
 
 - **Single entry.** Each feature exposes exactly one curated `index.ts` (explicit named exports, **no `export *`**). External consumers import the barrel; reaching into a feature's internal files is forbidden. (VS Code applies the same rule: one contribution may import only another's single public `common/` API, never its internals.)
 - **Shared buckets carry no root barrel.** `types/` and `utils/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
-- **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. Configure `import/no-restricted-paths` zones: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. Roll out at `warn` to quantify existing violations, then tighten to `error`.
+- **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. The `import/no-restricted-paths` zones are configured: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. The shared-layer edges are enforced at `error`; the sibling-page (`pages → pages`) edges remain at `warn` pending features-ization.
 
 ## 6. Top-Level Governance
 
@@ -172,34 +172,17 @@ After decomposition every edge is downward (`component → component`/`hook`, `h
 
 ## 8. Target vs Current State
 
-This document describes the **target** architecture. The renderer has not yet been migrated to it; the gaps below are known and tracked. Migration is deferred and intentionally out of scope here.
+This document describes the **target** architecture. The renderer has not yet been fully migrated to it; the remaining gaps below are known and tracked. Migration is deferred and intentionally out of scope here.
 
-**Already aligned:**
-
-- `packages/ui` has no back-imports from `@renderer/*` (the primitive layer is clean).
-- The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place, and its cross-process cell is split into `@shared/utils/command` (logic + `ContextKeyService`/`MenuRegistry` blueprints) and `@shared/types/command` (types) per [Shared Layer Architecture](./shared-layer-architecture.md).
-- The `context/` by-kind bucket has been dissolved by shape: app-wide providers (`ThemeProvider`, `CodeStyleProvider`) sit in `components/` with their context objects and accessor hooks in `hooks/` (`useTheme`, `useCodeStyle`); the tab subsystem's behavior layer is decomposed into `hooks/tab/` (context + hooks, mirroring the `command` pattern), with the `TabsProvider`/`TabIdProvider` components co-located in the shell UI (`components/layout/`) pending the App-shell migration.
-- The renderer-side AI-streaming runtime (`IpcChatTransport`, `TopicStreamSubscription`, `streamDispatchCoordinator`) lives in the shared `services/aiTransport/` bucket — a cross-surface `ai` runtime consumed by chat, quick-assistant, and selection, pairing with the cross-process `@shared/ai/transport` contract; it is not its own top-level directory (Naming Conventions §4.8).
-
-**Pending (current deviations from the target):**
-
-This table lists definite mis-classifications and structural violations only.
-A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.1) and is not prescribed here.
+Only **outstanding** deviations are tracked here: once a deviation is resolved it stops violating the target, so it is dropped from this list rather than recorded as done. The table lists definite mis-classifications and structural violations that remain. A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.1) and is not prescribed here.
 
 | Area | Current state | Target |
 |---|---|---|
-| App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
-| `components/app/Navbar` | a shared page-header component (`Navbar`/`NavbarCenter`/…) consumed by ~10 pages, mislabeled under an `app/` (shell) subdirectory | it is shared UI, **not** shell: keep in `components/` (regroup as `components/Navbar/`) |
-| `components/app/Sidebar` | no importers found — likely dead code | verify; remove if unused, otherwise place by its actual consumer (window shell → `windows/`, reusable UI → `components/`) |
-| Cross-page imports | `pages/<domain>/` import each other (`pages → pages` coupling) | a page must not import another page; route shared needs through the shared layer |
-| `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (Naming Conventions §4.8) |
-| `config/` | by-kind bucket mixing app-global constants (`constant.ts`, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | **dissolved** during the v2 refactor: platform predicates → `utils/platform`; domain constants → owning domains; `env.ts` assets / `APP_NAME` inlined at consumers; directory removed |
-| `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
+| App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window — including `AppShell` and the `Sidebar` it renders (`components/app/Sidebar`, imported by `components/layout/AppShell.tsx` — window-shell UI, **not** dead code) | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag, `Sidebar`) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
+| Cross-page imports | ~13 `pages/<domain>/` files import each other (`pages → pages` coupling), held at `warn` by the §5 gate | a page must not import another page; route shared needs through the shared layer, then tighten the gate to `error` |
+| `utils/message/` topic barrel | `utils/message/` is a multi-file topic subdir with **no `index.ts`** (the `@renderer/utils` root barrel has already been dropped) | give `utils/message/` one curated `index.ts` (named exports, **no `export *`**) |
 | `databases/` | v1 Dexie | removed during the v2 refactor (do not model) |
 | Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists yet** | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |
-| Boundary enforcement | none | `import/no-restricted-paths` zones (§5) |
-
-Known reverse/coupling edges at time of writing: ~35 `pages → pages` cross-imports (the command-driven `component`/`hook → feature` edges have been resolved). These are the violations the §5 lint rules are designed to catch and prevent.
 
 ## 9. Industry References
 
