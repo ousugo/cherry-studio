@@ -70,7 +70,7 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/filePath', () => ({
+vi.mock('@renderer/utils/filePath', () => ({
   resolveInlineFilePath: (path: string) => path
 }))
 
