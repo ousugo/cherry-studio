@@ -103,8 +103,8 @@ const boundarySettings = {
     createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.web.json'), alwaysTryTypes: true })
   ]
 }
-// Two independent gates: block1 (layer edges) flips to error once Stage 1 clears it; block2 (sibling pages) stays warn until features-ization.
-const RENDERER_BOUNDARY = process.env.RENDERER_BOUNDARY_ERROR ? 'error' : 'warn'
+// Two independent gates: block1 (layer edges) is enforced as error — Stage 1 cleared it; block2 (sibling pages) stays warn until features-ization.
+const RENDERER_BOUNDARY = 'error'
 const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
 
 export default defineConfig([

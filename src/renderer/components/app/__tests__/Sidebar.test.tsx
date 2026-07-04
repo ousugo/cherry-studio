@@ -124,7 +124,7 @@ vi.mock('../../Popups/UserPopup', () => ({
   }
 }))
 
-vi.mock('../../icons/SVGIcon', () => ({
+vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
 }))
 
