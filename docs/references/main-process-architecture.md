@@ -46,7 +46,7 @@ src/main/
 
 ### 2.1 Subdirectories and Barrels
 
-A single `.ts` file is the default; promote a topic to a subdirectory only when it actually owns multiple files. Barrels then follow the same rule as [Shared Layer Architecture §3.1](./shared-layer-architecture.md), applied to both `services/` and `utils/`:
+A single `.ts` file is the default; promote a topic to a subdirectory only when it actually owns multiple files. Barrels follow [Naming §6.4](./naming-conventions.md) (the cross-process authority), applied here to `services/` and `utils/`:
 
 - **The bucket roots `services/` and `utils/` have no `index.ts`.** A bucket is a category, not a module — import the specific file or topic, never the whole bucket.
 - **A `services/<topic>/` subdirectory has exactly one `index.ts`** as its public API (explicit named exports, no `export *`); its other files stay private behind it.
