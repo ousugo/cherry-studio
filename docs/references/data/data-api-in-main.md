@@ -74,7 +74,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 ### Register Handlers
 
 ```typescript
-// handlers/index.ts
+// handlers/apiHandlers.ts
 import { topicHandlers } from './topic'
 import { messageHandlers } from './message'
 
@@ -455,7 +455,7 @@ export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
 
 4. **Implement handler** in `handlers/`
 
-5. **Register handler** in `handlers/index.ts`
+5. **Register handler** in `handlers/apiHandlers.ts`
 
 ## Best Practices
 

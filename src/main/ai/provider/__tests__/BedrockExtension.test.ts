@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { BedrockExtension } from '../index'
+import { BedrockExtension } from '../extensions'
 
 /**
  * Bedrock runs Anthropic models, so its provider exposes the same server-side

@@ -6,8 +6,7 @@
  */
 import { createHmac } from 'node:crypto'
 
-import { CLIENT_SECRET } from './config'
-
+const CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET
 const CLIENT_ID = 'cherry-studio'
 const CLIENT_SECRET_SUFFIX = 'GvI6I5ZrEHcGOWjO5AKhJKGmnwwGfM62XKpWqkjhvzRU2NZIinM77aTGIqhqys0g'
 

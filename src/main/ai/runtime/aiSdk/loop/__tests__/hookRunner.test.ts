@@ -1,8 +1,8 @@
 import type { ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AgentLoopHooks, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../index'
-import { wrapToolsWithExecutionHooks } from '../internal'
+import { wrapToolsWithExecutionHooks } from '../hookRunner'
+import type { AgentLoopHooks, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../types'
 
 /** Minimal tool-execute options the wrapper reads (`toolCallId`, `messages`). */
 const EXECUTE_OPTIONS = { toolCallId: 'call-1', messages: [] } as unknown as Parameters<

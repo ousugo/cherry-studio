@@ -52,7 +52,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
 | `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |
-| `src/main/ipc/handlers/index.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
+| `src/main/ipc/handlers/ipcHandlers.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
 | `src/preload/ipc.ts` | generic forwarder → `window.api.ipcApi` |
 | `src/renderer/ipc/index.ts` | typed facade `ipcApi` |
 | `src/renderer/ipc/useIpcOn.ts` | event subscription hook |

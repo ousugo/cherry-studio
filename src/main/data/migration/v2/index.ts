@@ -33,8 +33,8 @@ export {
 } from '@shared/data/migration/v2/types'
 
 // Migrators
-export { getAllMigrators } from './migrators'
 export { BaseMigrator } from './migrators/BaseMigrator'
+export { getAllMigrators } from './migrators/migratorRegistry'
 
 // Utils
 export { DexieFileReader } from './utils/DexieFileReader'

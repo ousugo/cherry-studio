@@ -30,12 +30,12 @@ IpcApi deliberately **narrows** what renderer→main IPC can be: only routes dec
 |---|---|---|
 | Channel source | any service hand-adds `ipcMain.handle`/`ipcOn` + hand-written preload | only what's declared in `ipcRequestSchemas` |
 | Types | loose, hand-aligned across three files | one schema drives route + input + output, end to end |
-| Enumerability | scattered across services, no single list | `handlers/index.ts` — one auditable capability list |
+| Enumerability | scattered across services, no single list | `handlers/ipcHandlers.ts` — one auditable capability list |
 
 In practice this is a net convenience, not a constraint:
 
 - **Full type-checking** — routes autocomplete; a wrong route, input, or output is a compile error; schema drift fails the build.
-- **One cheat sheet** — `IpcRoute` / `handlers/index.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
+- **One cheat sheet** — `IpcRoute` / `handlers/ipcHandlers.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
 - **Auditable** — one place to confirm the exposure surface was neither widened nor dropped (see the migration guide's exposure audit).
 
 The trade is deliberate: give up the freedom to add arbitrary channels, gain full types, single-point discoverability, and auditability. Narrowing is the norm; the rare channel that may stay out is a single-digit, controlled exception (see [escape hatch](./ipc-migration-guide.md)).
@@ -81,7 +81,7 @@ The two directions are two independent registries — look them up by direction:
 
 | Direction | Lookup | Holds |
 |---|---|---|
-| **R→M** (renderer calls main) | `IpcRoute` (`keyof IpcRequestSchemas`) + `handlers/index.ts` | every request route |
+| **R→M** (renderer calls main) | `IpcRoute` (`keyof IpcRequestSchemas`) + `handlers/ipcHandlers.ts` | every request route |
 | **M→R** (main pushes renderer) | `IpcEventName` (`keyof IpcEventSchemas`) | every event name |
 | **Outside IpcApi** | migration guide's [Not In Scope](./ipc-migration-guide.md) table + Preference / Cache / DataApi subsystems | escape-hatch carve-outs (`Tab_MoveWindow`), `Preference_Changed`, `Cache_Sync`, DataApi subscribe |
 

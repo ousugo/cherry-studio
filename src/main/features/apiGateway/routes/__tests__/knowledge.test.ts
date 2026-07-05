@@ -25,8 +25,8 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
 }))
 
-import { restErrorHandler } from '../../../errors'
-import { knowledgeRoutes } from '../index'
+import { restErrorHandler } from '../../errors'
+import { knowledgeRoutes } from '../knowledge'
 
 const app = new Elysia().error({ DATA_API: DataApiError }).onError(restErrorHandler).use(knowledgeRoutes)
 

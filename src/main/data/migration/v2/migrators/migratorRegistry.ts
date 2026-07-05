@@ -1,10 +1,7 @@
 /**
- * Migrator registration and exports
+ * Migrator registration — assembles every migrator in execution order.
  */
 
-export { BaseMigrator } from './BaseMigrator'
-
-// Import all migrators
 import { AgentsMigrator } from './AgentsMigrator'
 import { AssistantMigrator } from './AssistantMigrator'
 import { BootConfigMigrator } from './BootConfigMigrator'
@@ -20,25 +17,6 @@ import { PreferencesMigrator } from './PreferencesMigrator'
 import { PromptMigrator } from './PromptMigrator'
 import { ProviderModelMigrator } from './ProviderModelMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
-
-// Export migrator classes
-export {
-  AgentsMigrator,
-  AssistantMigrator,
-  BootConfigMigrator,
-  ChatMigrator,
-  FileMigrator,
-  KnowledgeMigrator,
-  KnowledgeVectorMigrator,
-  McpServerMigrator,
-  MiniAppMigrator,
-  NoteMigrator,
-  PaintingMigrator,
-  PreferencesMigrator,
-  PromptMigrator,
-  ProviderModelMigrator,
-  TranslateMigrator
-}
 
 /**
  * Get all registered migrators in execution order

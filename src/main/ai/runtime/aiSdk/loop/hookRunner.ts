@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { ToolSet } from 'ai'
 
-import type { AgentLoopHooks, ToolExecutionStartEvent } from './index'
+import type { AgentLoopHooks, ToolExecutionStartEvent } from './types'
 
 export const logger = loggerService.withContext('agentLoop')
 

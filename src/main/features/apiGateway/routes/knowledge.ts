@@ -11,7 +11,7 @@ import {
   ListKnowledgeBasesResponseSchema,
   PaginationQuerySchema,
   SearchKnowledgeResponseSchema
-} from './schemas'
+} from './knowledgeSchemas'
 
 const logger = loggerService.withContext('KnowledgeRoutes')
 

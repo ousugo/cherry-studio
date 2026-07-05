@@ -25,7 +25,7 @@ vi.mock('node:fs', async () => {
 })
 
 import { FileMigrator } from '../FileMigrator'
-import { getAllMigrators } from '../index'
+import { getAllMigrators } from '../migratorRegistry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

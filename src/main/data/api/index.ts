@@ -14,7 +14,7 @@ export { IpcAdapter } from './core/adapters/IpcAdapter'
 // export { HttpAdapter } from './core/adapters/HttpAdapter' // Future implementation
 
 // Handlers (new type-safe system)
-export { apiHandlers } from './handlers'
+export { apiHandlers } from './handlers/apiHandlers'
 
 // Re-export types for convenience
 export type {

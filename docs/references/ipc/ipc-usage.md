@@ -41,7 +41,7 @@ export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
 }
 ```
 
-Register it (`src/main/ipc/handlers/index.ts`):
+Register it (`src/main/ipc/handlers/ipcHandlers.ts`):
 
 ```ts
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {

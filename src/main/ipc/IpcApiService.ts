@@ -9,7 +9,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 
-import { ipcHandlers } from './handlers'
+import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'
 import { validateSender } from './validateSender'
 
