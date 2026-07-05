@@ -4,13 +4,13 @@
  * This file has ONE responsibility: compose domain schemas into ApiSchemas.
  *
  * Import conventions (see api/README.md for details):
- * - Infrastructure types: import from '@shared/data/api'
- * - Domain DTOs: import directly from schema files (e.g., '@shared/data/api/schemas/topic')
+ * - Infrastructure types: import directly from their module (types / paths / errors)
+ * - Domain DTOs: import directly from schema files (e.g., '@shared/data/api/schemas/topics')
  *
  * @example
  * ```typescript
- * // Infrastructure types via barrel export
- * import type { ApiSchemas, DataRequest } from '@shared/data/api'
+ * // Infrastructure types via direct module import
+ * import type { ApiSchemas, DataRequest } from '@shared/data/api/types'
  *
  * // Domain DTOs directly from schema files
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
@@ -19,7 +19,7 @@
  * ```
  */
 
-import type { AssertValidSchemas } from '../apiTypes'
+import type { AssertValidSchemas } from '../types'
 import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
 import type { AgentSessionSchemas } from './agentSessions'

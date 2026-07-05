@@ -1,4 +1,4 @@
-import { DataApiError, DataApiErrorFactory } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 import { Elysia } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

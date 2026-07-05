@@ -30,4 +30,4 @@ export type {
   SearchParams,
   ServiceOptions,
   SortParams
-} from '@shared/data/api/apiTypes'
+} from '@shared/data/api/types'

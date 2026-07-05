@@ -107,6 +107,8 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 
 **Renderer wrappers around `window.api.*`** — the renderer does not use `*Api`, `*Client`, or any other IPC-wrapper suffix. Categorize wrappers by module shape per §5.2.
 
+**Leading-underscore files (`_xxx.ts`)** — inside a resource-file directory (one file per resource/domain, e.g. `db/schemas/`, `api/schemas/`), a `_`-prefixed file is a **cross-resource shared construct, not a private file**. It holds helpers reused across sibling resource files and is deliberately deep-imported by both siblings and external consumers. Examples: `db/schemas/_columnHelpers.ts`, `api/schemas/_endpointHelpers.ts`. The `_` marks "not itself a resource," never "internal — do not import."
+
 ### 3.3 Test Files
 
 - **Suffix**: `*.test.ts` or `*.test.tsx`. Do **not** use `.spec.*`.

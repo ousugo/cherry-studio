@@ -12,7 +12,7 @@
  * - translate.ts - Translate API handlers
  */
 
-import type { ApiImplementation } from '@shared/data/api/apiTypes'
+import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'

@@ -10,7 +10,7 @@
  *
  * @example
  * ```typescript
- * import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+ * import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
  *
  * // Create and throw an error
  * throw DataApiErrorFactory.notFound('Topic', 'abc123')
@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { HttpMethod } from './apiTypes'
+import type { HttpMethod } from './types'
 
 // ============================================================================
 // Error Code Enum

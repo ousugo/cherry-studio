@@ -100,12 +100,12 @@ type ValidateResponses<T> = {
  * 1. All methods must be valid HTTP methods (GET, POST, PUT, DELETE, PATCH)
  * 2. All endpoints must have a `response` field
  *
- * This is applied at the composition level (schemas/index.ts) to catch
+ * This is applied at the composition level (schemas/apiSchemas.ts) to catch
  * invalid schemas even if individual schema files don't use validation.
  *
  * @example
  * ```typescript
- * // In schemas/index.ts
+ * // In schemas/apiSchemas.ts
  * export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
  *
  * // Invalid method will cause error:
@@ -172,12 +172,12 @@ export interface DataResponse<T = any> {
   }
 }
 
-// Note: Error types have been moved to apiErrors.ts
+// Note: Error types have been moved to errors.ts
 // Import from there: ErrorCode, DataApiError, SerializedDataApiError, DataApiErrorFactory
-import type { SerializedDataApiError } from './apiErrors'
+import type { SerializedDataApiError } from './errors'
 
 // Re-export for backwards compatibility in DataResponse
-export type { SerializedDataApiError } from './apiErrors'
+export type { SerializedDataApiError } from './errors'
 
 // ============================================================================
 // Pagination Types
@@ -384,12 +384,12 @@ export interface ServiceOptions {
 // API Schema Type Utilities
 // ============================================================================
 
-import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './apiPaths'
-import type { ApiSchemas } from './schemas'
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './paths'
+import type { ApiSchemas } from './schemas/apiSchemas'
 
 // Re-export for external use
-export type { ConcreteApiPaths } from './apiPaths'
-export type { ApiSchemas } from './schemas'
+export type { ConcreteApiPaths } from './paths'
+export type { ApiSchemas } from './schemas/apiSchemas'
 
 /**
  * All available API paths
