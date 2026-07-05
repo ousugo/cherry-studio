@@ -404,7 +404,7 @@ Forbidden. `Button.tsx` and `button.tsx` in the same directory will break on cas
 
 A **barrel** is an `index.ts` (always lowercase) whose sole job is to re-export a directory's public surface. It is not a convenience: it **declares an encapsulation boundary** — the directory's other files are private, and every outside importer goes through the barrel. This section is the single authority for barrels across all four processes; the per-process docs ([Shared §3.1](./shared-layer-architecture.md), [Main §2.1](./main-process-architecture.md), [Renderer §3.1/§5](./renderer-architecture.md)) *apply* it, they do not restate it.
 
-**The `index` filename is reserved for barrels, and a barrel is always `index.ts`.** A directory's own implementation — including its main component — lives in a named file (`RichEditor.tsx`, never `RichEditor/index.tsx`); a pure re-export has no JSX, so a barrel is never `.tsx`. Outside `routes/`, an `index.tsx` is therefore always a violation — a barrel that should be `.ts`, or an implementation that should be a named file. (`routes/` is TanStack's file-based namespace (§6.6), where `index.tsx` is the reserved index-route token — not a barrel, out of scope here.)
+**The `index` filename is reserved for barrels, and a barrel is always `index.ts`.** A directory's own implementation — including its main component — lives in a named file (`RichEditor.tsx`, never `RichEditor/index.tsx`); a pure re-export has no JSX, so a barrel is never `.tsx`. An `index.tsx` is therefore always a violation, with no exceptions: a barrel that should be `.ts`, an implementation that should be a named file, or a TanStack index route that should use the flat dot form (`<segment>.index.tsx`, §6.6) — there the `index` token is a path segment, never the filename.
 
 Rules 1–3 are lint-enforced; rule 4 is a review judgment.
 
@@ -432,7 +432,7 @@ Reserved tokens (TanStack-defined):
 | Token | Meaning |
 |---|---|
 | `__root.tsx` | Root layout |
-| `index.tsx` | Index route |
+| `<segment>.index.tsx` | Index route — always the flat dot form (`settings.index.tsx`); a bare `index.tsx` is banned even here (§6.4) |
 | `$<param>.tsx` | Dynamic segment (e.g. `$appId.tsx`) |
 | `$.tsx` | Catch-all |
 
