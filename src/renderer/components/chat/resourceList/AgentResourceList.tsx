@@ -13,7 +13,7 @@ import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import type { ConversationResourceMenuItem } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'

@@ -57,4 +57,3 @@ export {
 } from './resourceListReorder'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'
-export { SessionResourceList, TopicResourceList } from './variants'

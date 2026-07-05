@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from '../../ResourceListContext'
+import type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from '../base'
 import { useResourceEntityRail } from '../useResourceEntityRail'
 
 type TestEntity = {

@@ -7,9 +7,9 @@ import {
   buildTopicMessageFlowGraph,
   layoutTopicMessageFlowGraph,
   mergeTopicMessageFlowLiveTree,
-  TopicMessageFlowCanvas
-} from '@renderer/components/chat/messages/flow'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+  TopicMessageFlowCanvas,
+  type TopicMessageFlowLiveState
+} from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'

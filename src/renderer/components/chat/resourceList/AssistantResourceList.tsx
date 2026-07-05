@@ -14,7 +14,7 @@ import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Tags, Trash2 } from 'lucide-reac
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import type { ConversationResourceMenuItem } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'

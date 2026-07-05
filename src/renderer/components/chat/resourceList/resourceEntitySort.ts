@@ -1,4 +1,4 @@
-import { getResourceTimeBucket, type ResourceListTimeBucket } from '../resourceListGrouping'
+import { getResourceTimeBucket, type ResourceListTimeBucket } from './base'
 
 const RESOURCE_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
   today: 1,

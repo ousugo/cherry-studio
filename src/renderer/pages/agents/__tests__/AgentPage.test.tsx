@@ -243,8 +243,8 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ConversationPageShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
+  default: ({
     center,
     pane,
     paneOpen,
@@ -261,8 +261,11 @@ vi.mock('@renderer/components/chat', () => ({
       {pane}
       {center?.content}
     </section>
-  ),
-  ConversationShell: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
     <section data-testid="agent-conversation-shell">
       {pane}
       {center}
@@ -508,7 +511,7 @@ vi.mock('../AgentSidePanel', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => ({
+vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
     onAddAgent,

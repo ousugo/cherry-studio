@@ -1,10 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import {
-  MessageEditingProvider,
-  useMessageEditing
-} from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,

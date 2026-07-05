@@ -1,5 +1,5 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type { ResourceEntityRailItem } from '@renderer/components/chat/resources/variants/ResourceEntityRail'
+import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,7 +50,7 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
   ResourceEditDialogHost: () => null
 }))
 
-vi.mock('@renderer/components/chat/resources/variants/useResourceEntityRail', () => ({
+vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
   useResourceEntityRail: ({ entities }: { entities: ResourceEntityRailItem[] }) => ({
     handleReorder: vi.fn(),
     handleSelect: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock('@renderer/components/chat/resources/variants/useResourceEntityRail', ()
   })
 }))
 
-vi.mock('@renderer/components/chat/resources/variants/ResourceEntityRail', () => ({
+vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     getContextMenuActions,
     items,

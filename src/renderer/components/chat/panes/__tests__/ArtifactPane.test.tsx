@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { SerializedTreeNode } from '@shared/utils/file/tree'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -262,7 +263,8 @@ vi.mock('motion/react', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>

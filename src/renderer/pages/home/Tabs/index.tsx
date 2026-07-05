@@ -1,4 +1,7 @@
-import type { ConversationResourceMenuItem, ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type {
+  ConversationResourceMenuItem,
+  ResourceListRevealRequest
+} from '@renderer/components/chat/resourceList/base'
 import type { Topic } from '@renderer/types/topic'
 import { cn } from '@renderer/utils/style'
 import type { FC, HTMLAttributes } from 'react'

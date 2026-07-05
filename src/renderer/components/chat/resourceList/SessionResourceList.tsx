@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { ResourceList, type ResourceListItemBase } from '../ResourceList'
+import { ResourceList, type ResourceListItemBase } from './base'
 
 type SessionResourceListProps<T extends ResourceListItemBase> = Omit<
   Parameters<typeof ResourceList.Provider<T>>[0],

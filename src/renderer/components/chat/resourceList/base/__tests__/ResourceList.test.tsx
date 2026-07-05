@@ -125,8 +125,10 @@ vi.mock('@renderer/components/command', async (importActual) => ({
   CommandHint: () => null
 }))
 
-import type { ResolvedAction } from '../../actions/actionTypes'
-import { ResourceListActionContextMenu } from '../../actions/ResourceListActionContextMenu'
+import type { ResolvedAction } from '../../../actions/actionTypes'
+import { ResourceListActionContextMenu } from '../../../actions/ResourceListActionContextMenu'
+import { SessionResourceList } from '../../SessionResourceList'
+import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
   useResourceList,
@@ -135,7 +137,6 @@ import {
   useResourceListRowState
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
-import { SessionResourceList, TopicResourceList } from '../variants'
 
 afterEach(() => {
   dndMocks.droppableData.clear()

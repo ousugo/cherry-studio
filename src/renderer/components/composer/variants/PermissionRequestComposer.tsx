@@ -1,7 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { isValidAgentToolsType, renderTool } from '@renderer/components/chat/messages/tools/agent'
-import { UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent/UnknownToolRenderer'
+import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'

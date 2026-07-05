@@ -9,14 +9,15 @@ import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ConversationResourceMenu, type ConversationResourceMenuItem } from '../ConversationResourceMenu'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   ResourceList,
   type ResourceListGroup,
   type ResourceListReorderPayload,
   type ResourceListSection,
   type ResourceListStatus
-} from '../ResourceList'
+} from './base'
 
 export type ResourceEntityRailItem = {
   id: string
