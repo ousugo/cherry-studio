@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FilePath } from '@shared/types/file'
 import { isDangerExt, normalizeExt } from '@shared/utils/file/url'
 

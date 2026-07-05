@@ -1,4 +1,4 @@
-import type { IpcRequestSchemas } from '@shared/ipc/schemas'
+import type { IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { aiHandlers } from './ai'

@@ -45,10 +45,10 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | File | Role |
 |---|---|
 | `src/shared/ipc/define.ts` | `defineRoute` + `RouteDef` |
-| `src/shared/ipc/schemas/index.ts` | `ipcRequestSchemas` / `IpcRoute` / `IpcEventSchemas` / `IpcEventName` |
+| `src/shared/ipc/schemas/ipcSchemas.ts` | `ipcRequestSchemas` / `IpcRoute` / `IpcEventSchemas` / `IpcEventName` |
 | `src/shared/ipc/types.ts` | `InputFor` / `OutputFor` / `EventPayload` / `IpcHandlersFor` / `IpcContext` / `WindowId` |
-| `src/shared/ipc/errors/index.ts` | framework core: `IpcError` / `IpcErrorCode` (framework codes, single source of truth) / `SerializedIpcError` / `IpcResult` |
-| `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — **not** aggregated through `errors/index.ts` |
+| `src/shared/ipc/errors/IpcError.ts` | framework core: `IpcError` / `IpcErrorCode` (framework codes, single source of truth) / `SerializedIpcError` / `IpcResult` |
+| `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — `errors/` has no aggregating barrel |
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
 | `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |
