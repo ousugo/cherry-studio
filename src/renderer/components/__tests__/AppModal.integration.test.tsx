@@ -19,7 +19,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return await importOriginal()
 })
 
-import AppModalProvider, { type AppModalApi } from '..'
+import AppModalProvider, { type AppModalApi } from '../AppModal'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {

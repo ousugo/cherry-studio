@@ -63,8 +63,8 @@ import {
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
-import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
+import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')

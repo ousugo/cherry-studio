@@ -1,12 +1,8 @@
 import { Badge, InfoTooltip, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { FC } from 'react'
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
-  SettingsContentBody,
   settingsContentScrollClassName,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
@@ -14,7 +10,11 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import type { FC } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ProcessorAvatar } from './components/ProcessorAvatar'
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'

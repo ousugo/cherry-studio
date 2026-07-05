@@ -1,16 +1,16 @@
 import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import ChannelDetail from './ChannelDetail'
 import { AVAILABLE_CHANNELS, type AvailableChannel } from './channelTypes'
 

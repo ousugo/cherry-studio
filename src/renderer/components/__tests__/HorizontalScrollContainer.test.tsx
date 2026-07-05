@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import HorizontalScrollContainer from '..'
+import HorizontalScrollContainer from '../HorizontalScrollContainer'
 
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback

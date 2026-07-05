@@ -445,7 +445,7 @@ vi.mock('../AgentChat', () => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
+  AgentChatNavbar: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
     <div data-testid="agent-chat-navbar">
       {onSidebarToggle && (
         <button type="button" onClick={onSidebarToggle}>

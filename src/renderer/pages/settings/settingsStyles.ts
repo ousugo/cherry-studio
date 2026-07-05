@@ -1,20 +1,3 @@
-export {
-  SettingContainer,
-  SettingDescription,
-  SettingDivider,
-  SettingGroup,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingRow,
-  SettingRowTitle,
-  SettingsContentBody,
-  SettingsContentColumn,
-  SettingSubtitle,
-  SettingTitle,
-  SettingTitleExternalLink
-} from '@renderer/components/SettingsPrimitives'
-
 export const settingsSubmenuScrollClassName =
   'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]'
 

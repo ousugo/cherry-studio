@@ -476,7 +476,7 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../Tabs', () => ({
+vi.mock('../Tabs/HomeTabs', () => ({
   default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>

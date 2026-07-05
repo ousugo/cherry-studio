@@ -61,7 +61,7 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-import AppModalProvider, { type AppModalApi } from '..'
+import AppModalProvider, { type AppModalApi } from '../AppModal'
 
 beforeEach(() => {
   toastError.mockClear()

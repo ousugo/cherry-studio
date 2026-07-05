@@ -1,11 +1,6 @@
 import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { FolderCog, Package, ShoppingBag } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
@@ -13,7 +8,12 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { FolderCog, Package, ShoppingBag } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { getMcpProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const McpSettings: FC = () => {

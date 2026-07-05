@@ -1,19 +1,19 @@
 import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import {
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from '@renderer/pages/settings/settingsStyles'
 import { BookOpen } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingsContentColumn,
-  settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName
-} from '..'
 import JoplinSettings from './JoplinSettings'
 import NotionSettings from './NotionSettings'
 import ObsidianSettings from './ObsidianSettings'

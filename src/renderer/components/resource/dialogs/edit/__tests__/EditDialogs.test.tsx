@@ -90,7 +90,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/EmojiPicker', () => ({
-  default: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
+  EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
       Choose emoji
     </button>

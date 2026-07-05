@@ -1,11 +1,5 @@
 import { Badge, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
-import { Globe } from 'lucide-react'
-import type { FC } from 'react'
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   settingsContentScrollClassName,
   settingsSubmenuDividerClassName,
@@ -14,7 +8,13 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
+import { Globe } from 'lucide-react'
+import type { FC } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
 import WebSearchProviderLogo from './components/WebSearchProviderLogo'
 import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'

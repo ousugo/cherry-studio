@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
-import AgentChatNavbar from './components/AgentChatNavbar'
+import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { DraftAgentSession, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
