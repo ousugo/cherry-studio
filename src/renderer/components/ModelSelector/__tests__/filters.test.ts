@@ -9,7 +9,7 @@ import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { MODEL_SELECTOR_TAGS } from '../model/filters'
+import { MODEL_SELECTOR_TAGS } from '../filters'
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {

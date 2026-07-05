@@ -47,7 +47,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import * as z from 'zod'
 
-import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisclosureItem } from './ToolDisclosure'
 
 export const AgentToolsType = {
   Skill: 'Skill',

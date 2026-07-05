@@ -12,9 +12,9 @@ import type {
 } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelSelector } from '../model/ModelSelector'
-import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../model/types'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../../SelectorShell'
+import { ModelSelector } from '../ModelSelector'
+import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const {
   mockUseModelSelectorData,
@@ -239,7 +239,7 @@ vi.mock('@renderer/components/VirtualList', async () => {
   }
 })
 
-vi.mock('../model/useModelSelectorData', () => ({
+vi.mock('../useModelSelectorData', () => ({
   useModelSelectorData: (...args: unknown[]) => mockUseModelSelectorData(...args)
 }))
 

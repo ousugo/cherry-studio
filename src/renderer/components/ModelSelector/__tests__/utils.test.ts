@@ -11,7 +11,7 @@
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getProviderDisplayName } from '../model/utils'
+import { getProviderDisplayName } from '../utils'
 
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (id: string) => `Label(${id})`

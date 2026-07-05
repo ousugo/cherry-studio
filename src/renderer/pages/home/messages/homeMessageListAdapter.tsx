@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import { resolvePartFromParts } from '@renderer/components/chat/messages'
 import { useMessageEditing } from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
@@ -32,7 +32,7 @@ import {
   modelToSnapshot,
   toMessageListItem
 } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector } from '@renderer/components/Selector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'

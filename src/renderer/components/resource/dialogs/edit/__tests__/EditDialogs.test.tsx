@@ -73,7 +73,7 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
     <div>
       {trigger}

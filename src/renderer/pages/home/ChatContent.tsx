@@ -3,7 +3,7 @@ import {
   RefreshProvider,
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
-} from '@renderer/components/chat/messages/blocks'
+} from '@renderer/components/chat/messages'
 import { MessageEditingProvider } from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'

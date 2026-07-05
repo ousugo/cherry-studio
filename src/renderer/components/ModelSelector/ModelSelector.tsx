@@ -21,8 +21,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SelectorShellLayout } from '../shell/SelectorShell'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
+import type { SelectorShellLayout } from '../SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'

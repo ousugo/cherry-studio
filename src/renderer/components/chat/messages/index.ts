@@ -1,3 +1,20 @@
+export type { TranslationOverlayEntry, TranslationOverlaySetter } from './blocks/MessagePartsContext'
+export {
+  parseBlockId,
+  PartsProvider,
+  RefreshProvider,
+  resolvePartFromParts,
+  TranslationOverlayProvider,
+  TranslationOverlaySetterProvider,
+  useHasMessageParts,
+  useMessageParts,
+  useOptionalTranslationOverlaySetter,
+  usePartsMap,
+  useRefresh,
+  useTranslationOverlay,
+  useTranslationOverlayEntry,
+  useTranslationOverlaySetter
+} from './blocks/MessagePartsContext'
 export { default as MessageContent } from './frame/MessageContent'
 export { default as MessageErrorBoundary } from './frame/MessageErrorBoundary'
 export { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'

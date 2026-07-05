@@ -5,8 +5,8 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelSelectorDetailCard } from '../model/ModelSelectorDetailCard'
-import type { ModelSelectorModelItem } from '../model/types'
+import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
+import type { ModelSelectorModelItem } from '../types'
 
 const { mockGetModelSupportedReasoningEffortOptions } = vi.hoisted(() => ({
   mockGetModelSupportedReasoningEffortOptions: vi.fn()

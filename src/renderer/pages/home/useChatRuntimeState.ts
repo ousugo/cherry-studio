@@ -1,6 +1,6 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
+import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages'
 import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState

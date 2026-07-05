@@ -48,7 +48,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages', () => ({
   resolvePartFromParts: vi.fn(() => undefined)
 }))
 
@@ -58,7 +58,7 @@ vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: vi.fn((message) => message)
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
 }))
 
@@ -203,7 +203,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { dataApiService } from '@data/DataApiService'
-import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import { resolvePartFromParts } from '@renderer/components/chat/messages'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 

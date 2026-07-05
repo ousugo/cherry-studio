@@ -72,7 +72,7 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
 
 describe('SelectorShell', () => {
   afterEach(() => {
