@@ -36,7 +36,7 @@ class FileStorage {
   // The real problem is that `FileStorage` is exported as a top-level
   // singleton at the bottom of this file
   // (`export const fileStorage = new FileStorage()`). That singleton is
-  // instantiated during the static import graph of `src/main/index.ts`
+  // instantiated during the static import graph of `src/main/main.ts`
   // (via both `ipc.ts` and the `ApiGatewayService → ApiGateway → routes
   // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
   // and builds the path registry. The previous shape used field

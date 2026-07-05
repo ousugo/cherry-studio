@@ -74,7 +74,7 @@ export class DbService extends BaseService {
     const frames = (stack: string | undefined): string =>
       (stack ?? '')
         .split('\n')
-        .filter((l) => l.includes('index.js'))
+        .filter((l) => l.includes('main.js'))
         .slice(0, 8)
         .map((l) => l.trim())
         .join(' <- ')

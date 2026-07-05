@@ -86,7 +86,7 @@ class BackupManager {
     // path registry — every path it touches is hand-rolled from
     // app.getPath('userData'). Two reasons:
     //
-    //   1. handleStartupRestore (this method) runs from src/main/index.ts
+    //   1. handleStartupRestore (this method) runs from src/main/main.ts
     //      BEFORE application.bootstrap() — it has to move restore markers
     //      off disk before any service grabs file handles. Calling
     //      application.getPath() pre-bootstrap throws.
