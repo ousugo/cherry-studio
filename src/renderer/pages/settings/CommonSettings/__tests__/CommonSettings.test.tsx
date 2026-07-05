@@ -159,8 +159,8 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: { children?: React.ReactNode }) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  ResetIcon: (props: any) => <span data-testid="reset-icon" {...props} />
+vi.mock('@renderer/components/icons/ResetIcon', () => ({
+  default: (props: any) => <span data-testid="reset-icon" {...props} />
 }))
 
 vi.mock('../components/ThemeColorPicker', () => ({
