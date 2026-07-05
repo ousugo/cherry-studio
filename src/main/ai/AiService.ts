@@ -18,10 +18,10 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, UrlString } from '@shared/types/file/common'
+import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,

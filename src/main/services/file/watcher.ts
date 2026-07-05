@@ -40,7 +40,7 @@ import { Emitter } from '@main/core/lifecycle'
 import type { FilePath } from '@shared/types/file'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
-import { danglingCache } from '../danglingCache'
+import { danglingCache } from './danglingCache'
 
 const logger = loggerService.withContext('file/watcher')
 

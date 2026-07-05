@@ -6,8 +6,8 @@ import type {
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry } from '@shared/data/types/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileEntry, FileHandle } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
@@ -16,13 +16,13 @@ import type { TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
-import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
-import type { FileHandle } from '@shared/types/file/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams
-} from '@shared/types/file/ipc'
+  FilePath,
+  GetPhysicalPathIpcParams,
+  PhysicalFileMetadata
+} from '@shared/types/file'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -47,7 +47,7 @@ import type {
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { WebviewKeyEvent } from '@shared/types/webview'
 import type { CommandId } from '@shared/utils/command'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file/tree'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'

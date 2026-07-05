@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import type { SerializedTreeNode } from '@shared/utils/file/tree'
+import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'

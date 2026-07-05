@@ -11,10 +11,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { createDirectoryWatcher } = await import('../index')
-const { danglingCache } = await import('../../danglingCache')
+const { createDirectoryWatcher } = await import('../watcher')
+const { danglingCache } = await import('../danglingCache')
 
-import type { DirectoryWatcher, WatcherEvent } from '../index'
+import type { DirectoryWatcher, WatcherEvent } from '../watcher'
 
 const waitForReady = async (w: DirectoryWatcher): Promise<void> => {
   await new Promise<void>((resolve) => {

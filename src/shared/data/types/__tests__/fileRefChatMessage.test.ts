@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { MessageIdSchema } from '../../../message'
-import { chatMessageFileRefSchema } from '../chatMessage'
-import type { FileRefSourceType } from '../index'
-import { allSourceTypes, FileRefSchema } from '../index'
+import type { FileRefSourceType } from '../file'
+import { allSourceTypes, chatMessageFileRefSchema, FileRefSchema } from '../file'
+import { MessageIdSchema } from '../message'
 
 describe('MessageIdSchema', () => {
   it('accepts UUIDv4 (legacy message IDs)', () => {

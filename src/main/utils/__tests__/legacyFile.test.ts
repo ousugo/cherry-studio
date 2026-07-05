@@ -8,8 +8,8 @@ import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../file'
-import { getAllFiles, getFileType, isPathInside, untildify } from '../file'
+import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../legacyFile'
+import { getAllFiles, getFileType, isPathInside, untildify } from '../legacyFile'
 
 // Mock dependencies
 vi.mock('node:fs')

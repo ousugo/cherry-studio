@@ -8,11 +8,10 @@
  * remote-file uploads, OCR input — `ImageFileMetadata` below); v2 code MUST use
  * `FileEntry` from `./fileEntry.ts` instead.
  *
- * This module is intentionally NOT re-exported from `./index.ts` — keeping
- * the v1 shape out of the canonical `@shared/data/types/file` namespace
- * prevents downstream v2 consumers from accidentally typing values against
- * the legacy projection. Migrators that need it import from this path
- * directly.
+ * Kept as its own `@shared/data/types/legacyFile` module (a sibling of
+ * `fileEntry` / `fileRef`, and the shared-types peer of `@main/utils/legacyFile`)
+ * so the v1 shape stays visibly separate from the v2 file types — importing
+ * `FileMetadata` is an explicit opt-in to the legacy projection.
  *
  * Will be removed once the last v1 store is migrated and its KnowledgeMigrator
  * input shape is no longer reachable.
