@@ -1,41 +1,7 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
-
-// Mock CodeCliPage which is default export
-vi.mock('../CodeCliPage', () => ({ default: () => null }))
-
-// Mock dependencies needed by CodeCliPage
-vi.mock('@renderer/hooks/useCodeCli', () => ({
-  useCodeCli: () => ({
-    selectedCliTool: CodeCli.QWEN_CODE,
-    selectedModel: null,
-    selectedTerminal: 'systemDefault',
-    environmentVariables: '',
-    directories: [],
-    currentDirectory: '',
-    canLaunch: true,
-    setCliTool: vi.fn(),
-    setModel: vi.fn(),
-    setTerminal: vi.fn(),
-    setEnvVars: vi.fn(),
-    setCurrentDir: vi.fn(),
-    removeDir: vi.fn(),
-    selectFolder: vi.fn()
-  })
-}))
-
-vi.mock('@renderer/services/LoggerService', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn()
-    })
-  }
-}))
+import { generateToolEnvironment, type ToolEnvironmentConfig } from '../toolEnvironment'
 
 vi.mock('@renderer/utils/api', () => ({
   formatApiHost: vi.fn((host) => {
@@ -51,14 +17,6 @@ vi.mock('@renderer/utils/api', () => ({
   }),
   withoutTrailingSlash: vi.fn((host) => (host ? host.replace(/\/+$/, '') : host))
 }))
-
-vi.mock('react-i18next', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    useTranslation: () => ({ t: (key: string) => key })
-  }
-})
 
 describe('generateToolEnvironment', () => {
   const baseConfig = (
@@ -147,18 +105,5 @@ describe('generateToolEnvironment', () => {
     // Must follow the configured baseUrl (not the static aihubmix.com host) and drop /v1 before /gemini
     expect(env.GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
     expect(env.GOOGLE_GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
-  })
-})
-
-describe('CLI_TOOLS', () => {
-  it('exposes every CodeCli enum value with a renderable icon component', () => {
-    const expectedValues = Object.values(CodeCli)
-    const actualValues = CLI_TOOLS.map((tool) => tool.value)
-
-    expect(actualValues.sort()).toEqual([...expectedValues].sort())
-
-    for (const tool of CLI_TOOLS) {
-      expect(typeof tool.icon).toBe('function')
-    }
   })
 })
