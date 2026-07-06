@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { providerNeedsApiKeyForModelSync } from './providerModelSyncRequirements'
+import { providerNeedsApiKeyForModelSync } from '../providerModelSyncRequirements'
 
 const makeProvider = (overrides: Partial<Provider>): Provider =>
   ({

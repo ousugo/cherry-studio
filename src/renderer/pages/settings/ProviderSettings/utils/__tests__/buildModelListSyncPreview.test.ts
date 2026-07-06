@@ -2,8 +2,8 @@ import { dataApiService } from '@data/DataApiService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildModelListSyncPreview } from './buildModelListSyncPreview'
-import { fetchResolvedProviderModels } from './modelSync'
+import { buildModelListSyncPreview } from '../buildModelListSyncPreview'
+import { fetchResolvedProviderModels } from '../modelSync'
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -11,7 +11,7 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('./modelSync', () => ({
+vi.mock('../modelSync', () => ({
   fetchResolvedProviderModels: vi.fn()
 }))
 
