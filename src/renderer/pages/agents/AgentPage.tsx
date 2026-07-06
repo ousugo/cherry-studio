@@ -90,6 +90,7 @@ function findReusableEmptySession<T extends { createdAt?: string; updatedAt?: st
 
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const [sessionLayout] = usePreference('agent.layout')
   const isClassicSessionLayout = sessionLayout === 'classic'
   // Classic layout shares this full-sessions source with the rail; modern layout leaves it disabled (no fetch).
@@ -108,7 +109,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const isWindowFrame = useWindowFrame().mode === 'window'
   // Detached windows are single-conversation: no session list, so no sidebar at all.
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -267,10 +268,14 @@ const AgentPage = () => {
 
   const setResourceListOpen = useCallback(
     (open: boolean) => {
+      setAutoCollapsedResourceList(false)
       void setShowSidebar(open)
     },
     [setShowSidebar]
   )
+  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
+    setAutoCollapsedResourceList(collapsed)
+  }, [])
   const toggleResourceListOpen = useCallback(() => {
     setResourceListOpen(!effectiveShowSidebar)
   }, [effectiveShowSidebar, setResourceListOpen])
@@ -1013,6 +1018,7 @@ const AgentPage = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           />
         ) : (
           <AgentChat
@@ -1025,6 +1031,7 @@ const AgentPage = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
             showResourceListControls={!isMessageOnlyView && !isWindowFrame}
             sidebarOpen={effectiveShowSidebar}
             onSidebarToggle={toggleResourceListOpen}
