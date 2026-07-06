@@ -402,6 +402,8 @@ export function CommandContextMenu({
 
   const handleCherryContextMenu = useCallback(
     (event: React.MouseEvent) => {
+      event.stopPropagation()
+
       if (!getExtraItems) {
         return
       }
