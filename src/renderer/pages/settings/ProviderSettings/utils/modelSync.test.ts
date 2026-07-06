@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchResolvedProviderModels } from '../modelSync'
+import { fetchResolvedProviderModels } from './modelSync'
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
