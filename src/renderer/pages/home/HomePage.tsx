@@ -21,6 +21,11 @@ import {
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
+  type GlobalSearchTopicMessageSelectionPayload,
+  type GlobalSearchTopicSelectionPayload,
+  isGlobalSearchSelectionForTab
+} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
@@ -32,7 +37,6 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
@@ -273,10 +277,9 @@ const HomePage: FC = () => {
   }, [activeTopic, setLastUsedAssistantId])
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
-  // own HomePage. `currentTabId` is *this* tab; the conversation-nav boundary uses it to
-  // exclude self when deduping. `useIsActiveTab` answers "am I the globally-focused tab".
+  // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
+  // globally-focused tab".
   const currentTabId = useCurrentTabId()
-  const conversationNav = useConversationNavigation('assistants')
   const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -489,18 +492,13 @@ const HomePage: FC = () => {
   const setActiveTopicAndDiscardDraft = useCallback(
     (topic: Topic) => {
       closeResourceView()
-      // One tab per topic: if this topic is already open in another tab, focus
-      // that tab instead of navigating the current one (which would duplicate
-      // it in the tab bar). The current tab keeps its own topic untouched.
-      if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return false
-
       if (draftAssistantSelectionRef.current) {
         setDraftAssistantSelectionState(undefined)
       }
       setActiveTopic(topic)
       return true
     },
-    [closeResourceView, conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
+    [closeResourceView, setActiveTopic, setDraftAssistantSelectionState]
   )
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -511,9 +509,6 @@ const HomePage: FC = () => {
       const nextTopic = findLatestUpdated(
         classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
       )
-      // setActiveTopicAndDiscardDraft returns false when the next topic is already open in another
-      // tab (it focuses that tab). In that case the current tab would otherwise keep pointing at the
-      // just-deleted topic, so fall through to a draft instead of leaving a ghost.
       if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
@@ -553,8 +548,6 @@ const HomePage: FC = () => {
         const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
-        // duplicating it here; this also discards any pending draft selection.
         setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
@@ -585,8 +578,6 @@ const HomePage: FC = () => {
           }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
-        // duplicating it here; this also discards any pending draft selection.
         setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
@@ -665,14 +656,17 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
-      handleGlobalSearchTopicSelect(topic as Topic)
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (payload) => {
+      const selection = payload as GlobalSearchTopicSelectionPayload
+      if (!selection.topic || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
+
+      handleGlobalSearchTopicSelect(selection.topic)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
-      const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
-      if (!topic || !messageId) return
+      const selection = payload as GlobalSearchTopicMessageSelectionPayload
+      if (!selection.topic || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
-      handleGlobalSearchTopicSelect(topic, messageId)
+      handleGlobalSearchTopicSelect(selection.topic, selection.messageId)
     })
 
     return () => {
@@ -680,7 +674,7 @@ const HomePage: FC = () => {
       unsubscribeMessage()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
-  }, [])
+  }, [currentTabId])
 
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
