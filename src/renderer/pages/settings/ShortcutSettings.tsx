@@ -206,7 +206,7 @@ const ShortcutSettings: FC = () => {
   const shortcutPreferences = useMemo(
     () =>
       shortcuts.reduce<Partial<Record<CommandId, PreferenceShortcutType>>>((acc, shortcut) => {
-        acc[shortcut.command] = shortcut.preference
+        acc[shortcut.command] = shortcut.preferenceValue
         return acc
       }, {}),
     [shortcuts]
@@ -274,10 +274,7 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
-    const conflict = findConflictLabel(record.command, {
-      binding: record.defaultPreference.binding,
-      enabled: record.defaultPreference.enabled
-    })
+    const conflict = findConflictLabel(record.command, record.defaultPreferenceValue)
     if (conflict) {
       showConflictToast(conflict)
       return
@@ -285,10 +282,7 @@ const ShortcutSettings: FC = () => {
 
     try {
       clearSystemConflict(record.key)
-      await updatePreference(record.key, {
-        binding: record.defaultPreference.binding,
-        enabled: record.defaultPreference.enabled
-      })
+      await updatePreference(record.key, record.defaultPreferenceValue)
       clearEditingState()
     } catch (error) {
       handleUpdateFailure(record, error)
@@ -397,14 +391,14 @@ const ShortcutSettings: FC = () => {
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
         if (!record.preference.binding.length) return acc
+        const nextPreference = {
+          ...record.preferenceValue,
+          enabled
+        }
         nextPreferencesByCommand[record.command] = {
-          binding: record.preference.binding,
-          enabled
+          ...nextPreference
         }
-        acc[record.key] = {
-          binding: record.preference.binding,
-          enabled
-        }
+        acc[record.key] = nextPreference
         return acc
       },
       {} as Record<string, PreferenceShortcutType>

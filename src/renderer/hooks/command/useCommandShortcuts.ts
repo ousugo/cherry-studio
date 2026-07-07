@@ -101,9 +101,11 @@ const buildNextPreference = (
         : state.enabled
 
   if (Array.isArray(patch.binding)) {
+    const platformBindings = normalizePlatformBindings(patch.platformBindings)
     return {
       binding: normalizeShortcutBinding(patch.binding),
-      enabled
+      enabled,
+      ...(platformBindings ? { platformBindings } : {})
     }
   }
 
@@ -124,7 +126,9 @@ export interface ShortcutListItem {
   group: ShortcutSettingsGroup
   keybinding: (typeof REGISTERED_KEYBINDINGS)[number]
   preference: ResolvedShortcut
+  preferenceValue: PreferenceShortcutType
   defaultPreference: ResolvedShortcut
+  defaultPreferenceValue: PreferenceShortcutType
 }
 
 export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, PreferenceShortcutType> => {
@@ -181,9 +185,11 @@ export const useCommandShortcuts = () => {
         const rawValue = values[rule.command] as PreferenceShortcutType | undefined
         const preference = resolveCommandShortcutPreference(rule.command, rawValue, currentPlatform)
         const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
-        if (!preference || !defaultPreference) {
+        const defaultPreferenceValue = getCommandDefaultFullPreference(rule.command)
+        if (!preference || !defaultPreference || !defaultPreferenceValue) {
           return []
         }
+        const preferenceValue = rawValue ? normalizeShortcutPreference(rawValue) : defaultPreferenceValue
 
         return [
           {
@@ -196,7 +202,9 @@ export const useCommandShortcuts = () => {
               binding: preference.binding,
               enabled: preference.enabled && preference.binding.length > 0
             },
-            defaultPreference
+            preferenceValue,
+            defaultPreference,
+            defaultPreferenceValue
           }
         ]
       }),
