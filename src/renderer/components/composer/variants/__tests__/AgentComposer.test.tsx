@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   inputAdapterFocus: vi.fn(),
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
+  toggleExpanded: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
   contextUsagePercentage: null as number | null,
@@ -131,7 +132,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
         },
-        toggleExpanded: vi.fn(),
+        toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         getDraft: () => ({ text: props.text, tokens: [...(props.draftTokens ?? [])] })
@@ -507,6 +508,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.insertToken.mockReset()
+    mocks.toggleExpanded.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
@@ -1739,6 +1741,7 @@ describe('AgentComposer', () => {
         promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
       })
     )
+    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
