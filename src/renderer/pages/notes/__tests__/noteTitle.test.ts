@@ -29,4 +29,8 @@ describe('getInitialNoteTitle', () => {
   it('keeps an untitled note unchanged when its first line has no valid filename characters', () => {
     expect(getInitialNoteTitle('/\nDetails')).toBe('')
   })
+
+  it('removes invalid filename characters before using the first line', () => {
+    expect(getInitialNoteTitle('///测试\n正文')).toBe('测试')
+  })
 })
