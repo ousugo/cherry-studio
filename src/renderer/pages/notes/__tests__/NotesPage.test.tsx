@@ -591,6 +591,36 @@ describe('NotesPage', () => {
     await waitFor(() => expect(screen.getByTestId('notes-editor')).toBe(editorElement))
   })
 
+  it('saves edits made during a slow rename only to the final path', async () => {
+    mocks.showWorkspace = true
+    let resolveRename: ((result: { path: string; name: string }) => void) | undefined
+    mocks.renameNode.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve
+        })
+    )
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
+    mocks.fileWrite.mockClear()
+
+    mocks.sourceEditorContent = 'latest content during rename'
+    act(() => mocks.onMarkdownChange?.('latest content during rename'))
+    await new Promise((resolve) => setTimeout(resolve, 900))
+
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/note.md', 'latest content during rename')
+
+    act(() => resolveRename?.({ path: '/notes/renamed.md', name: 'renamed' }))
+
+    await waitFor(() =>
+      expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'latest content during rename')
+    )
+    expect(mocks.primeFileContent).toHaveBeenCalledWith('/notes/renamed.md', 'latest content during rename')
+  })
+
   it.each([
     ['notes.exportToPDF', 'print.export_pdf'],
     ['notes.print', 'print.print']

@@ -236,6 +236,13 @@ const NotesPage: FC = () => {
       // 记录最新内容和文件路径，用于兜底保存
       lastContentRef.current = newMarkdown
       lastFilePathRef.current = activeFilePath
+      // A rename owns the active file path until its move/rollback settles.
+      // Keep the latest editor value for that session, but never let a new
+      // debounce recreate the source path after the file has moved.
+      if (isRenamingRef.current) {
+        debouncedSaveRef.current?.cancel()
+        return
+      }
       // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
       debouncedSaveRef.current?.(newMarkdown, activeFilePath)
     },
@@ -729,6 +736,25 @@ const NotesPage: FC = () => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
+      let activePathInRenameSession: string | undefined
+      let actualActivePathAfterRename: string | undefined
+
+      const readLatestSessionContent = () => {
+        if (lastFilePathRef.current === activePathInRenameSession) {
+          return lastContentRef.current
+        }
+        return codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
+      }
+
+      const persistLatestSessionContent = async (finalPath: string) => {
+        debouncedSaveRef.current?.cancel()
+        const content = readLatestSessionContent()
+        await window.api.file.write(finalPath, content)
+        currentContentRef.current = content
+        await primeFileContent(finalPath, content)
+        return content
+      }
+
       try {
         isRenamingRef.current = true
         pendingRenamedActivePathRef.current = undefined
@@ -752,10 +778,14 @@ const NotesPage: FC = () => {
         let latestContent: string | undefined
 
         if (node.type === 'file' && activeFilePath === oldPath) {
+          activePathInRenameSession = activeFilePath
+          actualActivePathAfterRename = activeFilePath
           debouncedSaveRef.current?.cancel()
           latestContent =
             codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
         } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
+          activePathInRenameSession = activeFilePath
+          actualActivePathAfterRename = activeFilePath
           debouncedSaveRef.current?.cancel()
           latestContent =
             codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
@@ -775,6 +805,7 @@ const NotesPage: FC = () => {
           nextActivePath = `${renamed.path}${suffix}`
         }
         pendingRenamedActivePathRef.current = nextActivePath
+        actualActivePathAfterRename = nextActivePath ?? actualActivePathAfterRename
 
         let rollbackSucceeded = false
         const metadataSynced = await syncMetadataAfterFileOperation(
@@ -787,6 +818,8 @@ const NotesPage: FC = () => {
         if (!metadataSynced) {
           if (nextActivePath && activeFilePath) {
             if (rollbackSucceeded) {
+              actualActivePathAfterRename = activeFilePath
+              await persistLatestSessionContent(activeFilePath)
               // The file is back on its original path, but the watcher may
               // still be between the remove and re-add events. Keep the
               // snapshot until the old active node is visible again.
@@ -802,7 +835,7 @@ const NotesPage: FC = () => {
               // Rollback failed, so the file remains at the renamed path.
               // Follow the actual file to keep the editor usable even though
               // metadata repair will still be needed.
-              await primeFileContent(nextActivePath, latestContent ?? currentContentRef.current)
+              await persistLatestSessionContent(nextActivePath)
               activeFilePathRef.current = nextActivePath
               setActiveFilePath(nextActivePath)
             }
@@ -826,8 +859,7 @@ const NotesPage: FC = () => {
         savedNewNoteContentRef.current.delete(oldPath)
 
         if (nextActivePath) {
-          debouncedSaveRef.current?.cancel()
-          await primeFileContent(nextActivePath, latestContent ?? currentContentRef.current)
+          await persistLatestSessionContent(nextActivePath)
           lastFilePathRef.current = nextActivePath
           activeFilePathRef.current = nextActivePath
           setActiveFilePath(nextActivePath)
@@ -841,6 +873,11 @@ const NotesPage: FC = () => {
         // node and the [activeNode] effect above clears it.
         return true
       } catch (error) {
+        if (activePathInRenameSession && actualActivePathAfterRename) {
+          await persistLatestSessionContent(actualActivePathAfterRename).catch((saveError) =>
+            logger.error('Failed to save note content after rename failure:', saveError as Error)
+          )
+        }
         // Rename failed → clear the flag now so subsequent tree updates
         // aren't suppressed.
         pendingRenamedActivePathRef.current = undefined
