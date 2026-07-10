@@ -196,6 +196,10 @@ export async function renameNode(node: NotesTreeNode, newName: string): Promise<
   const parentDir = normalizePath(getFileDirectory(node.externalPath))
   const { safeName, exists } = await window.api.file.checkFileName(parentDir, newName, isFile)
 
+  if (!safeName.trim()) {
+    throw new Error('Note title must contain valid filename characters')
+  }
+
   if (exists) {
     throw new Error(`Target name already exists: ${safeName}`)
   }
