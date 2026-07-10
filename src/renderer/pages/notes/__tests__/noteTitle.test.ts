@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { getInitialNoteTitle } from '../noteTitle'
 
@@ -9,6 +9,17 @@ describe('getInitialNoteTitle', () => {
 
   it('uses the trimmed first line', () => {
     expect(getInitialNoteTitle('  Meeting notes  \r\nDetails')).toBe('Meeting notes')
+  })
+
+  it('works when the renderer does not expose the Node.js process global', () => {
+    const originalProcess = globalThis.process
+    vi.stubGlobal('process', undefined)
+
+    try {
+      expect(getInitialNoteTitle('Meeting notes\nDetails')).toBe('Meeting notes')
+    } finally {
+      vi.stubGlobal('process', originalProcess)
+    }
   })
 
   it('keeps an untitled note unchanged when its first line is blank', () => {
