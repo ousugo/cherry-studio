@@ -452,7 +452,7 @@ describe('NotesPage', () => {
       externalPath: '/notes/notes.untitled_note.md'
     })
 
-    render(<NotesPage />)
+    const { rerender } = render(<NotesPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
     await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
@@ -461,6 +461,17 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/renamed.md'))
 
     act(() => mocks.onMarkdownChange?.('Automatic title\nDetails'))
+
+    Object.assign(mocks.noteNode, {
+      id: '/notes/renamed.md',
+      name: 'renamed',
+      treePath: '/renamed',
+      externalPath: '/notes/renamed.md'
+    })
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
     await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'Automatic title\nDetails'), {
       timeout: 2000
     })
