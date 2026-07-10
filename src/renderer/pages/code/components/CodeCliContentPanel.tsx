@@ -1,5 +1,5 @@
 import { Button, SearchInput } from '@cherrystudio/ui'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'

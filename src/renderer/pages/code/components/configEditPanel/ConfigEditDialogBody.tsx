@@ -10,7 +10,7 @@ import {
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { Provider } from '@shared/data/types/provider'
 import { ExternalLink } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'

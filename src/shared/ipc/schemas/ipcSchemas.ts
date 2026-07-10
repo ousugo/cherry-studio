@@ -8,7 +8,7 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
-import { navigationRequestSchemas } from './navigation'
+import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { printRequestSchemas } from './print'
@@ -54,6 +54,7 @@ export type IpcRoute = keyof IpcRequestSchemas
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
   LocalModelEventSchemas &
+  NavigationEventSchemas &
   OAuthEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas
