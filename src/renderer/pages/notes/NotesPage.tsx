@@ -90,7 +90,7 @@ const NotesPage: FC = () => {
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
-  const { invalidateFileContent } = useFileContentSync()
+  const { invalidateFileContent, primeFileContent } = useFileContentSync()
   const { data: currentContent = '', error: currentContentError } = useFileContent(activeFilePath)
   const contentLoadError = activeFilePath ? currentContentError : undefined
 
@@ -104,12 +104,16 @@ const NotesPage: FC = () => {
   const newNotePathsRef = useRef<Set<string>>(new Set())
   const savedNewNoteContentRef = useRef<Map<string, string>>(new Map())
   const initialTitleRenamesRef = useRef<Set<string>>(new Set())
+  const activeNodeSnapshotRef = useRef<NotesTreeNode | null>(activeNode)
+  const pendingRenamedActivePathRef = useRef<string | undefined>(undefined)
+  const [activeDocumentId, setActiveDocumentId] = useState(activeFilePath)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
   const contentLoadErrorRef = useRef<Error | undefined>(contentLoadError as Error | undefined)
   const applyInitialNoteTitleRef = useRef<(content: string, filePath: string) => Promise<void>>(async () => {})
+  const displayedActiveNode = activeNode ?? (isRenamingRef.current ? activeNodeSnapshotRef.current : null)
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
@@ -173,12 +177,18 @@ const NotesPage: FC = () => {
 
       try {
         await window.api.file.write(targetPath, content)
-        // 保存后立即刷新缓存，确保下次读取时获取最新内容
-        invalidateFileContent(targetPath)
+        if (targetPath === activeFilePathRef.current) {
+          currentContentRef.current = content
+        }
         if (newNotePathsRef.current.has(targetPath)) {
           savedNewNoteContentRef.current.set(targetPath, content)
         }
         await applyInitialNoteTitleRef.current(content, targetPath)
+        // A successful initial-title rename switches the active path and
+        // primes its cache. Only revalidate when the note stayed put.
+        if (activeFilePathRef.current === targetPath) {
+          invalidateFileContent(targetPath)
+        }
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
         const now = Date.now()
@@ -325,6 +335,7 @@ const NotesPage: FC = () => {
         reason: 'Node not found in current tree'
       })
       setActiveFilePath(undefined)
+      setActiveDocumentId(undefined)
     }
   }, [notesTree, activeFilePath, activeNode, setActiveFilePath])
 
@@ -333,8 +344,20 @@ const NotesPage: FC = () => {
   // (iCloud Drive, NFS, virtualized FS) and silently deselect a fresh note.
   useEffect(() => {
     if (activeNode) {
+      activeNodeSnapshotRef.current = activeNode
+      const pendingRenamedPath = pendingRenamedActivePathRef.current
+      const renamedNodeIsReady =
+        isRenamingRef.current &&
+        pendingRenamedPath !== undefined &&
+        normalizePathValue(activeNode.externalPath) === normalizePathValue(pendingRenamedPath)
+
+      if (!isRenamingRef.current) {
+        setActiveDocumentId(activeNode.id)
+      } else if (renamedNodeIsReady) {
+        pendingRenamedActivePathRef.current = undefined
+        isRenamingRef.current = false
+      }
       isCreatingNoteRef.current = false
-      isRenamingRef.current = false
     }
   }, [activeNode])
 
@@ -357,6 +380,7 @@ const NotesPage: FC = () => {
       if (!activePath) return
       const normalized = normalizePathValue(payload.event.path)
       if (normalizePathValue(activePath) === normalized) {
+        if (isRenamingRef.current || newNotePathsRef.current.has(normalized)) return
         invalidateFileContentRef.current?.(normalized)
       }
     })
@@ -574,6 +598,7 @@ const NotesPage: FC = () => {
         const { path: notePath } = await addNote(name, '', targetPath)
         newNotePathsRef.current.add(notePath)
         setFolderExpandedByPath(targetPath, true)
+        setActiveDocumentId(notePath)
         setActiveFilePath(notePath)
         setSelectedFolderId(null)
 
@@ -624,6 +649,7 @@ const NotesPage: FC = () => {
     async (node: NotesTreeNode) => {
       if (node.type === 'file') {
         try {
+          setActiveDocumentId(node.id)
           setActiveFilePath(node.externalPath)
           invalidateFileContent(node.externalPath)
           // 清除文件夹选择状态
@@ -665,6 +691,7 @@ const NotesPage: FC = () => {
           normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
 
         if (isActiveNode || isActiveDescendant) {
+          setActiveDocumentId(undefined)
           setActiveFilePath(undefined)
           editorRef.current?.clear()
         }
@@ -694,6 +721,7 @@ const NotesPage: FC = () => {
     async (nodeId: string, newName: string) => {
       try {
         isRenamingRef.current = true
+        pendingRenamedActivePathRef.current = undefined
 
         const node = findNode(notesTree, nodeId)
         if (!node) {
@@ -706,37 +734,82 @@ const NotesPage: FC = () => {
         }
 
         const oldPath = node.externalPath
+        if (activeNode) {
+          activeNodeSnapshotRef.current = activeNode
+        }
+
+        let nextActivePath: string | undefined
+        let latestContent: string | undefined
+
+        if (node.type === 'file' && activeFilePath === oldPath) {
+          debouncedSaveRef.current?.cancel()
+          latestContent =
+            codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
+        } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
+          debouncedSaveRef.current?.cancel()
+          latestContent =
+            codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
+        }
+
+        if (activeFilePath && latestContent !== undefined && latestContent !== currentContentRef.current) {
+          await window.api.file.write(activeFilePath, latestContent)
+          currentContentRef.current = latestContent
+        }
+
         const renamed = await renameEntry(node, newName)
 
-        // Tell the tree primitive about the rename so it mutates the
-        // existing TreeNode in place (identity preserved for downstream
-        // consumers / React keys) and dedups the chokidar unlink+add that
-        // follow. Best-effort: if treeId is null (hook still initializing)
-        // or the IPC fails, the watcher will catch up via removed+added —
-        // just without identity preservation.
+        if (node.type === 'file' && activeFilePath === oldPath) {
+          nextActivePath = renamed.path
+        } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
+          const suffix = activeFilePath.slice(oldPath.length)
+          nextActivePath = `${renamed.path}${suffix}`
+        }
+        pendingRenamedActivePathRef.current = nextActivePath
+
+        let rollbackSucceeded = false
+        const metadataSynced = await syncMetadataAfterFileOperation(
+          () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
+          async () => {
+            await rollbackFileMove(renamed.path, oldPath, node.type)
+            rollbackSucceeded = true
+          }
+        )
+        if (!metadataSynced) {
+          if (nextActivePath && activeFilePath) {
+            if (rollbackSucceeded) {
+              // The file is back on its original path, but the watcher may
+              // still be between the remove and re-add events. Keep the
+              // snapshot until the old active node is visible again.
+              const activeNodeAlreadyRestored =
+                activeNode && normalizePathValue(activeNode.externalPath) === normalizePathValue(activeFilePath)
+              if (activeNodeAlreadyRestored) {
+                pendingRenamedActivePathRef.current = undefined
+                isRenamingRef.current = false
+              } else {
+                pendingRenamedActivePathRef.current = activeFilePath
+              }
+            } else {
+              // Rollback failed, so the file remains at the renamed path.
+              // Follow the actual file to keep the editor usable even though
+              // metadata repair will still be needed.
+              await primeFileContent(nextActivePath, latestContent ?? currentContentRef.current)
+              activeFilePathRef.current = nextActivePath
+              setActiveFilePath(nextActivePath)
+            }
+          } else {
+            pendingRenamedActivePathRef.current = undefined
+            isRenamingRef.current = false
+          }
+          return false
+        }
+
+        // Update the tree mirror only after the file move and metadata
+        // rewrite have both committed. This keeps rollback on the old path
+        // and avoids a long-lived tree/active-path mismatch.
         if (treeId) {
           await window.api.tree
             .rename(treeId, oldPath, renamed.path)
             .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
-        }
-
-        let nextActivePath: string | undefined
-
-        if (node.type === 'file' && activeFilePath === oldPath) {
-          debouncedSaveRef.current?.cancel()
-          nextActivePath = renamed.path
-        } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
-          const suffix = activeFilePath.slice(oldPath.length)
-          debouncedSaveRef.current?.cancel()
-          nextActivePath = `${renamed.path}${suffix}`
-        }
-
-        const metadataSynced = await syncMetadataAfterFileOperation(
-          () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
-          () => rollbackFileMove(renamed.path, oldPath, node.type)
-        )
-        if (!metadataSynced) {
-          return false
         }
 
         newNotePathsRef.current.delete(oldPath)
@@ -744,17 +817,23 @@ const NotesPage: FC = () => {
 
         if (nextActivePath) {
           debouncedSaveRef.current?.cancel()
+          await primeFileContent(nextActivePath, latestContent ?? currentContentRef.current)
           lastFilePathRef.current = nextActivePath
+          activeFilePathRef.current = nextActivePath
           setActiveFilePath(nextActivePath)
         }
 
         await refreshTree()
+        if (!nextActivePath) {
+          isRenamingRef.current = false
+        }
         // Success: flag stays true until the watcher reports the renamed
         // node and the [activeNode] effect above clears it.
         return true
       } catch (error) {
         // Rename failed → clear the flag now so subsequent tree updates
         // aren't suppressed.
+        pendingRenamedActivePathRef.current = undefined
         isRenamingRef.current = false
         logger.error('Failed to rename node:', error as Error)
         toast.error(
@@ -767,7 +846,9 @@ const NotesPage: FC = () => {
     },
     [
       activeFilePath,
+      activeNode,
       notesTree,
+      primeFileContent,
       refreshTree,
       rewritePath,
       rollbackFileMove,
@@ -1067,6 +1148,7 @@ const NotesPage: FC = () => {
       if (needsSwitchFile) {
         // switch to target note first then scroll to line
         pendingScrollRef.current = { lineNumber, lineContent }
+        setActiveDocumentId(targetNode.id)
         setActiveFilePath(targetNode.externalPath)
         invalidateFileContent(targetNode.externalPath)
       } else {
@@ -1125,13 +1207,15 @@ const NotesPage: FC = () => {
           <HeaderNavbar
             notesTree={notesTree}
             activeFilePath={activeFilePath}
+            activeNodeOverride={displayedActiveNode ?? undefined}
             getCurrentNoteContent={getCurrentNoteContent}
             onToggleStar={handleToggleStar}
             onExpandPath={handleExpandPath}
             onRenameNode={handleRenameNode}
           />
           <NotesEditor
-            activeNodeId={activeNode?.id}
+            activeNodeId={displayedActiveNode?.id}
+            documentId={activeDocumentId}
             currentContent={currentContent}
             contentLoadError={contentLoadError as Error | undefined}
             tokenCount={tokenCount}

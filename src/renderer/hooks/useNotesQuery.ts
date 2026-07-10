@@ -50,8 +50,16 @@ export function useFileContentSync() {
     [mutate]
   )
 
+  const primeFileContent = useCallback(
+    async (filePath: string, content: string) => {
+      await mutate(fileContentKey(filePath), content, { revalidate: false })
+    },
+    [mutate]
+  )
+
   return {
-    invalidateFileContent
+    invalidateFileContent,
+    primeFileContent
   }
 }
 

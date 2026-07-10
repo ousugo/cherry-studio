@@ -19,6 +19,7 @@ const logger = loggerService.withContext('NotesEditor')
 
 interface NotesEditorProps {
   activeNodeId?: string
+  documentId?: string
   currentContent: string
   contentLoadError?: Error
   tokenCount: number
@@ -28,7 +29,16 @@ interface NotesEditorProps {
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({
+    activeNodeId,
+    documentId,
+    currentContent,
+    contentLoadError,
+    tokenCount,
+    onMarkdownChange,
+    editorRef,
+    codeEditorRef
+  }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -53,7 +63,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     useEffect(() => {
       userViewModeOverrideRef.current = false
       setTmpViewMode(currentViewModeRef.current)
-    }, [activeNodeId])
+    }, [documentId])
 
     const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
       const disabledCommands = ['image', 'inlineMath']
@@ -89,6 +99,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor
+                key={documentId ?? activeNodeId}
                 ref={codeEditorRef}
                 value={currentContent}
                 language="markdown"
@@ -103,7 +114,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             </div>
           ) : (
             <RichEditor
-              key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
+              key={`${documentId ?? activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}

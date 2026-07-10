@@ -40,6 +40,7 @@ const logger = loggerService.withContext('HeaderNavbar')
 interface HeaderNavbarProps {
   notesTree: NotesTreeNode[]
   activeFilePath?: string
+  activeNodeOverride?: NotesTreeNode
   getCurrentNoteContent?: () => string
   onToggleStar?: (nodeId: string) => void
   onExpandPath?: (treePath: string) => void
@@ -49,13 +50,15 @@ interface HeaderNavbarProps {
 const HeaderNavbar = ({
   notesTree,
   activeFilePath,
+  activeNodeOverride,
   getCurrentNoteContent,
   onToggleStar,
   onExpandPath,
   onRenameNode
 }: HeaderNavbarProps) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
-  const { activeNode } = useActiveNode(notesTree, activeFilePath)
+  const { activeNode: resolvedActiveNode } = useActiveNode(notesTree, activeFilePath)
+  const activeNode = activeNodeOverride ?? resolvedActiveNode
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])

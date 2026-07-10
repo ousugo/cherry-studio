@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
     editorReady: vi.fn(),
     getNode: vi.fn(),
     invalidateFileContent: vi.fn(),
+    primeFileContent: vi.fn(),
     fileWrite: vi.fn(),
     addNote: vi.fn(),
     renameNode: vi.fn(),
@@ -125,9 +126,22 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [mocks.activeFilePath, mocks.setActiveFilePath]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const React = await import('react')
+
+  return {
+    useCache: () => {
+      const [activeFilePath, setActiveFilePath] = React.useState<string | undefined>(mocks.activeFilePath)
+      return [
+        activeFilePath,
+        (nextPath: string | undefined) => {
+          mocks.setActiveFilePath(nextPath)
+          setActiveFilePath(nextPath)
+        }
+      ]
+    }
+  }
+})
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
@@ -193,7 +207,10 @@ vi.mock('@renderer/hooks/useNotesQuery', async (importOriginal) => {
   return {
     ...actual,
     useFileContent: () => ({ data: mocks.currentContent, error: undefined }),
-    useFileContentSync: () => ({ invalidateFileContent: mocks.invalidateFileContent })
+    useFileContentSync: () => ({
+      invalidateFileContent: mocks.invalidateFileContent,
+      primeFileContent: mocks.primeFileContent
+    })
   }
 })
 
@@ -211,7 +228,14 @@ vi.mock('@renderer/services/NotesService', () => ({
 vi.mock('../NotesEditor', async () => {
   const React = await import('react')
 
-  function MockNotesEditor({ codeEditorRef, editorRef, onMarkdownChange }: any) {
+  function MockNotesEditor({
+    activeNodeId,
+    codeEditorRef,
+    currentContent,
+    documentId,
+    editorRef,
+    onMarkdownChange
+  }: any) {
     React.useEffect(() => {
       mocks.onMarkdownChange = onMarkdownChange
       codeEditorRef.current =
@@ -246,7 +270,15 @@ vi.mock('../NotesEditor', async () => {
       }
     }, [codeEditorRef, editorRef, onMarkdownChange])
 
-    return React.createElement('div', { 'data-testid': 'notes-editor' })
+    if (!activeNodeId) {
+      return React.createElement('div', { 'data-testid': 'notes-empty' })
+    }
+
+    return React.createElement(
+      'div',
+      { key: documentId ?? activeNodeId, 'data-testid': 'notes-editor' },
+      currentContent
+    )
   }
 
   return {
@@ -259,10 +291,15 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: ({ onCreateNote }: { onCreateNote: (name: string) => void }) => (
-    <button type="button" onClick={() => onCreateNote('notes.untitled_note')}>
-      create-note
-    </button>
+  default: ({ notesTree, onCreateNote, onRenameNode }: any) => (
+    <>
+      <button type="button" onClick={() => onCreateNote('notes.untitled_note')}>
+        create-note
+      </button>
+      <button type="button" onClick={() => onRenameNode(notesTree[0]?.id, 'renamed')}>
+        rename-note
+      </button>
+    </>
   )
 }))
 
@@ -388,6 +425,55 @@ describe('NotesPage print payloads', () => {
         'Meeting notes'
       )
     })
+  })
+
+  it('keeps the active editor visible while its note is renamed', async () => {
+    mocks.showWorkspace = true
+    let resolveRename: ((result: { path: string; name: string }) => void) | undefined
+    mocks.renameNode.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve
+        })
+    )
+
+    const { rerender } = render(<NotesPage />)
+
+    expect(screen.getByTestId('notes-editor')).toHaveTextContent('saved content')
+    const editorElement = screen.getByTestId('notes-editor')
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
+
+    expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/note.md', 'edited source content')
+    expect(mocks.fileWrite.mock.invocationCallOrder[0]).toBeLessThan(mocks.renameNode.mock.invocationCallOrder[0])
+
+    // The pre-rename write can refresh the old tree node before the move
+    // event arrives. That refresh must not end rename suppression early.
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+    mocks.projectedNodes = []
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    expect(screen.queryByTestId('notes-empty')).not.toBeInTheDocument()
+    expect(screen.getByTestId('notes-editor')).toBe(editorElement)
+    expect(screen.getByTestId('notes-editor')).toHaveTextContent('saved content')
+
+    act(() => resolveRename?.({ path: '/notes/renamed.md', name: 'renamed' }))
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/renamed.md'))
+
+    Object.assign(mocks.noteNode, {
+      id: '/notes/renamed.md',
+      name: 'renamed',
+      treePath: '/renamed',
+      externalPath: '/notes/renamed.md'
+    })
+    mocks.projectedNodes = [mocks.noteNode]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.queryByTestId('notes-empty')).not.toBeInTheDocument())
   })
 
   it.each([

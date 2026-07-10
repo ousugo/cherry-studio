@@ -51,6 +51,20 @@ describe('useNotesQuery', () => {
   })
 
   describe('useFileContentSync', () => {
+    it('primes a renamed path before it becomes active', async () => {
+      const { rerender, result } = renderHook(
+        ({ path }: { path?: string }) => ({ content: useFileContent(path), sync: useFileContentSync() }),
+        { initialProps: { path: undefined as string | undefined }, wrapper }
+      )
+
+      await act(async () => {
+        await result.current.sync.primeFileContent('/notes/renamed.md', 'draft content')
+      })
+      rerender({ path: '/notes/renamed.md' })
+
+      expect(result.current.content.data).toBe('draft content')
+    })
+
     it('re-reads the active file content when invalidated', async () => {
       const { result } = renderHook(() => ({ content: useFileContent('/notes/a.md'), sync: useFileContentSync() }), {
         wrapper
