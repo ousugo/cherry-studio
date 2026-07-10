@@ -22,6 +22,7 @@
 
 export type ValidateFileNameResult = { valid: true } | { valid: false; error: string }
 
+// oxlint-disable-next-line no-control-regex
 const INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*\x00-\x1f]/g
 
 /**
