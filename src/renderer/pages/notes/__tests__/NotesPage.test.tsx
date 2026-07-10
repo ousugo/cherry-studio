@@ -305,7 +305,7 @@ vi.mock('../NotesSidebar', () => ({
 
 import NotesPage from '../NotesPage'
 
-describe('NotesPage print payloads', () => {
+describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.currentContent = 'saved content'
@@ -353,7 +353,7 @@ describe('NotesPage print payloads', () => {
     })
   })
 
-  it('renames a newly created note from its first line after saving', async () => {
+  it('renames a newly created note from its sanitized first line after saving', async () => {
     mocks.showWorkspace = true
     mocks.activeFilePath = '/notes/notes.untitled_note.md'
     mocks.currentContent = ''
@@ -375,11 +375,11 @@ describe('NotesPage print payloads', () => {
     fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
     await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
 
-    act(() => mocks.onMarkdownChange?.('  Meeting notes  \nDetails'))
+    act(() => mocks.onMarkdownChange?.('  ///Meeting notes  \nDetails'))
 
     await waitFor(
       () => {
-        expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  Meeting notes  \nDetails')
+        expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  ///Meeting notes  \nDetails')
         expect(mocks.renameNode).toHaveBeenCalledWith(
           expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
           'Meeting notes'
@@ -387,6 +387,83 @@ describe('NotesPage print payloads', () => {
       },
       { timeout: 2000 }
     )
+  })
+
+  it('does not derive a new title for an existing note', async () => {
+    render(<NotesPage />)
+
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    act(() => mocks.onMarkdownChange?.('Replacement title\nDetails'))
+
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/note.md', 'Replacement title\nDetails'), {
+      timeout: 2000
+    })
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+  })
+
+  it('waits for the first newline before deriving a title', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    act(() => mocks.onMarkdownChange?.('Meeting notes'))
+    await waitFor(
+      () => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes'),
+      {
+        timeout: 2000
+      }
+    )
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+
+    act(() => mocks.onMarkdownChange?.('Meeting notes\n'))
+    await waitFor(
+      () => {
+        expect(mocks.renameNode).toHaveBeenCalledWith(
+          expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+          'Meeting notes'
+        )
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  it('does not overwrite a manual rename with a title derived later', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/renamed.md'))
+
+    act(() => mocks.onMarkdownChange?.('Automatic title\nDetails'))
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'Automatic title\nDetails'), {
+      timeout: 2000
+    })
+    expect(mocks.renameNode).toHaveBeenCalledTimes(1)
   })
 
   it('waits for a slow file watcher before applying the saved first-line title', async () => {
