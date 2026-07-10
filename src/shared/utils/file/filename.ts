@@ -22,6 +22,17 @@
 
 export type ValidateFileNameResult = { valid: true } | { valid: false; error: string }
 
+const INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*\x00-\x1f]/g
+
+/**
+ * Replace characters that are forbidden on at least one supported platform,
+ * producing a filename character set that is portable across all of them.
+ * This intentionally applies no reserved-name, trailing-character, length, or fallback policy.
+ */
+export function replaceNonPortableFilenameCharacters(fileName: string, replacement: string): string {
+  return fileName.replace(INVALID_FILENAME_CHARACTERS, replacement)
+}
+
 /**
  * Validate a filename against the host platform's rules.
  *
@@ -89,9 +100,7 @@ export function validateFileName(
 export function sanitizeFilename(fileName: string, replacement = '_'): string {
   if (!fileName) return ''
 
-  let sanitized = fileName
-    // oxlint-disable-next-line no-control-regex
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement)
+  let sanitized = replaceNonPortableFilenameCharacters(fileName, replacement)
     .replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, `${replacement}$2`)
     .replace(/[\s.]+$/, '')
     .substring(0, 255)

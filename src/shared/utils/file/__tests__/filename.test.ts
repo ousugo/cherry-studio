@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeFilename, validateFileName } from '../filename'
+import { replaceNonPortableFilenameCharacters, sanitizeFilename, validateFileName } from '../filename'
+
+describe('replaceNonPortableFilenameCharacters', () => {
+  it('removes forbidden and control characters when the replacement is empty', () => {
+    expect(replaceNonPortableFilenameCharacters('a/b\\c:d\x01e', '')).toBe('abcde')
+  })
+
+  it('uses the requested replacement', () => {
+    expect(replaceNonPortableFilenameCharacters('CON/a', '_')).toBe('CON_a')
+  })
+
+  it('does not apply reserved-name, trailing-character, length, or fallback policy', () => {
+    const longName = 'a'.repeat(256)
+
+    expect(replaceNonPortableFilenameCharacters('CON', '_')).toBe('CON')
+    expect(replaceNonPortableFilenameCharacters('name.', '_')).toBe('name.')
+    expect(replaceNonPortableFilenameCharacters(longName, '_')).toBe(longName)
+    expect(replaceNonPortableFilenameCharacters('', '_')).toBe('')
+  })
+})
 
 describe('sanitizeFilename', () => {
   it('replaces forbidden characters with underscore by default', () => {

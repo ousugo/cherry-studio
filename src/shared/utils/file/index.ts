@@ -10,7 +10,12 @@ export {
   textExts,
   videoExts
 } from './fileExtensions'
-export { sanitizeFilename, validateFileName, type ValidateFileNameResult } from './filename'
+export {
+  replaceNonPortableFilenameCharacters,
+  sanitizeFilename,
+  validateFileName,
+  type ValidateFileNameResult
+} from './filename'
 export { fileTypeMap, getFileTypeByExt } from './fileType'
 export { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from './handle'
 export {
