@@ -343,6 +343,7 @@ describe('NotesPage', () => {
         },
         file: {
           write: mocks.fileWrite.mockResolvedValue(undefined),
+          move: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
         },
         tree: {
@@ -619,6 +620,39 @@ describe('NotesPage', () => {
       expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'latest content during rename')
     )
     expect(mocks.primeFileContent).toHaveBeenCalledWith('/notes/renamed.md', 'latest content during rename')
+  })
+
+  it('keeps the active editor until the rolled-back path returns to the tree', async () => {
+    mocks.showWorkspace = true
+    mocks.rewritePath.mockRejectedValueOnce(new Error('metadata sync failed'))
+    const otherNode = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+
+    const { rerender } = render(<NotesPage />)
+    const editorElement = screen.getByTestId('notes-editor')
+
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.rewritePath).toHaveBeenCalled())
+
+    mocks.projectedNodes = [otherNode]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    expect(screen.queryByTestId('notes-empty')).not.toBeInTheDocument()
+    expect(screen.getByTestId('notes-editor')).toBe(editorElement)
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toBe(editorElement))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
   })
 
   it.each([

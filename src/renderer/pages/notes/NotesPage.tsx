@@ -823,14 +823,7 @@ const NotesPage: FC = () => {
               // The file is back on its original path, but the watcher may
               // still be between the remove and re-add events. Keep the
               // snapshot until the old active node is visible again.
-              const activeNodeAlreadyRestored =
-                activeNode && normalizePathValue(activeNode.externalPath) === normalizePathValue(activeFilePath)
-              if (activeNodeAlreadyRestored) {
-                pendingRenamedActivePathRef.current = undefined
-                isRenamingRef.current = false
-              } else {
-                pendingRenamedActivePathRef.current = activeFilePath
-              }
+              pendingRenamedActivePathRef.current = activeFilePath
             } else {
               // Rollback failed, so the file remains at the renamed path.
               // Follow the actual file to keep the editor usable even though
