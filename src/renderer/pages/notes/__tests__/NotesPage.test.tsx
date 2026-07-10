@@ -427,6 +427,37 @@ describe('NotesPage print payloads', () => {
     })
   })
 
+  it('stops retrying an automatic title after the rename fails', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.renameNode.mockRejectedValue(new Error('Target name already exists'))
+
+    const { rerender } = render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    act(() => mocks.onMarkdownChange?.('Meeting notes\nDetails'))
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1), { timeout: 2000 })
+
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
+  })
+
   it('keeps the active editor visible while its note is renamed', async () => {
     mocks.showWorkspace = true
     let resolveRename: ((result: { path: string; name: string }) => void) | undefined
@@ -474,6 +505,13 @@ describe('NotesPage print payloads', () => {
     rerender(<NotesPage />)
 
     await waitFor(() => expect(screen.queryByTestId('notes-empty')).not.toBeInTheDocument())
+    expect(screen.getByTestId('notes-editor')).toBe(editorElement)
+
+    mocks.projectedNodes = [{ ...mocks.noteNode }]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toBe(editorElement))
   })
 
   it.each([

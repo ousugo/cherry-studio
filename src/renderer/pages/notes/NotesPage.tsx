@@ -351,9 +351,7 @@ const NotesPage: FC = () => {
         pendingRenamedPath !== undefined &&
         normalizePathValue(activeNode.externalPath) === normalizePathValue(pendingRenamedPath)
 
-      if (!isRenamingRef.current) {
-        setActiveDocumentId(activeNode.id)
-      } else if (renamedNodeIsReady) {
+      if (renamedNodeIsReady) {
         pendingRenamedActivePathRef.current = undefined
         isRenamingRef.current = false
       }
@@ -380,7 +378,7 @@ const NotesPage: FC = () => {
       if (!activePath) return
       const normalized = normalizePathValue(payload.event.path)
       if (normalizePathValue(activePath) === normalized) {
-        if (isRenamingRef.current || newNotePathsRef.current.has(normalized)) return
+        if (isRenamingRef.current || initialTitleRenamesRef.current.has(normalized)) return
         invalidateFileContentRef.current?.(normalized)
       }
     })
@@ -684,6 +682,18 @@ const NotesPage: FC = () => {
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
+        const deletedPathPrefix = `${normalizedDeletePath}/`
+        for (const newNotePath of newNotePathsRef.current) {
+          const normalizedNewNotePath = normalizePathValue(newNotePath)
+          if (
+            normalizedNewNotePath === normalizedDeletePath ||
+            (nodeToDelete.type === 'folder' && normalizedNewNotePath.startsWith(deletedPathPrefix))
+          ) {
+            newNotePathsRef.current.delete(newNotePath)
+            savedNewNoteContentRef.current.delete(newNotePath)
+            initialTitleRenamesRef.current.delete(newNotePath)
+          }
+        }
         const isActiveNode = normalizedActivePath === normalizedDeletePath
         const isActiveDescendant =
           nodeToDelete.type === 'folder' &&
@@ -877,7 +887,11 @@ const NotesPage: FC = () => {
 
       initialTitleRenamesRef.current.add(filePath)
       try {
-        await handleRenameNode(node.id, title)
+        const renamed = await handleRenameNode(node.id, title)
+        if (!renamed) {
+          newNotePathsRef.current.delete(filePath)
+          savedNewNoteContentRef.current.delete(filePath)
+        }
       } finally {
         initialTitleRenamesRef.current.delete(filePath)
         const latestContent = savedNewNoteContentRef.current.get(filePath)
