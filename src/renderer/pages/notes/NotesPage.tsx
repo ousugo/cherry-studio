@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next'
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
+import { getInitialNoteTitle } from './noteTitle'
 
 const logger = loggerService.withContext('NotesPage')
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
@@ -100,11 +101,15 @@ const NotesPage: FC = () => {
   const lastSaveFailureToastAtRef = useRef(0)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
+  const newNotePathsRef = useRef<Set<string>>(new Set())
+  const savedNewNoteContentRef = useRef<Map<string, string>>(new Map())
+  const initialTitleRenamesRef = useRef<Set<string>>(new Set())
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
   const contentLoadErrorRef = useRef<Error | undefined>(contentLoadError as Error | undefined)
+  const applyInitialNoteTitleRef = useRef<(content: string, filePath: string) => Promise<void>>(async () => {})
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
@@ -170,6 +175,10 @@ const NotesPage: FC = () => {
         await window.api.file.write(targetPath, content)
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
         invalidateFileContent(targetPath)
+        if (newNotePathsRef.current.has(targetPath)) {
+          savedNewNoteContentRef.current.set(targetPath, content)
+        }
+        await applyInitialNoteTitleRef.current(content, targetPath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
         const now = Date.now()
@@ -563,6 +572,7 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
         const { path: notePath } = await addNote(name, '', targetPath)
+        newNotePathsRef.current.add(notePath)
         setFolderExpandedByPath(targetPath, true)
         setActiveFilePath(notePath)
         setSelectedFolderId(null)
@@ -686,8 +696,13 @@ const NotesPage: FC = () => {
         isRenamingRef.current = true
 
         const node = findNode(notesTree, nodeId)
-        if (!node || node.name === newName) {
-          return
+        if (!node) {
+          isRenamingRef.current = false
+          return false
+        }
+        if (node.name === newName) {
+          isRenamingRef.current = false
+          return true
         }
 
         const oldPath = node.externalPath
@@ -721,10 +736,14 @@ const NotesPage: FC = () => {
           () => rollbackFileMove(renamed.path, oldPath, node.type)
         )
         if (!metadataSynced) {
-          return
+          return false
         }
 
+        newNotePathsRef.current.delete(oldPath)
+        savedNewNoteContentRef.current.delete(oldPath)
+
         if (nextActivePath) {
+          debouncedSaveRef.current?.cancel()
           lastFilePathRef.current = nextActivePath
           setActiveFilePath(nextActivePath)
         }
@@ -732,6 +751,7 @@ const NotesPage: FC = () => {
         await refreshTree()
         // Success: flag stays true until the watcher reports the renamed
         // node and the [activeNode] effect above clears it.
+        return true
       } catch (error) {
         // Rename failed → clear the flag now so subsequent tree updates
         // aren't suppressed.
@@ -742,6 +762,7 @@ const NotesPage: FC = () => {
             ? t('notes.target_name_exists')
             : t('notes.rename_failed')
         )
+        return false
       }
     },
     [
@@ -756,6 +777,43 @@ const NotesPage: FC = () => {
       treeId
     ]
   )
+
+  const applyInitialNoteTitle = useCallback(
+    async (content: string, filePath: string) => {
+      if (!newNotePathsRef.current.has(filePath)) return
+      if (initialTitleRenamesRef.current.has(filePath)) return
+
+      const title = getInitialNoteTitle(content)
+      if (!title) return
+
+      const node = findNodeByPath(notesTree, normalizePathValue(filePath))
+      if (!node || node.type !== 'file') return
+      if (node.name === title) {
+        newNotePathsRef.current.delete(filePath)
+        savedNewNoteContentRef.current.delete(filePath)
+        return
+      }
+
+      initialTitleRenamesRef.current.add(filePath)
+      try {
+        await handleRenameNode(node.id, title)
+      } finally {
+        initialTitleRenamesRef.current.delete(filePath)
+        const latestContent = savedNewNoteContentRef.current.get(filePath)
+        if (latestContent !== undefined && latestContent !== content) {
+          void applyInitialNoteTitleRef.current(latestContent, filePath)
+        }
+      }
+    },
+    [handleRenameNode, notesTree]
+  )
+
+  useEffect(() => {
+    applyInitialNoteTitleRef.current = applyInitialNoteTitle
+    savedNewNoteContentRef.current.forEach((content, filePath) => {
+      void applyInitialNoteTitle(content, filePath)
+    })
+  }, [applyInitialNoteTitle])
 
   // 处理文件上传
   const handleUploadFiles = useCallback(

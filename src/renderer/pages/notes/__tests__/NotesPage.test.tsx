@@ -1,6 +1,6 @@
 import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -20,12 +20,18 @@ const mocks = vi.hoisted(() => {
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
+    activeFilePath: '/notes/note.md',
+    onMarkdownChange: undefined as ((content: string) => void) | undefined,
     editorReady: vi.fn(),
     getNode: vi.fn(),
     invalidateFileContent: vi.fn(),
+    fileWrite: vi.fn(),
+    addNote: vi.fn(),
+    renameNode: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
     isActiveTab: true,
+    showWorkspace: false,
     printShortcutLabel: 'Ctrl+P',
     noteByPath: new Map(),
     patchNode: vi.fn(),
@@ -45,6 +51,8 @@ const mocks = vi.hoisted(() => {
     t: (key: string) => key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
+    treeVersion: 0,
+    projectedNodes: [noteNode],
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
@@ -118,12 +126,12 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => ['/notes/note.md', mocks.setActiveFilePath]
+  useCache: () => [mocks.activeFilePath, mocks.setActiveFilePath]
 }))
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
-    showWorkspace: false,
+    showWorkspace: mocks.showWorkspace,
     toggleShowWorkspace: mocks.toggleShowWorkspace
   })
 }))
@@ -164,7 +172,7 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
     root: mocks.treeRoot,
     isLoading: false,
     error: null,
-    version: 0,
+    version: mocks.treeVersion,
     treeId: null,
     getNode: mocks.getNode
   })
@@ -190,12 +198,12 @@ vi.mock('@renderer/hooks/useNotesQuery', async (importOriginal) => {
 })
 
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: vi.fn(() => [mocks.noteNode]),
+  projectNotesTree: vi.fn(() => mocks.projectedNodes),
   sortTree: mocks.sortTree,
   addDir: vi.fn(),
-  addNote: vi.fn(),
+  addNote: mocks.addNote,
   delNode: vi.fn(),
-  renameNode: vi.fn(),
+  renameNode: mocks.renameNode,
   resolveNotesPath: vi.fn(async (path: string) => ({ path, isFallback: false })),
   uploadNotes: vi.fn()
 }))
@@ -205,6 +213,7 @@ vi.mock('../NotesEditor', async () => {
 
   function MockNotesEditor({ codeEditorRef, editorRef, onMarkdownChange }: any) {
     React.useEffect(() => {
+      mocks.onMarkdownChange = onMarkdownChange
       codeEditorRef.current =
         mocks.mountedEditor === 'rich'
           ? null
@@ -231,6 +240,7 @@ vi.mock('../NotesEditor', async () => {
       mocks.editorReady()
 
       return () => {
+        mocks.onMarkdownChange = undefined
         codeEditorRef.current = null
         editorRef.current = null
       }
@@ -249,7 +259,11 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: () => null
+  default: ({ onCreateNote }: { onCreateNote: (name: string) => void }) => (
+    <button type="button" onClick={() => onCreateNote('notes.untitled_note')}>
+      create-note
+    </button>
+  )
 }))
 
 import NotesPage from '../NotesPage'
@@ -261,6 +275,16 @@ describe('NotesPage print payloads', () => {
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
     mocks.mountedEditor = 'source'
+    mocks.activeFilePath = '/notes/note.md'
+    mocks.onMarkdownChange = undefined
+    Object.assign(mocks.noteNode, {
+      id: '/notes/note.md',
+      name: 'note',
+      treePath: '/note',
+      externalPath: '/notes/note.md'
+    })
+    mocks.treeVersion = 0
+    mocks.projectedNodes = [mocks.noteNode]
     mocks.settings.defaultEditMode = 'source'
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockImplementation((route: string) => {
@@ -270,7 +294,10 @@ describe('NotesPage print payloads', () => {
     })
     mocks.commandHandlers.clear()
     mocks.isActiveTab = true
+    mocks.showWorkspace = false
     mocks.printShortcutLabel = 'Ctrl+P'
+    mocks.addNote.mockResolvedValue({ path: '/notes/notes.untitled_note.md', name: 'notes.untitled_note' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/renamed.md', name: 'renamed' })
 
     Object.assign(window, {
       api: {
@@ -278,7 +305,7 @@ describe('NotesPage print payloads', () => {
           toWord: vi.fn().mockResolvedValue(undefined)
         },
         file: {
-          write: vi.fn().mockResolvedValue(undefined),
+          write: mocks.fileWrite.mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
         },
         tree: {
@@ -286,6 +313,80 @@ describe('NotesPage print payloads', () => {
           dispose: vi.fn().mockResolvedValue(undefined)
         }
       }
+    })
+  })
+
+  it('renames a newly created note from its first line after saving', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.addNote.mockResolvedValue({
+      path: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note'
+    })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting notes.md', name: 'Meeting notes' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    act(() => mocks.onMarkdownChange?.('  Meeting notes  \nDetails'))
+
+    await waitFor(
+      () => {
+        expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  Meeting notes  \nDetails')
+        expect(mocks.renameNode).toHaveBeenCalledWith(
+          expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+          'Meeting notes'
+        )
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  it('waits for a slow file watcher before applying the saved first-line title', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.projectedNodes = []
+    mocks.addNote.mockResolvedValue({
+      path: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note'
+    })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting notes.md', name: 'Meeting notes' })
+
+    const { rerender } = render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    act(() => mocks.onMarkdownChange?.('Meeting notes\nDetails'))
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalled(), { timeout: 2000 })
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+
+    mocks.projectedNodes = [mocks.noteNode]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => {
+      expect(mocks.renameNode).toHaveBeenCalledWith(
+        expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+        'Meeting notes'
+      )
     })
   })
 
