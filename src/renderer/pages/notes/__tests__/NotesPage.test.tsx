@@ -369,7 +369,7 @@ describe('NotesPage', () => {
       path: '/notes/notes.untitled_note.md',
       name: 'notes.untitled_note'
     })
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting notes.md', name: 'Meeting notes' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
 
     render(<NotesPage />)
 
@@ -383,7 +383,7 @@ describe('NotesPage', () => {
         expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  ///Meeting notes  \nDetails')
         expect(mocks.renameNode).toHaveBeenCalledWith(
           expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-          'Meeting notes'
+          'Meeting'
         )
       },
       { timeout: 2000 }
@@ -433,7 +433,7 @@ describe('NotesPage', () => {
       () => {
         expect(mocks.renameNode).toHaveBeenCalledWith(
           expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-          'Meeting notes'
+          'Meeting'
         )
       },
       { timeout: 2000 }
@@ -494,7 +494,7 @@ describe('NotesPage', () => {
       path: '/notes/notes.untitled_note.md',
       name: 'notes.untitled_note'
     })
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting notes.md', name: 'Meeting notes' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
 
     const { rerender } = render(<NotesPage />)
 
@@ -511,7 +511,7 @@ describe('NotesPage', () => {
     await waitFor(() => {
       expect(mocks.renameNode).toHaveBeenCalledWith(
         expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-        'Meeting notes'
+        'Meeting'
       )
     })
   })
