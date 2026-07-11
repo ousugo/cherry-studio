@@ -13,6 +13,6 @@ describe('getInitialNoteTitle on Windows', () => {
   })
 
   it('accepts a title that only starts like a reserved filename', () => {
-    expect(getInitialNoteTitle('CONversation notes\nDetails')).toBe('CONversa')
+    expect(getInitialNoteTitle('CONversation notes\nDetails')).toBe('CONversation')
   })
 })

@@ -387,7 +387,7 @@ describe('NotesPage', () => {
       path: '/notes/notes.untitled_note.md',
       name: 'notes.untitled_note'
     })
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     render(<NotesPage />)
 
@@ -401,7 +401,7 @@ describe('NotesPage', () => {
         expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  ///Meeting notes  \nDetails')
         expect(mocks.renameNode).toHaveBeenCalledWith(
           expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-          'Meeting'
+          'Meeting note'
         )
       },
       { timeout: 2000 }
@@ -441,7 +441,7 @@ describe('NotesPage', () => {
     await waitFor(() =>
       expect(mocks.renameNode).toHaveBeenCalledWith(
         expect.objectContaining({ externalPath: newNote.externalPath }),
-        'Meeting'
+        'Meeting note'
       )
     )
   })
@@ -553,7 +553,7 @@ describe('NotesPage', () => {
       () => {
         expect(mocks.renameNode).toHaveBeenCalledWith(
           expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-          'Meeting'
+          'Meeting note'
         )
       },
       { timeout: 2000 }
@@ -619,7 +619,7 @@ describe('NotesPage', () => {
 
     act(() => resolveFirstWrite?.())
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
-    expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Latest t')
+    expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Latest title')
     expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Latest title\nLatest body')
   })
 
@@ -634,7 +634,7 @@ describe('NotesPage', () => {
       treePath: '/notes.untitled_note',
       externalPath: '/notes/notes.untitled_note.md'
     })
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     render(<NotesPage />)
 
@@ -649,7 +649,7 @@ describe('NotesPage', () => {
       expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes')
       expect(mocks.renameNode).toHaveBeenCalledWith(
         expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-        'Meeting'
+        'Meeting note'
       )
     })
   })
@@ -673,7 +673,7 @@ describe('NotesPage', () => {
       externalPath: '/notes/other.md'
     }
     mocks.projectedNodes = [mocks.noteNode, otherNote]
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     render(<NotesPage />)
 
@@ -687,7 +687,7 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
     expect(mocks.renameNode).toHaveBeenCalledWith(
       expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-      'Meeting'
+      'Meeting note'
     )
     expect(mocks.renameNode.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.setActiveFilePath.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
@@ -764,7 +764,7 @@ describe('NotesPage', () => {
     mocks.sourceEditorContent = 'Automatic title'
     act(() => mocks.onMarkdownChange?.('Automatic title'))
     act(() => mocks.onEditorBlur?.())
-    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automati'))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -775,14 +775,14 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
     act(() =>
       resolveAutomaticRename?.({
-        path: '/notes/Automati.md',
-        name: 'Automati'
+        path: '/notes/Automatic ti.md',
+        name: 'Automatic ti'
       })
     )
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
     expect(mocks.renameNode).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        externalPath: '/notes/Automati.md'
+        externalPath: '/notes/Automatic ti.md'
       }),
       'renamed'
     )
@@ -804,7 +804,7 @@ describe('NotesPage', () => {
       path: '/notes/notes.untitled_note.md',
       name: 'notes.untitled_note'
     })
-    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     const { rerender } = render(<NotesPage />)
 
@@ -821,7 +821,7 @@ describe('NotesPage', () => {
     await waitFor(() => {
       expect(mocks.renameNode).toHaveBeenCalledWith(
         expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
-        'Meeting'
+        'Meeting note'
       )
     })
   })
