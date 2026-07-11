@@ -7,6 +7,10 @@ describe('getInitialNoteTitle', () => {
     expect(getInitialNoteTitle('Meeting notes')).toBe('')
   })
 
+  it('uses an incomplete first line when finalizing on blur or note switch', () => {
+    expect(getInitialNoteTitle('Meeting notes', true)).toBe('Meeting')
+  })
+
   it('uses the trimmed first line', () => {
     expect(getInitialNoteTitle('  Meeting notes  \r\nDetails')).toBe('Meeting')
   })

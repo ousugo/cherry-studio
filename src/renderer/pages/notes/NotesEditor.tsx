@@ -26,6 +26,7 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  onBlur?: () => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
@@ -37,7 +38,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     tokenCount,
     onMarkdownChange,
     editorRef,
-    codeEditorRef
+    codeEditorRef,
+    onBlur
   }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
@@ -104,6 +106,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
+                onBlur={onBlur}
                 className="h-full"
                 expanded={false}
                 fontSize={settings.fontSize}
@@ -118,6 +121,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
+              onBlur={onBlur}
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}

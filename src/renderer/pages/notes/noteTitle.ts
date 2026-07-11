@@ -5,8 +5,8 @@ const FILENAME_PLATFORM: NodeJS.Platform = isWin ? 'win32' : isMac ? 'darwin' : 
 const MAX_INITIAL_NOTE_TITLE_LENGTH = 8
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-export function getInitialNoteTitle(content: string): string {
-  if (!content.includes('\n')) return ''
+export function getInitialNoteTitle(content: string, allowIncompleteFirstLine = false): string {
+  if (!allowIncompleteFirstLine && !content.includes('\n')) return ''
 
   const firstLine = content.split(/\r?\n/, 1)[0]?.trim() ?? ''
   const sanitizedTitle = replaceNonPortableFilenameCharacters(firstLine, '').replace(/[\s.]+$/, '')

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
     mountedEditor: 'source',
     activeFilePath: '/notes/note.md',
     onMarkdownChange: undefined as ((content: string) => void) | undefined,
+    onEditorBlur: undefined as (() => void) | undefined,
     editorReady: vi.fn(),
     getNode: vi.fn(),
     invalidateFileContent: vi.fn(),
@@ -234,10 +235,12 @@ vi.mock('../NotesEditor', async () => {
     currentContent,
     documentId,
     editorRef,
-    onMarkdownChange
+    onMarkdownChange,
+    onBlur
   }: any) {
     React.useEffect(() => {
       mocks.onMarkdownChange = onMarkdownChange
+      mocks.onEditorBlur = onBlur
       codeEditorRef.current =
         mocks.mountedEditor === 'rich'
           ? null
@@ -265,10 +268,11 @@ vi.mock('../NotesEditor', async () => {
 
       return () => {
         mocks.onMarkdownChange = undefined
+        mocks.onEditorBlur = undefined
         codeEditorRef.current = null
         editorRef.current = null
       }
-    }, [codeEditorRef, editorRef, onMarkdownChange])
+    }, [codeEditorRef, editorRef, onBlur, onMarkdownChange])
 
     if (!activeNodeId) {
       return React.createElement('div', { 'data-testid': 'notes-empty' })
@@ -291,7 +295,7 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: ({ notesTree, onCreateNote, onRenameNode }: any) => (
+  default: ({ notesTree, onCreateNote, onRenameNode, onSelectNode }: any) => (
     <>
       <button type="button" onClick={() => onCreateNote('notes.untitled_note')}>
         create-note
@@ -299,6 +303,11 @@ vi.mock('../NotesSidebar', () => ({
       <button type="button" onClick={() => onRenameNode(notesTree[0]?.id, 'renamed')}>
         rename-note
       </button>
+      {notesTree[1] && (
+        <button type="button" onClick={() => onSelectNode(notesTree[1])}>
+          switch-note
+        </button>
+      )}
     </>
   )
 }))
@@ -314,6 +323,7 @@ describe('NotesPage', () => {
     mocks.mountedEditor = 'source'
     mocks.activeFilePath = '/notes/note.md'
     mocks.onMarkdownChange = undefined
+    mocks.onEditorBlur = undefined
     Object.assign(mocks.noteNode, {
       id: '/notes/note.md',
       name: 'note',
@@ -440,6 +450,77 @@ describe('NotesPage', () => {
     )
   })
 
+  it('derives a title from an unfinished first line when the editor loses focus', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    mocks.sourceEditorContent = 'Meeting notes'
+    act(() => mocks.onMarkdownChange?.('Meeting notes'))
+    act(() => mocks.onEditorBlur?.())
+
+    await waitFor(() => {
+      expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes')
+      expect(mocks.renameNode).toHaveBeenCalledWith(
+        expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+        'Meeting'
+      )
+    })
+  })
+
+  it('finishes the initial title before switching to another note', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    const otherNote = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+    mocks.projectedNodes = [mocks.noteNode, otherNote]
+    mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting.md', name: 'Meeting' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    mocks.sourceEditorContent = 'Meeting notes'
+    act(() => mocks.onMarkdownChange?.('Meeting notes'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'switch-note' }))
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
+    expect(mocks.renameNode).toHaveBeenCalledWith(
+      expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+      'Meeting'
+    )
+    expect(mocks.renameNode.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setActiveFilePath.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
+    )
+  })
+
   it('does not overwrite a manual rename with a title derived later', async () => {
     mocks.showWorkspace = true
     mocks.activeFilePath = '/notes/notes.untitled_note.md'
@@ -476,6 +557,62 @@ describe('NotesPage', () => {
       timeout: 2000
     })
     expect(mocks.renameNode).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives a manual rename priority over an in-flight blur fallback', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    let resolveAutomaticRename: ((result: { path: string; name: string }) => void) | undefined
+    mocks.renameNode
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAutomaticRename = resolve
+          })
+      )
+      .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'create-note'
+      })
+    )
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    mocks.sourceEditorContent = 'Automatic title'
+    act(() => mocks.onMarkdownChange?.('Automatic title'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automati'))
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'rename-note'
+      })
+    )
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
+    act(() =>
+      resolveAutomaticRename?.({
+        path: '/notes/Automati.md',
+        name: 'Automati'
+      })
+    )
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
+    expect(mocks.renameNode).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        externalPath: '/notes/Automati.md'
+      }),
+      'renamed'
+    )
   })
 
   it('waits for a slow file watcher before applying the saved first-line title', async () => {
