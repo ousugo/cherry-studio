@@ -1,6 +1,6 @@
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,11 +30,11 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
 }))
 
 vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
-  default: () => <div data-testid="rich-editor" />
+  default: ({ onBlur }: { onBlur?: () => void }) => <div data-testid="rich-editor" onBlur={onBlur} tabIndex={0} />
 }))
 
 vi.mock('@renderer/components/CodeEditor', () => ({
-  CodeEditor: () => <div data-testid="code-editor" />
+  CodeEditor: ({ onBlur }: { onBlur?: () => void }) => <div data-testid="code-editor" onBlur={onBlur} tabIndex={0} />
 }))
 
 vi.mock('@renderer/components/ActionIconButton', () => ({
@@ -81,5 +81,18 @@ describe('NotesEditor document identity', () => {
 
     rerender(<NotesEditor {...baseProps} activeNodeId="/notes/other.md" documentId="document-2" />)
     expect(screen.getByTestId('code-editor')).not.toBe(originalEditor)
+  })
+
+  it.each([
+    ['preview', 'rich-editor'],
+    ['source', 'code-editor']
+  ] as const)('forwards blur from the %s editor', (viewMode, testId) => {
+    mocks.defaultViewMode = viewMode
+    const onBlur = vi.fn()
+
+    render(<NotesEditor {...baseProps} activeNodeId="/notes/note.md" documentId="document-1" onBlur={onBlur} />)
+    fireEvent.blur(screen.getByTestId(testId))
+
+    expect(onBlur).toHaveBeenCalledOnce()
   })
 })

@@ -50,7 +50,8 @@ const mocks = vi.hoisted(() => {
       defaultEditMode: 'source',
       showTabStatus: true
     },
-    sortTree: vi.fn((nodes) => nodes),
+    sortType: 'sort_a2z',
+    sortTree: vi.fn((nodes, _sortType: string) => nodes),
     t: (key: string) => key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
@@ -158,7 +159,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
     updateSettings: mocks.updateSettings,
     notesPath: '/notes',
     updateNotesPath: mocks.updateNotesPath,
-    sortType: 'sort_a2z',
+    sortType: mocks.sortType,
     updateSortType: mocks.updateSortType
   })
 }))
@@ -301,6 +302,7 @@ vi.mock('../NotesSettings', () => ({
 vi.mock('../NotesSidebar', () => ({
   default: ({ notesTree, onCreateNote, onRenameNode, onSelectNode }: any) => (
     <>
+      <output data-testid="note-order">{notesTree.map((node: any) => node.externalPath).join(',')}</output>
       <button type="button" onClick={() => onCreateNote('notes.untitled_note')}>
         create-note
       </button>
@@ -339,6 +341,7 @@ describe('NotesPage', () => {
     mocks.projectedNodes = [mocks.noteNode]
     mocks.settings.defaultEditMode = 'source'
     mocks.settings.defaultViewMode = 'edit'
+    mocks.sortType = 'sort_a2z'
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
       if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
@@ -405,6 +408,44 @@ describe('NotesPage', () => {
     )
   })
 
+  it('keeps initial-title work on the new path while its tree node is still pending', async () => {
+    mocks.showWorkspace = true
+    const oldNote = { ...mocks.noteNode }
+    const newNote = {
+      ...mocks.noteNode,
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    }
+    mocks.activeFilePath = oldNote.externalPath
+    mocks.currentContent = 'old content'
+    mocks.sourceEditorContent = 'old content'
+    mocks.projectedNodes = [oldNote]
+
+    const { rerender } = render(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(newNote.externalPath))
+
+    mocks.sourceEditorContent = 'Meeting notes'
+    act(() => mocks.onMarkdownChange?.('Meeting notes'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith(newNote.externalPath, 'Meeting notes'))
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith(oldNote.externalPath, 'Meeting notes')
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+
+    mocks.projectedNodes = [newNote, oldNote]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() =>
+      expect(mocks.renameNode).toHaveBeenCalledWith(
+        expect.objectContaining({ externalPath: newNote.externalPath }),
+        'Meeting'
+      )
+    )
+  })
+
   it('does not derive a new title for an existing note', async () => {
     render(<NotesPage />)
 
@@ -443,6 +484,42 @@ describe('NotesPage', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 900))
     expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/note.md', 'currently active content')
+  })
+
+  it('keeps updated-time order stable when selecting an unchanged old note and refreshing the tree', async () => {
+    mocks.showWorkspace = true
+    mocks.sortType = 'sort_updated_desc'
+    const actual = await vi.importActual<typeof import('@renderer/services/NotesService')>(
+      '@renderer/services/NotesService'
+    )
+    mocks.sortTree.mockImplementation((nodes, sortType) =>
+      actual.sortTree(nodes, sortType as Parameters<typeof actual.sortTree>[1])
+    )
+    const newestNote = { ...mocks.noteNode, updatedAt: '2026-07-11T12:00:00.000Z' }
+    const oldNote = {
+      ...mocks.noteNode,
+      id: '/notes/old.md',
+      name: 'old',
+      treePath: '/old',
+      externalPath: '/notes/old.md',
+      updatedAt: '2026-07-10T12:00:00.000Z'
+    }
+    mocks.projectedNodes = [oldNote, newestNote]
+    mocks.fileContents.set(newestNote.externalPath, 'newest content')
+    mocks.fileContents.set(oldNote.externalPath, 'old content')
+    mocks.currentContent = 'newest content'
+    mocks.sourceEditorContent = 'newest content'
+
+    const { rerender } = render(<NotesPage />)
+    await waitFor(() => expect(screen.getByTestId('note-order')).toHaveTextContent('/notes/note.md,/notes/old.md'))
+    mocks.fileWrite.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'switch-note' }))
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByTestId('note-order')).toHaveTextContent('/notes/note.md,/notes/old.md'))
+    expect(mocks.fileWrite).not.toHaveBeenCalled()
   })
 
   it('waits for the first newline before deriving a title', async () => {
