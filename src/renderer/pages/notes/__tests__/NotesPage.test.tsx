@@ -856,6 +856,36 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled(), { timeout: 1500 })
   })
 
+  it('does not reuse blur fallback state when a note path is created again', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    mocks.addNote.mockResolvedValue({ path: '/notes/note.md', name: 'note' })
+
+    const { rerender } = render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalledTimes(1))
+    mocks.sourceEditorContent = 'note'
+    act(() => mocks.onMarkdownChange?.('note'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/note.md', 'note'))
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalledTimes(2))
+    mocks.sourceEditorContent = 'Draft'
+    act(() => mocks.onMarkdownChange?.('Draft'))
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/note.md', 'Draft'), { timeout: 1500 })
+
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+  })
+
   it('stops retrying an automatic title after the rename fails', async () => {
     mocks.showWorkspace = true
     mocks.activeFilePath = '/notes/notes.untitled_note.md'

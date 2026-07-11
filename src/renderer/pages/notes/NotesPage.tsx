@@ -1069,6 +1069,7 @@ const NotesPage: FC = () => {
       if (node.name === title) {
         newNotePathsRef.current.delete(filePath)
         savedNewNoteContentRef.current.delete(filePath)
+        initialTitleFallbackPathsRef.current.delete(filePath)
         return Promise.resolve()
       }
 
