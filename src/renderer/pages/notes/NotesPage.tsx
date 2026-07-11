@@ -95,7 +95,8 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const { invalidateFileContent, primeFileContent } = useFileContentSync()
-  const { data: currentContent = '', error: currentContentError } = useFileContent(activeFilePath)
+  const { data: loadedContent, error: currentContentError } = useFileContent(activeFilePath)
+  const currentContent = loadedContent ?? ''
   const contentLoadError = activeFilePath ? currentContentError : undefined
 
   const [tokenCount, setTokenCount] = useState(0)
@@ -107,6 +108,10 @@ const NotesPage: FC = () => {
   const isCreatingNoteRef = useRef(false)
   const newNotePathsRef = useRef<Set<string>>(new Set())
   const savedNewNoteContentRef = useRef<Map<string, string>>(new Map())
+  const persistedContentByPathRef = useRef<Map<string, string>>(new Map())
+  const initialTitleFallbackPathsRef = useRef<Set<string>>(new Set())
+  const initialTitleSavePromisesRef = useRef<Map<string, Promise<boolean>>>(new Map())
+  const initialTitleFinalizePromisesRef = useRef<Map<string, Promise<boolean>>>(new Map())
   const initialTitleRenamesRef = useRef<Set<string>>(new Set())
   const initialTitleRenamePromisesRef = useRef<Map<string, Promise<string | undefined>>>(new Map())
   const activeNodeSnapshotRef = useRef<NotesTreeNode | null>(activeNode)
@@ -175,29 +180,39 @@ const NotesPage: FC = () => {
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
-    async (content: string, filePath?: string) => {
+    async (content: string, filePath?: string): Promise<boolean> => {
       const targetPath = filePath || activeFilePath
-      if (!targetPath || content.trim() === currentContent.trim()) return
+      if (!targetPath) return true
+      const persistedContent = persistedContentByPathRef.current.get(targetPath)
+      if (persistedContent !== undefined && content.trim() === persistedContent.trim()) {
+        await applyInitialNoteTitleRef.current(content, targetPath)
+        return true
+      }
       if (contentLoadErrorRef.current && targetPath === activeFilePathRef.current) {
         logger.warn('Skipped note save because current file content failed to load', { targetPath })
         toast.error(t('notes.save_blocked_load_failed'))
-        return
+        return false
       }
 
       try {
         await window.api.file.write(targetPath, content)
+        persistedContentByPathRef.current.set(targetPath, content)
         if (targetPath === activeFilePathRef.current) {
           currentContentRef.current = content
         }
-        if (newNotePathsRef.current.has(targetPath)) {
+        const latestNewNoteContent = newNotePathsRef.current.has(targetPath)
+          ? savedNewNoteContentRef.current.get(targetPath)
+          : undefined
+        if (newNotePathsRef.current.has(targetPath) && latestNewNoteContent === undefined) {
           savedNewNoteContentRef.current.set(targetPath, content)
         }
-        await applyInitialNoteTitleRef.current(content, targetPath)
+        await applyInitialNoteTitleRef.current(latestNewNoteContent ?? content, targetPath)
         // A successful initial-title rename switches the active path and
         // primes its cache. Only revalidate when the note stayed put.
         if (activeFilePathRef.current === targetPath) {
           invalidateFileContent(targetPath)
         }
+        return true
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
         const now = Date.now()
@@ -205,9 +220,10 @@ const NotesPage: FC = () => {
           lastSaveFailureToastAtRef.current = now
           toast.error(t('notes.save_failed'))
         }
+        return false
       }
     },
-    [activeFilePath, currentContent, invalidateFileContent, t]
+    [activeFilePath, invalidateFileContent, t]
   )
 
   // `useDirectoryTree` owns the FS scan + watcher pipeline now. We keep a
@@ -252,6 +268,22 @@ const NotesPage: FC = () => {
         debouncedSaveRef.current?.cancel()
         return
       }
+      const isNewNote = activeFilePath && newNotePathsRef.current.has(activeFilePath)
+      if (isNewNote) {
+        savedNewNoteContentRef.current.set(activeFilePath, newMarkdown)
+      }
+      if (isNewNote && getInitialNoteTitle(newMarkdown)) {
+        if (initialTitleSavePromisesRef.current.has(activeFilePath)) return
+        debouncedSaveRef.current?.cancel()
+        const savePromise = saveCurrentNoteRef.current(newMarkdown, activeFilePath)
+        initialTitleSavePromisesRef.current.set(activeFilePath, savePromise)
+        void savePromise.finally(() => {
+          if (initialTitleSavePromisesRef.current.get(activeFilePath) === savePromise) {
+            initialTitleSavePromisesRef.current.delete(activeFilePath)
+          }
+        })
+        return
+      }
       // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
       debouncedSaveRef.current?.(newMarkdown, activeFilePath)
     },
@@ -265,6 +297,12 @@ const NotesPage: FC = () => {
   useEffect(() => {
     currentContentRef.current = currentContent
   }, [currentContent])
+
+  useEffect(() => {
+    if (activeFilePath && loadedContent !== undefined) {
+      persistedContentByPathRef.current.set(activeFilePath, loadedContent)
+    }
+  }, [activeFilePath, loadedContent])
 
   useEffect(() => {
     contentLoadErrorRef.current = contentLoadError as Error | undefined
@@ -383,6 +421,7 @@ const NotesPage: FC = () => {
           void window.api.file
             .write(finalPath, latestContent)
             .then(async () => {
+              persistedContentByPathRef.current.set(finalPath, latestContent)
               currentContentRef.current = latestContent
               await primeFileContent(finalPath, latestContent)
             })
@@ -632,6 +671,7 @@ const NotesPage: FC = () => {
         }
         const { path: notePath } = await addNote(name, '', targetPath)
         newNotePathsRef.current.add(notePath)
+        persistedContentByPathRef.current.set(notePath, '')
         setFolderExpandedByPath(targetPath, true)
         setActiveDocumentId(notePath)
         setActiveFilePath(notePath)
@@ -680,23 +720,39 @@ const NotesPage: FC = () => {
   )
 
   const finalizeInitialNoteTitle = useCallback(
-    async (filePath: string): Promise<boolean> => {
-      if (!newNotePathsRef.current.has(filePath)) return true
+    (filePath: string): Promise<boolean> => {
+      const pendingFinalize = initialTitleFinalizePromisesRef.current.get(filePath)
+      if (pendingFinalize) return pendingFinalize
 
-      const content =
-        codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
-      debouncedSaveRef.current?.cancel()
-      try {
-        await window.api.file.write(filePath, content)
-        currentContentRef.current = content
-        savedNewNoteContentRef.current.set(filePath, content)
-        await applyInitialNoteTitleRef.current(content, filePath, true)
-        return true
-      } catch (error) {
-        logger.error('Failed to finalize initial note title:', error as Error)
-        toast.error(t('notes.save_failed'))
-        return false
-      }
+      const finalizePromise = (async (): Promise<boolean> => {
+        const pendingInitialSave = initialTitleSavePromisesRef.current.get(filePath)
+        if (pendingInitialSave) await pendingInitialSave
+        if (!newNotePathsRef.current.has(filePath)) return true
+
+        const content =
+          codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
+        debouncedSaveRef.current?.cancel()
+        try {
+          await window.api.file.write(filePath, content)
+          persistedContentByPathRef.current.set(filePath, content)
+          currentContentRef.current = content
+          savedNewNoteContentRef.current.set(filePath, content)
+          initialTitleFallbackPathsRef.current.add(filePath)
+          await applyInitialNoteTitleRef.current(content, filePath, true)
+          return true
+        } catch (error) {
+          logger.error('Failed to finalize initial note title:', error as Error)
+          toast.error(t('notes.save_failed'))
+          return false
+        }
+      })()
+      initialTitleFinalizePromisesRef.current.set(filePath, finalizePromise)
+      void finalizePromise.finally(() => {
+        if (initialTitleFinalizePromisesRef.current.get(filePath) === finalizePromise) {
+          initialTitleFinalizePromisesRef.current.delete(filePath)
+        }
+      })
+      return finalizePromise
     },
     [t]
   )
@@ -756,6 +812,9 @@ const NotesPage: FC = () => {
             newNotePathsRef.current.delete(newNotePath)
             savedNewNoteContentRef.current.delete(newNotePath)
             initialTitleRenamesRef.current.delete(newNotePath)
+            initialTitleFallbackPathsRef.current.delete(newNotePath)
+            initialTitleSavePromisesRef.current.delete(newNotePath)
+            persistedContentByPathRef.current.delete(newNotePath)
           }
         }
         const isActiveNode = normalizedActivePath === normalizedDeletePath
@@ -807,6 +866,7 @@ const NotesPage: FC = () => {
         debouncedSaveRef.current?.cancel()
         const content = readLatestSessionContent()
         await window.api.file.write(finalPath, content)
+        persistedContentByPathRef.current.set(finalPath, content)
         currentContentRef.current = content
         await primeFileContent(finalPath, content)
         renameSessionFinalPathRef.current = finalPath
@@ -822,6 +882,8 @@ const NotesPage: FC = () => {
           const requestedPath = node.externalPath
           newNotePathsRef.current.delete(requestedPath)
           savedNewNoteContentRef.current.delete(requestedPath)
+          initialTitleFallbackPathsRef.current.delete(requestedPath)
+          initialTitleSavePromisesRef.current.delete(requestedPath)
           const pendingAutomaticRename = initialTitleRenamePromisesRef.current.get(requestedPath)
           if (pendingAutomaticRename) {
             const automaticallyRenamedPath = await pendingAutomaticRename
@@ -873,6 +935,7 @@ const NotesPage: FC = () => {
 
         if (currentActivePath && latestContent !== undefined && latestContent !== currentContentRef.current) {
           await window.api.file.write(currentActivePath, latestContent)
+          persistedContentByPathRef.current.set(currentActivePath, latestContent)
           currentContentRef.current = latestContent
         }
 
@@ -933,6 +996,13 @@ const NotesPage: FC = () => {
 
         newNotePathsRef.current.delete(oldPath)
         savedNewNoteContentRef.current.delete(oldPath)
+        initialTitleFallbackPathsRef.current.delete(oldPath)
+        initialTitleSavePromisesRef.current.delete(oldPath)
+        const persistedContent = persistedContentByPathRef.current.get(oldPath)
+        persistedContentByPathRef.current.delete(oldPath)
+        if (persistedContent !== undefined) {
+          persistedContentByPathRef.current.set(renamed.path, persistedContent)
+        }
 
         if (nextActivePath) {
           await persistLatestSessionContent(nextActivePath)
@@ -1009,6 +1079,8 @@ const NotesPage: FC = () => {
           if (!renamed) {
             newNotePathsRef.current.delete(filePath)
             savedNewNoteContentRef.current.delete(filePath)
+            initialTitleFallbackPathsRef.current.delete(filePath)
+            initialTitleSavePromisesRef.current.delete(filePath)
             return undefined
           }
           return activeFilePathRef.current
@@ -1036,7 +1108,7 @@ const NotesPage: FC = () => {
   useEffect(() => {
     applyInitialNoteTitleRef.current = applyInitialNoteTitle
     savedNewNoteContentRef.current.forEach((content, filePath) => {
-      void applyInitialNoteTitle(content, filePath)
+      void applyInitialNoteTitle(content, filePath, initialTitleFallbackPathsRef.current.has(filePath))
     })
   }, [applyInitialNoteTitle])
 

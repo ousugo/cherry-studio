@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     currentContent: 'saved content',
+    fileContents: new Map<string, string>(),
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
@@ -207,7 +208,10 @@ vi.mock('@renderer/hooks/useNotesQuery', async (importOriginal) => {
 
   return {
     ...actual,
-    useFileContent: () => ({ data: mocks.currentContent, error: undefined }),
+    useFileContent: (filePath?: string) => ({
+      data: (filePath && mocks.fileContents.get(filePath)) ?? mocks.currentContent,
+      error: undefined
+    }),
     useFileContentSync: () => ({
       invalidateFileContent: mocks.invalidateFileContent,
       primeFileContent: mocks.primeFileContent
@@ -318,6 +322,7 @@ describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.currentContent = 'saved content'
+    mocks.fileContents.clear()
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
     mocks.mountedEditor = 'source'
@@ -412,6 +417,34 @@ describe('NotesPage', () => {
     expect(mocks.renameNode).not.toHaveBeenCalled()
   })
 
+  it('does not rewrite unchanged content when switching to an old note', async () => {
+    mocks.showWorkspace = true
+    const oldNote = {
+      ...mocks.noteNode,
+      id: '/notes/old.md',
+      name: 'old',
+      treePath: '/old',
+      externalPath: '/notes/old.md'
+    }
+    mocks.projectedNodes = [mocks.noteNode, oldNote]
+    mocks.fileContents.set('/notes/note.md', 'currently active content')
+    mocks.fileContents.set('/notes/old.md', 'unchanged old content')
+    mocks.currentContent = 'currently active content'
+    mocks.sourceEditorContent = 'currently active content'
+
+    render(<NotesPage />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    mocks.fileWrite.mockClear()
+
+    const staleOnMarkdownChange = mocks.onMarkdownChange
+    mocks.sourceEditorContent = 'unchanged old content'
+    fireEvent.click(screen.getByRole('button', { name: 'switch-note' }))
+    act(() => staleOnMarkdownChange?.('currently active content'))
+
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/note.md', 'currently active content')
+  })
+
   it('waits for the first newline before deriving a title', async () => {
     mocks.showWorkspace = true
     mocks.activeFilePath = '/notes/notes.untitled_note.md'
@@ -448,6 +481,69 @@ describe('NotesPage', () => {
       },
       { timeout: 2000 }
     )
+  })
+
+  it('starts the initial rename immediately when a pasted first line is completed', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+
+    render(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    const content = `${'Long title '.repeat(2000)}\nBody`
+    mocks.sourceEditorContent = content
+    act(() => mocks.onMarkdownChange?.(content))
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled(), { timeout: 400 })
+  })
+
+  it('does not start concurrent initial-title writes while pasted content is still changing', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+
+    let resolveFirstWrite: (() => void) | undefined
+    mocks.fileWrite.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirstWrite = resolve
+        })
+    )
+
+    render(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    mocks.sourceEditorContent = 'Meeting notes\nFirst body'
+    act(() => mocks.onMarkdownChange?.('Meeting notes\nFirst body'))
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledTimes(1))
+
+    mocks.sourceEditorContent = 'Latest title\nLatest body'
+    act(() => mocks.onMarkdownChange?.('Latest title\nLatest body'))
+    act(() => mocks.onEditorBlur?.())
+    act(() => mocks.onEditorBlur?.())
+    expect(mocks.fileWrite).toHaveBeenCalledTimes(1)
+
+    act(() => resolveFirstWrite?.())
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
+    expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Latest t')
+    expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Latest title\nLatest body')
   })
 
   it('derives a title from an unfinished first line when the editor loses focus', async () => {
@@ -651,6 +747,36 @@ describe('NotesPage', () => {
         'Meeting'
       )
     })
+  })
+
+  it('preserves blur finalization while waiting for the new node to reach the tree', async () => {
+    mocks.showWorkspace = true
+    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.projectedNodes = []
+
+    const { rerender } = render(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+
+    mocks.sourceEditorContent = 'Meeting notes'
+    act(() => mocks.onMarkdownChange?.('Meeting notes'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes'))
+    expect(mocks.renameNode).not.toHaveBeenCalled()
+
+    mocks.projectedNodes = [mocks.noteNode]
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled(), { timeout: 1500 })
   })
 
   it('stops retrying an automatic title after the rename fails', async () => {
