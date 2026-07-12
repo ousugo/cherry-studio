@@ -116,8 +116,15 @@ const NotesPage: FC = () => {
   const initialTitleRenamePromisesRef = useRef<Map<string, Promise<string | undefined>>>(new Map())
   const activeNodeSnapshotRef = useRef<NotesTreeNode | null>(activeNode)
   const pendingRenamedActivePathRef = useRef<string | undefined>(undefined)
-  const renameSessionFinalPathRef = useRef<string | undefined>(undefined)
-  const renameSessionPersistedContentRef = useRef<string | undefined>(undefined)
+  const renameSessionRef = useRef<
+    | {
+        sourcePath: string
+        finalPath: string
+        latestContent: string
+        persistedContent?: string
+      }
+    | undefined
+  >(undefined)
   const [activeDocumentId, setActiveDocumentId] = useState(activeFilePath)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
@@ -264,7 +271,15 @@ const NotesPage: FC = () => {
       // A rename owns the active file path until its move/rollback settles.
       // Keep the latest editor value for that session, but never let a new
       // debounce recreate the source path after the file has moved.
-      if (isRenamingRef.current && renameSessionFinalPathRef.current) {
+      const renameSession = renameSessionRef.current
+      const activePathBelongsToRenameSession =
+        renameSession &&
+        activeFilePath &&
+        [renameSession.sourcePath, renameSession.finalPath].some(
+          (path) => normalizePathValue(path) === normalizePathValue(activeFilePath)
+        )
+      if (isRenamingRef.current && renameSession && activePathBelongsToRenameSession) {
+        renameSession.latestContent = newMarkdown
         debouncedSaveRef.current?.cancel()
         return
       }
@@ -406,15 +421,12 @@ const NotesPage: FC = () => {
         normalizePathValue(activeNode.externalPath) === normalizePathValue(pendingRenamedPath)
 
       if (renamedNodeIsReady) {
-        const finalPath = renameSessionFinalPathRef.current
-        const latestContent =
-          finalPath && normalizePathValue(lastFilePathRef.current ?? '') === normalizePathValue(finalPath)
-            ? lastContentRef.current
-            : undefined
-        const persistedContent = renameSessionPersistedContentRef.current
+        const renameSession = renameSessionRef.current
+        const finalPath = renameSession?.finalPath
+        const latestContent = renameSession?.latestContent
+        const persistedContent = renameSession?.persistedContent
         pendingRenamedActivePathRef.current = undefined
-        renameSessionFinalPathRef.current = undefined
-        renameSessionPersistedContentRef.current = undefined
+        renameSessionRef.current = undefined
         isRenamingRef.current = false
 
         if (finalPath && latestContent !== undefined && latestContent !== persistedContent) {
@@ -422,7 +434,9 @@ const NotesPage: FC = () => {
             .write(finalPath, latestContent)
             .then(async () => {
               persistedContentByPathRef.current.set(finalPath, latestContent)
-              currentContentRef.current = latestContent
+              if (normalizePathValue(activeFilePathRef.current ?? '') === normalizePathValue(finalPath)) {
+                currentContentRef.current = latestContent
+              }
               await primeFileContent(finalPath, latestContent)
             })
             .catch((error) => {
@@ -856,21 +870,37 @@ const NotesPage: FC = () => {
       let actualActivePathAfterRename: string | undefined
 
       const readLatestSessionContent = () => {
-        if (lastFilePathRef.current === activePathInRenameSession) {
-          return lastContentRef.current
+        const renameSession = renameSessionRef.current
+        if (!renameSession) {
+          throw new Error('Cannot persist note content without an active rename session')
         }
-        return codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
+        return renameSession.latestContent
       }
 
       const persistLatestSessionContent = async (finalPath: string) => {
-        debouncedSaveRef.current?.cancel()
+        const renameSession = renameSessionRef.current
+        const currentActivePath = activeFilePathRef.current
+        const activePathBelongsToRenameSession =
+          renameSession &&
+          currentActivePath &&
+          [renameSession.sourcePath, renameSession.finalPath].some(
+            (path) => normalizePathValue(path) === normalizePathValue(currentActivePath)
+          )
+        if (activePathBelongsToRenameSession) {
+          debouncedSaveRef.current?.cancel()
+        }
         const content = readLatestSessionContent()
         await window.api.file.write(finalPath, content)
         persistedContentByPathRef.current.set(finalPath, content)
-        currentContentRef.current = content
+        if (normalizePathValue(activeFilePathRef.current ?? '') === normalizePathValue(finalPath)) {
+          currentContentRef.current = content
+        }
         await primeFileContent(finalPath, content)
-        renameSessionFinalPathRef.current = finalPath
-        renameSessionPersistedContentRef.current = content
+        const currentRenameSession = renameSessionRef.current
+        if (currentRenameSession) {
+          currentRenameSession.finalPath = finalPath
+          currentRenameSession.persistedContent = content
+        }
         return content
       }
 
@@ -900,8 +930,7 @@ const NotesPage: FC = () => {
 
         isRenamingRef.current = true
         pendingRenamedActivePathRef.current = undefined
-        renameSessionFinalPathRef.current = undefined
-        renameSessionPersistedContentRef.current = undefined
+        renameSessionRef.current = undefined
 
         if (node.name === newName) {
           isRenamingRef.current = false
@@ -920,23 +949,31 @@ const NotesPage: FC = () => {
         if (node.type === 'file' && currentActivePath === oldPath) {
           activePathInRenameSession = currentActivePath
           actualActivePathAfterRename = currentActivePath
-          renameSessionFinalPathRef.current = currentActivePath
           debouncedSaveRef.current?.cancel()
           latestContent =
             codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
         } else if (node.type === 'folder' && currentActivePath && currentActivePath.startsWith(`${oldPath}/`)) {
           activePathInRenameSession = currentActivePath
           actualActivePathAfterRename = currentActivePath
-          renameSessionFinalPathRef.current = currentActivePath
           debouncedSaveRef.current?.cancel()
           latestContent =
             codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
         }
 
+        if (activePathInRenameSession && latestContent !== undefined) {
+          renameSessionRef.current = {
+            sourcePath: activePathInRenameSession,
+            finalPath: activePathInRenameSession,
+            latestContent
+          }
+        }
+
         if (currentActivePath && latestContent !== undefined && latestContent !== currentContentRef.current) {
           await window.api.file.write(currentActivePath, latestContent)
           persistedContentByPathRef.current.set(currentActivePath, latestContent)
-          currentContentRef.current = latestContent
+          if (currentActivePath === activeFilePathRef.current) {
+            currentContentRef.current = latestContent
+          }
         }
 
         const renamed = await renameEntry(node, newName)
@@ -949,7 +986,9 @@ const NotesPage: FC = () => {
         }
         pendingRenamedActivePathRef.current = nextActivePath
         actualActivePathAfterRename = nextActivePath ?? actualActivePathAfterRename
-        renameSessionFinalPathRef.current = nextActivePath ?? renameSessionFinalPathRef.current
+        if (nextActivePath && renameSessionRef.current) {
+          renameSessionRef.current.finalPath = nextActivePath
+        }
 
         let rollbackSucceeded = false
         const metadataSynced = await syncMetadataAfterFileOperation(
@@ -964,22 +1003,33 @@ const NotesPage: FC = () => {
             if (rollbackSucceeded) {
               actualActivePathAfterRename = currentActivePath
               await persistLatestSessionContent(currentActivePath)
-              // The file is back on its original path, but the watcher may
-              // still be between the remove and re-add events. Keep the
-              // snapshot until the old active node is visible again.
-              pendingRenamedActivePathRef.current = currentActivePath
+              if (activeFilePathRef.current === currentActivePath) {
+                // The file is back on its original path, but the watcher may
+                // still be between the remove and re-add events. Keep the
+                // snapshot until the old active node is visible again.
+                pendingRenamedActivePathRef.current = currentActivePath
+              } else {
+                pendingRenamedActivePathRef.current = undefined
+                renameSessionRef.current = undefined
+                isRenamingRef.current = false
+              }
             } else {
               // Rollback failed, so the file remains at the renamed path.
               // Follow the actual file to keep the editor usable even though
               // metadata repair will still be needed.
               await persistLatestSessionContent(nextActivePath)
-              activeFilePathRef.current = nextActivePath
-              setActiveFilePath(nextActivePath)
+              if (activeFilePathRef.current === currentActivePath) {
+                activeFilePathRef.current = nextActivePath
+                setActiveFilePath(nextActivePath)
+              } else {
+                pendingRenamedActivePathRef.current = undefined
+                renameSessionRef.current = undefined
+                isRenamingRef.current = false
+              }
             }
           } else {
             pendingRenamedActivePathRef.current = undefined
-            renameSessionFinalPathRef.current = undefined
-            renameSessionPersistedContentRef.current = undefined
+            renameSessionRef.current = undefined
             isRenamingRef.current = false
           }
           return false
@@ -1006,15 +1056,28 @@ const NotesPage: FC = () => {
 
         if (nextActivePath) {
           await persistLatestSessionContent(nextActivePath)
-          lastFilePathRef.current = nextActivePath
-          activeFilePathRef.current = nextActivePath
-          setActiveFilePath(nextActivePath)
+          const currentPath = activeFilePathRef.current
+          const renameSession = renameSessionRef.current
+          const renameSessionIsStillActive =
+            renameSession &&
+            currentPath &&
+            [renameSession.sourcePath, renameSession.finalPath].some(
+              (path) => normalizePathValue(path) === normalizePathValue(currentPath)
+            )
+          if (renameSessionIsStillActive) {
+            lastFilePathRef.current = nextActivePath
+            activeFilePathRef.current = nextActivePath
+            setActiveFilePath(nextActivePath)
+          } else {
+            pendingRenamedActivePathRef.current = undefined
+            renameSessionRef.current = undefined
+            isRenamingRef.current = false
+          }
         }
 
         await refreshTree()
         if (!nextActivePath) {
-          renameSessionFinalPathRef.current = undefined
-          renameSessionPersistedContentRef.current = undefined
+          renameSessionRef.current = undefined
           isRenamingRef.current = false
         }
         // Success: flag stays true until the watcher reports the renamed
@@ -1029,8 +1092,7 @@ const NotesPage: FC = () => {
         // Rename failed → clear the flag now so subsequent tree updates
         // aren't suppressed.
         pendingRenamedActivePathRef.current = undefined
-        renameSessionFinalPathRef.current = undefined
-        renameSessionPersistedContentRef.current = undefined
+        renameSessionRef.current = undefined
         isRenamingRef.current = false
         logger.error('Failed to rename node:', error as Error)
         toast.error(

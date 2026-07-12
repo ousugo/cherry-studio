@@ -1003,6 +1003,45 @@ describe('NotesPage', () => {
     expect(mocks.primeFileContent).toHaveBeenCalledWith('/notes/renamed.md', 'latest content during rename')
   })
 
+  it('keeps a slow rename from reading or replacing another note content after navigation', async () => {
+    mocks.showWorkspace = true
+    const otherNode = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+    mocks.projectedNodes = [{ ...mocks.noteNode }, otherNode]
+    let resolveRename: ((result: { path: string; name: string }) => void) | undefined
+    mocks.renameNode.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve
+        })
+    )
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
+    mocks.fileWrite.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'switch-note' }))
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
+    mocks.sourceEditorContent = 'other note content'
+    act(() => mocks.onMarkdownChange?.('other note content'))
+
+    act(() => resolveRename?.({ path: '/notes/renamed.md', name: 'renamed' }))
+
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'edited source content'))
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/renamed.md', 'other note content')
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/renamed.md')
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/other.md', 'other note content'), {
+      timeout: 1500
+    })
+  })
+
   it('keeps the active editor until the rolled-back path returns to the tree', async () => {
     mocks.showWorkspace = true
     mocks.rewritePath.mockRejectedValueOnce(new Error('metadata sync failed'))
