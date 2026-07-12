@@ -1,4 +1,5 @@
 import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
+import type * as NotesServiceModule from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -51,7 +52,10 @@ const mocks = vi.hoisted(() => {
       showTabStatus: true
     },
     sortType: 'sort_a2z',
-    sortTree: vi.fn((nodes, _sortType: string) => nodes),
+    sortTree: vi.fn((nodes, sortType: string) => {
+      void sortType
+      return nodes
+    }),
     t: (key: string) => key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
@@ -474,9 +478,7 @@ describe('NotesPage', () => {
   it('keeps updated-time order stable when selecting an unchanged old note and refreshing the tree', async () => {
     mocks.showWorkspace = true
     mocks.sortType = 'sort_updated_desc'
-    const actual = await vi.importActual<typeof import('@renderer/services/NotesService')>(
-      '@renderer/services/NotesService'
-    )
+    const actual = await vi.importActual<typeof NotesServiceModule>('@renderer/services/NotesService')
     mocks.sortTree.mockImplementation((nodes, sortType) =>
       actual.sortTree(nodes, sortType as Parameters<typeof actual.sortTree>[1])
     )
