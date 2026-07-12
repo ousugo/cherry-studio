@@ -41,6 +41,10 @@ describe('getInitialNoteTitle', () => {
     }
   )
 
+  it('accepts a title that only starts like a Windows reserved filename', () => {
+    expect(getInitialNoteTitle('CONversation notes\nDetails')).toBe('CONversation')
+  })
+
   it('removes invalid filename characters before using the first line', () => {
     expect(getInitialNoteTitle('///测试\n正文')).toBe('测试')
   })
