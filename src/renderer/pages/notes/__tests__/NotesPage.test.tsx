@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => {
     invalidateFileContent: vi.fn(),
     primeFileContent: vi.fn(),
     fileWrite: vi.fn(),
+    fileMove: vi.fn(),
     addNote: vi.fn(),
     renameNode: vi.fn(),
     ipcRequest: vi.fn(),
@@ -350,7 +351,7 @@ describe('NotesPage', () => {
         },
         file: {
           write: mocks.fileWrite.mockResolvedValue(undefined),
-          move: vi.fn().mockResolvedValue(undefined),
+          move: mocks.fileMove.mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
         },
         tree: {
@@ -819,6 +820,53 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
 
     act(() => resolveAutomaticRename?.({ path: '/notes/Automatic ti.md', name: 'Automatic ti' }))
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
+    expect(mocks.renameNode).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        externalPath: '/notes/Automatic ti.md'
+      }),
+      'renamed'
+    )
+  })
+
+  it('uses the actual renamed path when metadata sync and rollback both fail', async () => {
+    mocks.showWorkspace = true
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+
+    let rejectMetadataSync: ((error: Error) => void) | undefined
+    mocks.rewritePath.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectMetadataSync = reject
+        })
+    )
+    mocks.fileMove.mockRejectedValueOnce(new Error('rollback failed'))
+    mocks.fileWrite.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('final path write failed'))
+    mocks.renameNode
+      .mockResolvedValueOnce({ path: '/notes/Automatic ti.md', name: 'Automatic ti' })
+      .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    mocks.sourceEditorContent = 'Automatic title'
+    act(() => mocks.onMarkdownChange?.('Automatic title'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
+    act(() => rejectMetadataSync?.(new Error('metadata sync failed')))
 
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
     expect(mocks.renameNode).toHaveBeenLastCalledWith(

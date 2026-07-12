@@ -910,6 +910,8 @@ const NotesPage: FC = () => {
     async (nodeId: string, newName: string, isAutomatic = false) => {
       let activePathInRenameSession: string | undefined
       let actualActivePathAfterRename: string | undefined
+      let actualNodePathAfterRename: string | undefined
+      let sourceNodePath: string | undefined
 
       const readLatestSessionContent = () => {
         const renameSession = renameSessionRef.current
@@ -949,6 +951,7 @@ const NotesPage: FC = () => {
       try {
         let node = findNode(notesTree, nodeId)
         if (!node) return false
+        sourceNodePath = node.externalPath
 
         if (!isAutomatic) {
           const requestedPath = node.externalPath
@@ -1017,6 +1020,7 @@ const NotesPage: FC = () => {
         }
 
         const renamed = await renameEntry(node, newName)
+        actualNodePathAfterRename = renamed.path
 
         if (node.type === 'file' && currentActivePath === oldPath) {
           nextActivePath = renamed.path
@@ -1039,6 +1043,7 @@ const NotesPage: FC = () => {
           }
         )
         if (!metadataSynced) {
+          actualNodePathAfterRename = rollbackSucceeded ? oldPath : renamed.path
           if (nextActivePath && currentActivePath) {
             if (rollbackSucceeded) {
               actualActivePathAfterRename = currentActivePath
@@ -1071,6 +1076,10 @@ const NotesPage: FC = () => {
             pendingRenamedActivePathRef.current = undefined
             renameSessionRef.current = undefined
             isRenamingRef.current = false
+          }
+          if (isAutomatic) {
+            clearInitialTitleSession(initialTitleSessionsRef.current, oldPath, true)
+            return rollbackSucceeded ? oldPath : renamed.path
           }
           return false
         }
@@ -1137,6 +1146,10 @@ const NotesPage: FC = () => {
             ? t('notes.target_name_exists')
             : t('notes.rename_failed')
         )
+        if (isAutomatic && actualNodePathAfterRename && sourceNodePath) {
+          clearInitialTitleSession(initialTitleSessionsRef.current, sourceNodePath, true)
+          return actualNodePathAfterRename
+        }
         return false
       }
     },
