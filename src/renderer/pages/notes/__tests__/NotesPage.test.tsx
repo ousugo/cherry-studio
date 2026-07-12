@@ -1,5 +1,6 @@
 import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
 import { toast } from '@renderer/services/toast'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +22,6 @@ const mocks = vi.hoisted(() => {
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
-    activeFilePath: '/notes/note.md',
     onMarkdownChange: undefined as ((content: string) => void) | undefined,
     onEditorBlur: undefined as (() => void) | undefined,
     editorReady: vi.fn(),
@@ -128,23 +128,6 @@ vi.mock('@renderer/ipc', () => ({
     on: vi.fn()
   }
 }))
-
-vi.mock('@renderer/data/hooks/useCache', async () => {
-  const React = await import('react')
-
-  return {
-    useCache: () => {
-      const [activeFilePath, setActiveFilePath] = React.useState<string | undefined>(mocks.activeFilePath)
-      return [
-        activeFilePath,
-        (nextPath: string | undefined) => {
-          mocks.setActiveFilePath(nextPath)
-          setActiveFilePath(nextPath)
-        }
-      ]
-    }
-  }
-})
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
@@ -323,12 +306,14 @@ import NotesPage from '../NotesPage'
 describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/note.md')
+    mocks.setActiveFilePath = MockUseCacheUtils.getCacheSetter('notes.active_file_path')
     mocks.currentContent = 'saved content'
     mocks.fileContents.clear()
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
     mocks.mountedEditor = 'source'
-    mocks.activeFilePath = '/notes/note.md'
     mocks.onMarkdownChange = undefined
     mocks.onEditorBlur = undefined
     Object.assign(mocks.noteNode, {
@@ -374,7 +359,7 @@ describe('NotesPage', () => {
 
   it('renames a newly created note from its sanitized first line after saving', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -418,7 +403,7 @@ describe('NotesPage', () => {
       treePath: '/notes.untitled_note',
       externalPath: '/notes/notes.untitled_note.md'
     }
-    mocks.activeFilePath = oldNote.externalPath
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', oldNote.externalPath)
     mocks.currentContent = 'old content'
     mocks.sourceEditorContent = 'old content'
     mocks.projectedNodes = [oldNote]
@@ -524,7 +509,7 @@ describe('NotesPage', () => {
 
   it('waits for the first newline before deriving a title', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -562,7 +547,7 @@ describe('NotesPage', () => {
 
   it('starts the initial rename immediately when a pasted first line is completed', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -585,7 +570,7 @@ describe('NotesPage', () => {
 
   it('does not start concurrent initial-title writes while pasted content is still changing', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -625,7 +610,7 @@ describe('NotesPage', () => {
 
   it('derives a title from an unfinished first line when the editor loses focus', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -656,7 +641,7 @@ describe('NotesPage', () => {
 
   it('finishes the initial title before switching to another note', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -696,7 +681,7 @@ describe('NotesPage', () => {
 
   it('does not overwrite a manual rename with a title derived later', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -734,7 +719,7 @@ describe('NotesPage', () => {
 
   it('gives a manual rename priority over an in-flight blur fallback', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -790,7 +775,7 @@ describe('NotesPage', () => {
 
   it('waits for a slow file watcher before applying the saved first-line title', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -828,7 +813,7 @@ describe('NotesPage', () => {
 
   it('preserves blur finalization while waiting for the new node to reach the tree', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {
@@ -858,7 +843,7 @@ describe('NotesPage', () => {
 
   it('does not reuse blur fallback state when a note path is created again', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     mocks.addNote.mockResolvedValue({ path: '/notes/note.md', name: 'note' })
@@ -888,7 +873,7 @@ describe('NotesPage', () => {
 
   it('stops retrying an automatic title after the rename fails', async () => {
     mocks.showWorkspace = true
-    mocks.activeFilePath = '/notes/notes.untitled_note.md'
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
     mocks.currentContent = ''
     mocks.sourceEditorContent = ''
     Object.assign(mocks.noteNode, {

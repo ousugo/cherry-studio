@@ -1,5 +1,6 @@
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,10 +11,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [false, vi.fn().mockResolvedValue(undefined)]
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -57,6 +54,8 @@ const baseProps = {
 
 describe('NotesEditor document identity', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('app.spell_check.enabled', false)
     mocks.defaultViewMode = 'preview'
   })
 

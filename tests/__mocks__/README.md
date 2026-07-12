@@ -242,6 +242,8 @@ React hooks for cache operations.
 
 `setValue` accepts a concrete value or a functional updater `(prev) => next` (mirrors production). The mock resolves the updater against the latest mocked value with the same default fallback, so functional-update call sites run unchanged under the mock.
 
+Hook consumers subscribe to the mock store. Calling a returned setter or a `MockUseCacheUtils` mutation helper notifies subscribers and rerenders mounted consumers, matching the production hook's observable behavior. Setter spies are stable per cache key and can be retrieved with `MockUseCacheUtils.getCacheSetter(key)`.
+
 ```typescript
 import { useCache } from '@data/hooks/useCache'
 
