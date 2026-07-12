@@ -143,6 +143,19 @@ const getDefaultValue = <K extends UseCacheKey>(key: K): InferUseCacheValue<K> |
   return undefined
 }
 
+const getMemorySetter = <K extends UseCacheKey>(key: K) => {
+  let setter = mockMemorySetters.get(key)
+  if (!setter) {
+    setter = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
+      const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
+      mockMemoryCache.set(key, typeof value === 'function' ? value(prev) : value)
+      notifyMemorySubscribers(key)
+    })
+    mockMemorySetters.set(key, setter)
+  }
+  return setter
+}
+
 /**
  * Mock useCache hook (memory cache)
  */
@@ -165,15 +178,7 @@ export const mockUseCache = vi.fn(
       () => mockMemoryCache.get(key) ?? getDefaultValue(key)
     )
 
-    let setValue = mockMemorySetters.get(key)
-    if (!setValue) {
-      setValue = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
-        const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
-        mockMemoryCache.set(key, typeof value === 'function' ? value(prev) : value)
-        notifyMemorySubscribers(key)
-      })
-      mockMemorySetters.set(key, setValue)
-    }
+    const setValue = getMemorySetter(key)
 
     return [currentValue, setValue as (value: SetAction<InferUseCacheValue<K>>) => void]
   }
@@ -322,16 +327,7 @@ export const MockUseCacheUtils = {
    * Get the stable setter spy used by the memory-cache hook.
    */
   getCacheSetter: <K extends UseCacheKey>(key: K) => {
-    let setter = mockMemorySetters.get(key)
-    if (!setter) {
-      setter = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
-        const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
-        mockMemoryCache.set(key, typeof value === 'function' ? value(prev) : value)
-        notifyMemorySubscribers(key)
-      })
-      mockMemorySetters.set(key, setter)
-    }
-    return setter
+    return getMemorySetter(key)
   },
 
   /**

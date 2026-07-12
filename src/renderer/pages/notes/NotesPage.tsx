@@ -57,6 +57,49 @@ const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
 
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 
+type InitialTitleSession = {
+  isEligible: boolean
+  latestContent?: string
+  useFallback: boolean
+  savePromise?: Promise<boolean>
+  finalizePromise?: Promise<boolean>
+  renamePromise?: Promise<string | undefined>
+  isRenaming: boolean
+}
+
+function createInitialTitleSession(): InitialTitleSession {
+  return {
+    isEligible: true,
+    useFallback: false,
+    isRenaming: false
+  }
+}
+
+function getEligibleInitialTitleSession(
+  sessions: Map<string, InitialTitleSession>,
+  filePath: string
+): InitialTitleSession | undefined {
+  const session = sessions.get(filePath)
+  return session?.isEligible ? session : undefined
+}
+
+function clearInitialTitleSession(
+  sessions: Map<string, InitialTitleSession>,
+  filePath: string,
+  preservePendingRename = false
+) {
+  const session = sessions.get(filePath)
+  if (preservePendingRename && session && (session.isRenaming || session.renamePromise)) {
+    session.isEligible = false
+    session.latestContent = undefined
+    session.useFallback = false
+    session.savePromise = undefined
+    session.finalizePromise = undefined
+    return
+  }
+  sessions.delete(filePath)
+}
+
 function getNoteNameFromPath(path: string): string {
   return path.split('/').at(-1)?.replace(/\.md$/i, '') ?? path
 }
@@ -106,14 +149,8 @@ const NotesPage: FC = () => {
   const lastSaveFailureToastAtRef = useRef(0)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
-  const newNotePathsRef = useRef<Set<string>>(new Set())
-  const savedNewNoteContentRef = useRef<Map<string, string>>(new Map())
+  const initialTitleSessionsRef = useRef<Map<string, InitialTitleSession>>(new Map())
   const persistedContentByPathRef = useRef<Map<string, string>>(new Map())
-  const initialTitleFallbackPathsRef = useRef<Set<string>>(new Set())
-  const initialTitleSavePromisesRef = useRef<Map<string, Promise<boolean>>>(new Map())
-  const initialTitleFinalizePromisesRef = useRef<Map<string, Promise<boolean>>>(new Map())
-  const initialTitleRenamesRef = useRef<Set<string>>(new Set())
-  const initialTitleRenamePromisesRef = useRef<Map<string, Promise<string | undefined>>>(new Map())
   const activeNodeSnapshotRef = useRef<NotesTreeNode | null>(activeNode)
   const pendingRenamedActivePathRef = useRef<string | undefined>(undefined)
   const renameSessionRef = useRef<
@@ -207,11 +244,10 @@ const NotesPage: FC = () => {
         if (targetPath === activeFilePathRef.current) {
           currentContentRef.current = content
         }
-        const latestNewNoteContent = newNotePathsRef.current.has(targetPath)
-          ? savedNewNoteContentRef.current.get(targetPath)
-          : undefined
-        if (newNotePathsRef.current.has(targetPath) && latestNewNoteContent === undefined) {
-          savedNewNoteContentRef.current.set(targetPath, content)
+        const initialTitleSession = getEligibleInitialTitleSession(initialTitleSessionsRef.current, targetPath)
+        const latestNewNoteContent = initialTitleSession?.latestContent
+        if (initialTitleSession && latestNewNoteContent === undefined) {
+          initialTitleSession.latestContent = content
         }
         await applyInitialNoteTitleRef.current(latestNewNoteContent ?? content, targetPath)
         // A successful initial-title rename switches the active path and
@@ -283,18 +319,21 @@ const NotesPage: FC = () => {
         debouncedSaveRef.current?.cancel()
         return
       }
-      const isNewNote = activeFilePath && newNotePathsRef.current.has(activeFilePath)
-      if (isNewNote) {
-        savedNewNoteContentRef.current.set(activeFilePath, newMarkdown)
+      const initialTitleSession = activeFilePath
+        ? getEligibleInitialTitleSession(initialTitleSessionsRef.current, activeFilePath)
+        : undefined
+      if (initialTitleSession) {
+        initialTitleSession.latestContent = newMarkdown
       }
-      if (isNewNote && getInitialNoteTitle(newMarkdown)) {
-        if (initialTitleSavePromisesRef.current.has(activeFilePath)) return
+      if (activeFilePath && initialTitleSession && getInitialNoteTitle(newMarkdown)) {
+        if (initialTitleSession.savePromise) return
         debouncedSaveRef.current?.cancel()
         const savePromise = saveCurrentNoteRef.current(newMarkdown, activeFilePath)
-        initialTitleSavePromisesRef.current.set(activeFilePath, savePromise)
+        initialTitleSession.savePromise = savePromise
         void savePromise.finally(() => {
-          if (initialTitleSavePromisesRef.current.get(activeFilePath) === savePromise) {
-            initialTitleSavePromisesRef.current.delete(activeFilePath)
+          const currentSession = initialTitleSessionsRef.current.get(activeFilePath)
+          if (currentSession?.savePromise === savePromise) {
+            currentSession.savePromise = undefined
           }
         })
         return
@@ -468,7 +507,7 @@ const NotesPage: FC = () => {
       if (!activePath) return
       const normalized = normalizePathValue(payload.event.path)
       if (normalizePathValue(activePath) === normalized) {
-        if (isRenamingRef.current || initialTitleRenamesRef.current.has(normalized)) return
+        if (isRenamingRef.current || initialTitleSessionsRef.current.get(normalized)?.isRenaming) return
         invalidateFileContentRef.current?.(normalized)
       }
     })
@@ -684,7 +723,7 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
         const { path: notePath } = await addNote(name, '', targetPath)
-        newNotePathsRef.current.add(notePath)
+        initialTitleSessionsRef.current.set(notePath, createInitialTitleSession())
         persistedContentByPathRef.current.set(notePath, '')
         setFolderExpandedByPath(targetPath, true)
         setActiveDocumentId(notePath)
@@ -735,13 +774,15 @@ const NotesPage: FC = () => {
 
   const finalizeInitialNoteTitle = useCallback(
     (filePath: string): Promise<boolean> => {
-      const pendingFinalize = initialTitleFinalizePromisesRef.current.get(filePath)
-      if (pendingFinalize) return pendingFinalize
+      const initialTitleSession = getEligibleInitialTitleSession(initialTitleSessionsRef.current, filePath)
+      if (!initialTitleSession) return Promise.resolve(true)
+      if (initialTitleSession.finalizePromise) return initialTitleSession.finalizePromise
 
       const finalizePromise = (async (): Promise<boolean> => {
-        const pendingInitialSave = initialTitleSavePromisesRef.current.get(filePath)
+        const pendingInitialSave = initialTitleSession.savePromise
         if (pendingInitialSave) await pendingInitialSave
-        if (!newNotePathsRef.current.has(filePath)) return true
+        const currentSession = getEligibleInitialTitleSession(initialTitleSessionsRef.current, filePath)
+        if (!currentSession) return true
 
         const content =
           codeEditorRef.current?.getContent?.() ?? editorRef.current?.getMarkdown?.() ?? currentContentRef.current
@@ -750,8 +791,8 @@ const NotesPage: FC = () => {
           await window.api.file.write(filePath, content)
           persistedContentByPathRef.current.set(filePath, content)
           currentContentRef.current = content
-          savedNewNoteContentRef.current.set(filePath, content)
-          initialTitleFallbackPathsRef.current.add(filePath)
+          currentSession.latestContent = content
+          currentSession.useFallback = true
           await applyInitialNoteTitleRef.current(content, filePath, true)
           return true
         } catch (error) {
@@ -760,10 +801,11 @@ const NotesPage: FC = () => {
           return false
         }
       })()
-      initialTitleFinalizePromisesRef.current.set(filePath, finalizePromise)
+      initialTitleSession.finalizePromise = finalizePromise
       void finalizePromise.finally(() => {
-        if (initialTitleFinalizePromisesRef.current.get(filePath) === finalizePromise) {
-          initialTitleFinalizePromisesRef.current.delete(filePath)
+        const currentSession = initialTitleSessionsRef.current.get(filePath)
+        if (currentSession?.finalizePromise === finalizePromise) {
+          currentSession.finalizePromise = undefined
         }
       })
       return finalizePromise
@@ -777,7 +819,11 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           const currentPath = activeFilePathRef.current
-          if (currentPath && currentPath !== node.externalPath && newNotePathsRef.current.has(currentPath)) {
+          if (
+            currentPath &&
+            currentPath !== node.externalPath &&
+            getEligibleInitialTitleSession(initialTitleSessionsRef.current, currentPath)
+          ) {
             const finalized = await finalizeInitialNoteTitle(currentPath)
             if (!finalized) return
           }
@@ -817,17 +863,13 @@ const NotesPage: FC = () => {
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
         const deletedPathPrefix = `${normalizedDeletePath}/`
-        for (const newNotePath of newNotePathsRef.current) {
+        for (const newNotePath of initialTitleSessionsRef.current.keys()) {
           const normalizedNewNotePath = normalizePathValue(newNotePath)
           if (
             normalizedNewNotePath === normalizedDeletePath ||
             (nodeToDelete.type === 'folder' && normalizedNewNotePath.startsWith(deletedPathPrefix))
           ) {
-            newNotePathsRef.current.delete(newNotePath)
-            savedNewNoteContentRef.current.delete(newNotePath)
-            initialTitleRenamesRef.current.delete(newNotePath)
-            initialTitleFallbackPathsRef.current.delete(newNotePath)
-            initialTitleSavePromisesRef.current.delete(newNotePath)
+            clearInitialTitleSession(initialTitleSessionsRef.current, newNotePath)
             persistedContentByPathRef.current.delete(newNotePath)
           }
         }
@@ -910,11 +952,9 @@ const NotesPage: FC = () => {
 
         if (!isAutomatic) {
           const requestedPath = node.externalPath
-          newNotePathsRef.current.delete(requestedPath)
-          savedNewNoteContentRef.current.delete(requestedPath)
-          initialTitleFallbackPathsRef.current.delete(requestedPath)
-          initialTitleSavePromisesRef.current.delete(requestedPath)
-          const pendingAutomaticRename = initialTitleRenamePromisesRef.current.get(requestedPath)
+          const initialTitleSession = initialTitleSessionsRef.current.get(requestedPath)
+          const pendingAutomaticRename = initialTitleSession?.renamePromise
+          clearInitialTitleSession(initialTitleSessionsRef.current, requestedPath, true)
           if (pendingAutomaticRename) {
             const automaticallyRenamedPath = await pendingAutomaticRename
             if (automaticallyRenamedPath) {
@@ -934,7 +974,7 @@ const NotesPage: FC = () => {
 
         if (node.name === newName) {
           isRenamingRef.current = false
-          return true
+          return node.externalPath
         }
 
         const oldPath = node.externalPath
@@ -1044,10 +1084,7 @@ const NotesPage: FC = () => {
             .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
         }
 
-        newNotePathsRef.current.delete(oldPath)
-        savedNewNoteContentRef.current.delete(oldPath)
-        initialTitleFallbackPathsRef.current.delete(oldPath)
-        initialTitleSavePromisesRef.current.delete(oldPath)
+        clearInitialTitleSession(initialTitleSessionsRef.current, oldPath, true)
         const persistedContent = persistedContentByPathRef.current.get(oldPath)
         persistedContentByPathRef.current.delete(oldPath)
         if (persistedContent !== undefined) {
@@ -1082,7 +1119,7 @@ const NotesPage: FC = () => {
         }
         // Success: flag stays true until the watcher reports the renamed
         // node and the [activeNode] effect above clears it.
-        return true
+        return renamed.path
       } catch (error) {
         if (activePathInRenameSession && actualActivePathAfterRename) {
           await persistLatestSessionContent(actualActivePathAfterRename).catch((saveError) =>
@@ -1119,9 +1156,9 @@ const NotesPage: FC = () => {
 
   const applyInitialNoteTitle = useCallback(
     (content: string, filePath: string, allowIncompleteFirstLine = false): Promise<void> => {
-      if (!newNotePathsRef.current.has(filePath)) return Promise.resolve()
-      const pendingRename = initialTitleRenamePromisesRef.current.get(filePath)
-      if (pendingRename) return pendingRename.then(() => undefined)
+      const initialTitleSession = getEligibleInitialTitleSession(initialTitleSessionsRef.current, filePath)
+      if (!initialTitleSession) return Promise.resolve()
+      if (initialTitleSession.renamePromise) return initialTitleSession.renamePromise.then(() => undefined)
 
       const title = getInitialNoteTitle(content, allowIncompleteFirstLine)
       if (!title) return Promise.resolve()
@@ -1129,34 +1166,34 @@ const NotesPage: FC = () => {
       const node = findNodeByPath(notesTree, normalizePathValue(filePath))
       if (!node || node.type !== 'file') return Promise.resolve()
       if (node.name === title) {
-        newNotePathsRef.current.delete(filePath)
-        savedNewNoteContentRef.current.delete(filePath)
-        initialTitleFallbackPathsRef.current.delete(filePath)
+        clearInitialTitleSession(initialTitleSessionsRef.current, filePath)
         return Promise.resolve()
       }
 
       const renamePromise = (async (): Promise<string | undefined> => {
-        initialTitleRenamesRef.current.add(filePath)
+        initialTitleSession.isRenaming = true
         try {
-          const renamed = await handleRenameNode(node.id, title, true)
-          if (!renamed) {
-            newNotePathsRef.current.delete(filePath)
-            savedNewNoteContentRef.current.delete(filePath)
-            initialTitleFallbackPathsRef.current.delete(filePath)
-            initialTitleSavePromisesRef.current.delete(filePath)
+          const renamedPath = await handleRenameNode(node.id, title, true)
+          if (!renamedPath) {
+            clearInitialTitleSession(initialTitleSessionsRef.current, filePath, true)
             return undefined
           }
-          return activeFilePathRef.current
+          return renamedPath
         } finally {
-          initialTitleRenamesRef.current.delete(filePath)
-          initialTitleRenamePromisesRef.current.delete(filePath)
-          const latestContent = savedNewNoteContentRef.current.get(filePath)
-          if (latestContent !== undefined && latestContent !== content) {
-            void applyInitialNoteTitleRef.current(latestContent, filePath, allowIncompleteFirstLine)
+          const currentSession = initialTitleSessionsRef.current.get(filePath)
+          if (currentSession) {
+            currentSession.isRenaming = false
+            currentSession.renamePromise = undefined
+            const latestContent = currentSession.latestContent
+            if (!currentSession.isEligible) {
+              initialTitleSessionsRef.current.delete(filePath)
+            } else if (latestContent !== undefined && latestContent !== content) {
+              void applyInitialNoteTitleRef.current(latestContent, filePath, allowIncompleteFirstLine)
+            }
           }
         }
       })()
-      initialTitleRenamePromisesRef.current.set(filePath, renamePromise)
+      initialTitleSession.renamePromise = renamePromise
       return renamePromise.then(() => undefined)
     },
     [handleRenameNode, notesTree]
@@ -1164,14 +1201,16 @@ const NotesPage: FC = () => {
 
   const handleEditorBlur = useCallback(() => {
     const filePath = activeFilePathRef.current
-    if (!filePath || !newNotePathsRef.current.has(filePath)) return
+    if (!filePath || !getEligibleInitialTitleSession(initialTitleSessionsRef.current, filePath)) return
     void finalizeInitialNoteTitle(filePath)
   }, [finalizeInitialNoteTitle])
 
   useEffect(() => {
     applyInitialNoteTitleRef.current = applyInitialNoteTitle
-    savedNewNoteContentRef.current.forEach((content, filePath) => {
-      void applyInitialNoteTitle(content, filePath, initialTitleFallbackPathsRef.current.has(filePath))
+    initialTitleSessionsRef.current.forEach((session, filePath) => {
+      if (session.isEligible && session.latestContent !== undefined) {
+        void applyInitialNoteTitle(session.latestContent, filePath, session.useFallback)
+      }
     })
   }, [applyInitialNoteTitle])
 

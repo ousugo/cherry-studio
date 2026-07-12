@@ -775,6 +775,60 @@ describe('NotesPage', () => {
     )
   })
 
+  it('keeps a manual rename bound to its note when the active path changes during automatic rename', async () => {
+    mocks.showWorkspace = true
+    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
+    mocks.currentContent = ''
+    mocks.sourceEditorContent = ''
+    const otherNode = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+    Object.assign(mocks.noteNode, {
+      id: '/notes/notes.untitled_note.md',
+      name: 'notes.untitled_note',
+      treePath: '/notes.untitled_note',
+      externalPath: '/notes/notes.untitled_note.md'
+    })
+    mocks.projectedNodes = [mocks.noteNode, otherNode]
+
+    let resolveAutomaticRename: ((result: { path: string; name: string }) => void) | undefined
+    mocks.renameNode
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAutomaticRename = resolve
+          })
+      )
+      .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
+
+    render(<NotesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+    mocks.sourceEditorContent = 'Automatic title'
+    act(() => mocks.onMarkdownChange?.('Automatic title'))
+    act(() => mocks.onEditorBlur?.())
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
+
+    act(() => MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/other.md'))
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
+
+    act(() => resolveAutomaticRename?.({ path: '/notes/Automatic ti.md', name: 'Automatic ti' }))
+
+    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
+    expect(mocks.renameNode).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        externalPath: '/notes/Automatic ti.md'
+      }),
+      'renamed'
+    )
+  })
+
   it('waits for a slow file watcher before applying the saved first-line title', async () => {
     mocks.showWorkspace = true
     MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')

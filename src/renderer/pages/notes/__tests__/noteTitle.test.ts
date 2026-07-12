@@ -34,6 +34,13 @@ describe('getInitialNoteTitle', () => {
     expect(getInitialNoteTitle('/\nDetails')).toBe('')
   })
 
+  it.each(['CON', 'CON.txt', 'LPT1', 'NUL.md'])(
+    'rejects the Windows reserved filename %s on every platform',
+    (title) => {
+      expect(getInitialNoteTitle(`${title}\nDetails`)).toBe('')
+    }
+  )
+
   it('removes invalid filename characters before using the first line', () => {
     expect(getInitialNoteTitle('///测试\n正文')).toBe('测试')
   })
