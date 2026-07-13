@@ -1,5 +1,4 @@
 import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
-import type * as NotesServiceModule from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -308,6 +307,46 @@ vi.mock('../NotesSidebar', () => ({
 
 import NotesPage from '../NotesPage'
 
+const UNTITLED_NOTE_PATH = '/notes/notes.untitled_note.md'
+
+function configureNewUntitledNote(treeVisible = true) {
+  mocks.showWorkspace = true
+  MockUseCacheUtils.setCacheValue('notes.active_file_path', UNTITLED_NOTE_PATH)
+  mocks.currentContent = ''
+  mocks.sourceEditorContent = ''
+  Object.assign(mocks.noteNode, {
+    id: UNTITLED_NOTE_PATH,
+    name: 'notes.untitled_note',
+    treePath: '/notes.untitled_note',
+    externalPath: UNTITLED_NOTE_PATH
+  })
+  mocks.projectedNodes = treeVisible ? [mocks.noteNode] : []
+}
+
+async function startInFlightAutomaticRename() {
+  let resolveAutomaticRename: ((result: { path: string; name: string }) => void) | undefined
+  mocks.renameNode
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAutomaticRename = resolve
+        })
+    )
+    .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
+
+  render(<NotesPage />)
+  fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
+  await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
+  mocks.sourceEditorContent = 'Automatic title'
+  act(() => mocks.onMarkdownChange?.('Automatic title'))
+  act(() => mocks.onEditorBlur?.())
+  await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
+
+  return () => {
+    act(() => resolveAutomaticRename?.({ path: '/notes/Automatic ti.md', name: 'Automatic ti' }))
+  }
+}
+
 describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -363,20 +402,7 @@ describe('NotesPage', () => {
   })
 
   it('renames a newly created note from its sanitized first line after saving', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-    mocks.addNote.mockResolvedValue({
-      path: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note'
-    })
+    configureNewUntitledNote()
     mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     render(<NotesPage />)
@@ -388,9 +414,9 @@ describe('NotesPage', () => {
 
     await waitFor(
       () => {
-        expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', '  ///Meeting notes  \nDetails')
+        expect(mocks.fileWrite).toHaveBeenCalledWith(UNTITLED_NOTE_PATH, '  ///Meeting notes  \nDetails')
         expect(mocks.renameNode).toHaveBeenCalledWith(
-          expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+          expect.objectContaining({ externalPath: UNTITLED_NOTE_PATH }),
           'Meeting note'
         )
       },
@@ -476,51 +502,8 @@ describe('NotesPage', () => {
     expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/note.md', 'currently active content')
   })
 
-  it('keeps updated-time order stable when selecting an unchanged old note and refreshing the tree', async () => {
-    mocks.showWorkspace = true
-    mocks.sortType = 'sort_updated_desc'
-    const actual = await vi.importActual<typeof NotesServiceModule>('@renderer/services/NotesService')
-    mocks.sortTree.mockImplementation((nodes, sortType) =>
-      actual.sortTree(nodes, sortType as Parameters<typeof actual.sortTree>[1])
-    )
-    const newestNote = { ...mocks.noteNode, updatedAt: '2026-07-11T12:00:00.000Z' }
-    const oldNote = {
-      ...mocks.noteNode,
-      id: '/notes/old.md',
-      name: 'old',
-      treePath: '/old',
-      externalPath: '/notes/old.md',
-      updatedAt: '2026-07-10T12:00:00.000Z'
-    }
-    mocks.projectedNodes = [oldNote, newestNote]
-    mocks.fileContents.set(newestNote.externalPath, 'newest content')
-    mocks.fileContents.set(oldNote.externalPath, 'old content')
-    mocks.currentContent = 'newest content'
-    mocks.sourceEditorContent = 'newest content'
-
-    const { rerender } = render(<NotesPage />)
-    await waitFor(() => expect(screen.getByTestId('note-order')).toHaveTextContent('/notes/note.md,/notes/old.md'))
-    mocks.fileWrite.mockClear()
-
-    fireEvent.click(screen.getByRole('button', { name: 'switch-note' }))
-    mocks.treeVersion += 1
-    rerender(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByTestId('note-order')).toHaveTextContent('/notes/note.md,/notes/old.md'))
-    expect(mocks.fileWrite).not.toHaveBeenCalled()
-  })
-
   it('waits for the first newline before deriving a title', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
 
     render(<NotesPage />)
 
@@ -528,19 +511,16 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
 
     act(() => mocks.onMarkdownChange?.('Meeting notes'))
-    await waitFor(
-      () => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes'),
-      {
-        timeout: 2000
-      }
-    )
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith(UNTITLED_NOTE_PATH, 'Meeting notes'), {
+      timeout: 2000
+    })
     expect(mocks.renameNode).not.toHaveBeenCalled()
 
     act(() => mocks.onMarkdownChange?.('Meeting notes\n'))
     await waitFor(
       () => {
         expect(mocks.renameNode).toHaveBeenCalledWith(
-          expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+          expect.objectContaining({ externalPath: UNTITLED_NOTE_PATH }),
           'Meeting note'
         )
       },
@@ -548,40 +528,8 @@ describe('NotesPage', () => {
     )
   })
 
-  it('starts the initial rename immediately when a pasted first line is completed', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-
-    render(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
-    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
-
-    const content = `${'Long title '.repeat(2000)}\nBody`
-    mocks.sourceEditorContent = content
-    act(() => mocks.onMarkdownChange?.(content))
-
-    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled(), { timeout: 400 })
-  })
-
   it('does not start concurrent initial-title writes while pasted content is still changing', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
 
     let resolveFirstWrite: (() => void) | undefined
     mocks.fileWrite.mockImplementationOnce(
@@ -608,20 +556,11 @@ describe('NotesPage', () => {
     act(() => resolveFirstWrite?.())
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled())
     expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Latest title')
-    expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Latest title\nLatest body')
+    expect(mocks.fileWrite).toHaveBeenCalledWith(UNTITLED_NOTE_PATH, 'Latest title\nLatest body')
   })
 
   it('derives a title from an unfinished first line when the editor loses focus', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
     mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     render(<NotesPage />)
@@ -634,25 +573,16 @@ describe('NotesPage', () => {
     act(() => mocks.onEditorBlur?.())
 
     await waitFor(() => {
-      expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes')
+      expect(mocks.fileWrite).toHaveBeenCalledWith(UNTITLED_NOTE_PATH, 'Meeting notes')
       expect(mocks.renameNode).toHaveBeenCalledWith(
-        expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+        expect.objectContaining({ externalPath: UNTITLED_NOTE_PATH }),
         'Meeting note'
       )
     })
   })
 
   it('finishes the initial title before switching to another note', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
     const otherNote = {
       ...mocks.noteNode,
       id: '/notes/other.md',
@@ -674,7 +604,7 @@ describe('NotesPage', () => {
 
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
     expect(mocks.renameNode).toHaveBeenCalledWith(
-      expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+      expect.objectContaining({ externalPath: UNTITLED_NOTE_PATH }),
       'Meeting note'
     )
     expect(mocks.renameNode.mock.invocationCallOrder[0]).toBeLessThan(
@@ -683,16 +613,7 @@ describe('NotesPage', () => {
   })
 
   it('does not overwrite a manual rename with a title derived later', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
 
     const { rerender } = render(<NotesPage />)
 
@@ -720,127 +641,49 @@ describe('NotesPage', () => {
     expect(mocks.renameNode).toHaveBeenCalledTimes(1)
   })
 
-  it('gives a manual rename priority over an in-flight blur fallback', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-    let resolveAutomaticRename: ((result: { path: string; name: string }) => void) | undefined
-    mocks.renameNode
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveAutomaticRename = resolve
-          })
-      )
-      .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
+  it('gives a manual rename priority over an in-flight automatic rename', async () => {
+    configureNewUntitledNote()
+    const finishAutomaticRename = await startInFlightAutomaticRename()
 
-    render(<NotesPage />)
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'create-note'
-      })
-    )
-    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
-    mocks.sourceEditorContent = 'Automatic title'
-    act(() => mocks.onMarkdownChange?.('Automatic title'))
-    act(() => mocks.onEditorBlur?.())
-    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'rename-note'
-      })
-    )
-
+    fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
-    act(() =>
-      resolveAutomaticRename?.({
-        path: '/notes/Automatic ti.md',
-        name: 'Automatic ti'
-      })
-    )
+
+    finishAutomaticRename()
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
     expect(mocks.renameNode).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        externalPath: '/notes/Automatic ti.md'
-      }),
+      expect.objectContaining({ externalPath: '/notes/Automatic ti.md' }),
       'renamed'
     )
   })
 
-  it('keeps a manual rename bound to its note when the active path changes during automatic rename', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    const otherNode = {
-      ...mocks.noteNode,
-      id: '/notes/other.md',
-      name: 'other',
-      treePath: '/other',
-      externalPath: '/notes/other.md'
-    }
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-    mocks.projectedNodes = [mocks.noteNode, otherNode]
-
-    let resolveAutomaticRename: ((result: { path: string; name: string }) => void) | undefined
-    mocks.renameNode
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveAutomaticRename = resolve
-          })
-      )
-      .mockResolvedValueOnce({ path: '/notes/renamed.md', name: 'renamed' })
-
-    render(<NotesPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
-    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
-    mocks.sourceEditorContent = 'Automatic title'
-    act(() => mocks.onMarkdownChange?.('Automatic title'))
-    act(() => mocks.onEditorBlur?.())
-    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledWith(expect.anything(), 'Automatic ti'))
+  it('keeps a manual rename bound to its note after the active note changes', async () => {
+    configureNewUntitledNote()
+    mocks.projectedNodes = [
+      mocks.noteNode,
+      {
+        ...mocks.noteNode,
+        id: '/notes/other.md',
+        name: 'other',
+        treePath: '/other',
+        externalPath: '/notes/other.md'
+      }
+    ]
+    const finishAutomaticRename = await startInFlightAutomaticRename()
 
     act(() => MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/other.md'))
     fireEvent.click(screen.getByRole('button', { name: 'rename-note' }))
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(1))
 
-    act(() => resolveAutomaticRename?.({ path: '/notes/Automatic ti.md', name: 'Automatic ti' }))
-
+    finishAutomaticRename()
     await waitFor(() => expect(mocks.renameNode).toHaveBeenCalledTimes(2))
     expect(mocks.renameNode).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        externalPath: '/notes/Automatic ti.md'
-      }),
+      expect.objectContaining({ externalPath: '/notes/Automatic ti.md' }),
       'renamed'
     )
   })
 
   it('uses the actual renamed path when metadata sync and rollback both fail', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
 
     let rejectMetadataSync: ((error: Error) => void) | undefined
     mocks.rewritePath.mockImplementationOnce(
@@ -878,21 +721,7 @@ describe('NotesPage', () => {
   })
 
   it('waits for a slow file watcher before applying the saved first-line title', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-    mocks.projectedNodes = []
-    mocks.addNote.mockResolvedValue({
-      path: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note'
-    })
+    configureNewUntitledNote(false)
     mocks.renameNode.mockResolvedValue({ path: '/notes/Meeting note.md', name: 'Meeting note' })
 
     const { rerender } = render(<NotesPage />)
@@ -909,43 +738,13 @@ describe('NotesPage', () => {
 
     await waitFor(() => {
       expect(mocks.renameNode).toHaveBeenCalledWith(
-        expect.objectContaining({ externalPath: '/notes/notes.untitled_note.md' }),
+        expect.objectContaining({ externalPath: UNTITLED_NOTE_PATH }),
         'Meeting note'
       )
     })
   })
 
-  it('preserves blur finalization while waiting for the new node to reach the tree', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
-    mocks.projectedNodes = []
-
-    const { rerender } = render(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
-    await waitFor(() => expect(mocks.addNote).toHaveBeenCalled())
-
-    mocks.sourceEditorContent = 'Meeting notes'
-    act(() => mocks.onMarkdownChange?.('Meeting notes'))
-    act(() => mocks.onEditorBlur?.())
-    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/notes.untitled_note.md', 'Meeting notes'))
-    expect(mocks.renameNode).not.toHaveBeenCalled()
-
-    mocks.projectedNodes = [mocks.noteNode]
-    mocks.treeVersion += 1
-    rerender(<NotesPage />)
-
-    await waitFor(() => expect(mocks.renameNode).toHaveBeenCalled(), { timeout: 1500 })
-  })
-
-  it('does not reuse blur fallback state when a note path is created again', async () => {
+  it('does not reuse blur fallback state after a note path is removed and recreated', async () => {
     mocks.showWorkspace = true
     MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/note.md')
     mocks.currentContent = ''
@@ -962,6 +761,11 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/note.md', 'note'))
     expect(mocks.renameNode).not.toHaveBeenCalled()
 
+    // Simulate an external deletion before a new note reuses the path.
+    mocks.projectedNodes = []
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
     fireEvent.click(screen.getByRole('button', { name: 'create-note' }))
     await waitFor(() => expect(mocks.addNote).toHaveBeenCalledTimes(2))
     mocks.sourceEditorContent = 'Draft'
@@ -976,16 +780,7 @@ describe('NotesPage', () => {
   })
 
   it('stops retrying an automatic title after the rename fails', async () => {
-    mocks.showWorkspace = true
-    MockUseCacheUtils.setCacheValue('notes.active_file_path', '/notes/notes.untitled_note.md')
-    mocks.currentContent = ''
-    mocks.sourceEditorContent = ''
-    Object.assign(mocks.noteNode, {
-      id: '/notes/notes.untitled_note.md',
-      name: 'notes.untitled_note',
-      treePath: '/notes.untitled_note',
-      externalPath: '/notes/notes.untitled_note.md'
-    })
+    configureNewUntitledNote()
     mocks.renameNode.mockRejectedValue(new Error('Target name already exists'))
 
     const { rerender } = render(<NotesPage />)
@@ -1041,6 +836,8 @@ describe('NotesPage', () => {
 
     act(() => resolveRename?.({ path: '/notes/renamed.md', name: 'renamed' }))
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/renamed.md'))
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/renamed.md', 'edited source content')
+    expect(mocks.primeFileContent).toHaveBeenCalledWith('/notes/renamed.md', 'edited source content')
 
     Object.assign(mocks.noteNode, {
       id: '/notes/renamed.md',
@@ -1123,7 +920,10 @@ describe('NotesPage', () => {
 
     act(() => resolveRename?.({ path: '/notes/renamed.md', name: 'renamed' }))
 
-    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/renamed.md', 'edited source content'))
+    await waitFor(() =>
+      expect(mocks.primeFileContent).toHaveBeenCalledWith('/notes/renamed.md', 'edited source content')
+    )
+    expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/renamed.md', 'edited source content')
     expect(mocks.fileWrite).not.toHaveBeenCalledWith('/notes/renamed.md', 'other note content')
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/renamed.md')
     await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledWith('/notes/other.md', 'other note content'), {

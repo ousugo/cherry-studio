@@ -59,28 +59,23 @@ describe('NotesEditor document identity', () => {
     mocks.defaultViewMode = 'preview'
   })
 
-  it('preserves the rich editor across a path-only rename and resets it for a different document', () => {
-    const { rerender } = render(<NotesEditor {...baseProps} activeNodeId="/notes/old.md" documentId="document-1" />)
-    const originalEditor = screen.getByTestId('rich-editor')
+  it.each([
+    ['preview', 'rich-editor'],
+    ['source', 'code-editor']
+  ] as const)(
+    'preserves the %s editor across a path-only rename and resets it for a different document',
+    (viewMode, testId) => {
+      mocks.defaultViewMode = viewMode
+      const { rerender } = render(<NotesEditor {...baseProps} activeNodeId="/notes/old.md" documentId="document-1" />)
+      const originalEditor = screen.getByTestId(testId)
 
-    rerender(<NotesEditor {...baseProps} activeNodeId="/notes/renamed.md" documentId="document-1" />)
-    expect(screen.getByTestId('rich-editor')).toBe(originalEditor)
+      rerender(<NotesEditor {...baseProps} activeNodeId="/notes/renamed.md" documentId="document-1" />)
+      expect(screen.getByTestId(testId)).toBe(originalEditor)
 
-    rerender(<NotesEditor {...baseProps} activeNodeId="/notes/other.md" documentId="document-2" />)
-    expect(screen.getByTestId('rich-editor')).not.toBe(originalEditor)
-  })
-
-  it('preserves the source editor across a path-only rename and resets it for a different document', () => {
-    mocks.defaultViewMode = 'source'
-    const { rerender } = render(<NotesEditor {...baseProps} activeNodeId="/notes/old.md" documentId="document-1" />)
-    const originalEditor = screen.getByTestId('code-editor')
-
-    rerender(<NotesEditor {...baseProps} activeNodeId="/notes/renamed.md" documentId="document-1" />)
-    expect(screen.getByTestId('code-editor')).toBe(originalEditor)
-
-    rerender(<NotesEditor {...baseProps} activeNodeId="/notes/other.md" documentId="document-2" />)
-    expect(screen.getByTestId('code-editor')).not.toBe(originalEditor)
-  })
+      rerender(<NotesEditor {...baseProps} activeNodeId="/notes/other.md" documentId="document-2" />)
+      expect(screen.getByTestId(testId)).not.toBe(originalEditor)
+    }
+  )
 
   it.each([
     ['preview', 'rich-editor'],

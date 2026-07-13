@@ -20,7 +20,6 @@ import BaseNavbarIcon from '@renderer/components/NavbarIcon'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCommandHandler, useResolvedCommand } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
@@ -39,8 +38,7 @@ const logger = loggerService.withContext('HeaderNavbar')
 
 interface HeaderNavbarProps {
   notesTree: NotesTreeNode[]
-  activeFilePath?: string
-  activeNodeOverride?: NotesTreeNode
+  activeNode: NotesTreeNode | null
   getCurrentNoteContent?: () => string
   onToggleStar?: (nodeId: string) => void
   onExpandPath?: (treePath: string) => void
@@ -49,16 +47,13 @@ interface HeaderNavbarProps {
 
 const HeaderNavbar = ({
   notesTree,
-  activeFilePath,
-  activeNodeOverride,
+  activeNode,
   getCurrentNoteContent,
   onToggleStar,
   onExpandPath,
   onRenameNode
 }: HeaderNavbarProps) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
-  const { activeNode: resolvedActiveNode } = useActiveNode(notesTree, activeFilePath)
-  const activeNode = activeNodeOverride ?? resolvedActiveNode
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])

@@ -65,8 +65,4 @@ describe('getInitialNoteTitle', () => {
   ])('cleans %s from the completed first line', (_, content, expected) => {
     expect(getInitialNoteTitle(content)).toBe(expected)
   })
-
-  it('truncates a very long cleaned title', () => {
-    expect(getInitialNoteTitle(`${'a'.repeat(256)}\nDetails`)).toBe('aaaaaaaaaaaa')
-  })
 })

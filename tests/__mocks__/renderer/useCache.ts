@@ -50,6 +50,25 @@ const mockMemorySetters = new Map<string, ReturnType<typeof vi.fn>>()
 const mockSharedSetters = new Map<SharedCacheKey, ReturnType<typeof vi.fn>>()
 const mockPersistSetters = new Map<RendererPersistCacheKey, ReturnType<typeof vi.fn>>()
 
+const getOrCreateSetter = <K, V>(
+  setters: Map<K, ReturnType<typeof vi.fn>>,
+  key: K,
+  read: () => V,
+  write: (value: V) => void,
+  notify: () => void
+) => {
+  let setter = setters.get(key)
+  if (!setter) {
+    setter = vi.fn((value: SetAction<V>) => {
+      const nextValue = typeof value === 'function' ? (value as (prev: V) => V)(read()) : value
+      write(nextValue)
+      notify()
+    })
+    setters.set(key, setter)
+  }
+  return setter
+}
+
 // Helper functions to notify subscribers
 const notifyMemorySubscribers = (key: string) => {
   const subscribers = mockMemorySubscribers.get(key)
@@ -144,17 +163,32 @@ const getDefaultValue = <K extends UseCacheKey>(key: K): InferUseCacheValue<K> |
 }
 
 const getMemorySetter = <K extends UseCacheKey>(key: K) => {
-  let setter = mockMemorySetters.get(key)
-  if (!setter) {
-    setter = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
-      const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
-      mockMemoryCache.set(key, typeof value === 'function' ? value(prev) : value)
-      notifyMemorySubscribers(key)
-    })
-    mockMemorySetters.set(key, setter)
-  }
-  return setter
+  return getOrCreateSetter<string, InferUseCacheValue<K>>(
+    mockMemorySetters,
+    key,
+    () => (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>,
+    (value) => mockMemoryCache.set(key, value),
+    () => notifyMemorySubscribers(key)
+  )
 }
+
+const getSharedSetter = <K extends SharedCacheKey>(key: K) =>
+  getOrCreateSetter<SharedCacheKey, InferSharedCacheValue<K>>(
+    mockSharedSetters,
+    key,
+    () => (mockSharedCache.get(key) ?? DefaultSharedCache[key as keyof SharedCacheSchema]) as InferSharedCacheValue<K>,
+    (value) => mockSharedCache.set(key, value),
+    () => notifySharedSubscribers(key)
+  )
+
+const getPersistSetter = <K extends RendererPersistCacheKey>(key: K) =>
+  getOrCreateSetter<RendererPersistCacheKey, RendererPersistCacheSchema[K]>(
+    mockPersistSetters,
+    key,
+    () => (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K],
+    (value) => mockPersistCache.set(key, value),
+    () => notifyPersistSubscribers(key)
+  )
 
 /**
  * Mock useCache hook (memory cache)
@@ -209,16 +243,7 @@ export const mockUseSharedCache = vi.fn(
       () => mockSharedCache.get(key) ?? DefaultSharedCache[key as keyof SharedCacheSchema]
     )
 
-    let setValue = mockSharedSetters.get(key)
-    if (!setValue) {
-      setValue = vi.fn((value: SetAction<InferSharedCacheValue<K>>) => {
-        const prev = (mockSharedCache.get(key) ??
-          DefaultSharedCache[key as keyof SharedCacheSchema]) as InferSharedCacheValue<K>
-        mockSharedCache.set(key, typeof value === 'function' ? value(prev) : value)
-        notifySharedSubscribers(key)
-      })
-      mockSharedSetters.set(key, setValue)
-    }
+    const setValue = getSharedSetter(key)
 
     return [currentValue, setValue as (value: SetAction<InferSharedCacheValue<K>>) => void]
   }
@@ -247,15 +272,7 @@ export const mockUsePersistCache = vi.fn(
       () => mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]
     )
 
-    let setValue = mockPersistSetters.get(key)
-    if (!setValue) {
-      setValue = vi.fn((value: SetAction<RendererPersistCacheSchema[K]>) => {
-        const prev = (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
-        mockPersistCache.set(key, typeof value === 'function' ? value(prev) : value)
-        notifyPersistSubscribers(key)
-      })
-      mockPersistSetters.set(key, setValue)
-    }
+    const setValue = getPersistSetter(key)
 
     return [currentValue, setValue as (value: SetAction<RendererPersistCacheSchema[K]>) => void]
   }
