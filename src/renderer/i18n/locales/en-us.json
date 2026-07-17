@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generate conversation name",
+      "auto_rename_failed": "Failed to auto-generate conversation name",
       "clear": {
         "title": "Clear Messages"
       },

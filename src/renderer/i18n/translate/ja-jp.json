@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "メッセージをクリア"
       },

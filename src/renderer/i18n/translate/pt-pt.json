@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Limpar mensagens"
       },

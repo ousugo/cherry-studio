@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} διακριτικά",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },

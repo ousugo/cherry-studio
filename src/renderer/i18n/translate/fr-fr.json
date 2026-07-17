@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Effacer le message"
       },
