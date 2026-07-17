@@ -4,6 +4,7 @@ import {
   useComposerToolLauncherVersion
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
@@ -12,6 +13,7 @@ import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
+import { ReasoningShortcutButton } from './ReasoningShortcutButton'
 
 /** Variant-provided shortcut that is not backed by a launcher (e.g. agent skills). */
 export interface ComposerToolbarCustomTool {
@@ -37,6 +39,7 @@ interface ShortcutCandidate {
   haspopup?: 'menu' | 'dialog'
   /** True only for genuine on/off toggles (command launchers); drives `aria-pressed`. */
   toggle: boolean
+  launcher?: ComposerToolLauncher
   select: () => void
 }
 
@@ -131,6 +134,7 @@ export const ComposerToolbarShortcuts = ({
         tooltip: launcher.tooltip,
         haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
         toggle: launcher.kind === 'command',
+        launcher,
         select: opensPanel
           ? () =>
               unifiedPanelControl?.open({
@@ -179,6 +183,7 @@ export const ComposerToolbarShortcuts = ({
     syncedPinnedIds: pinnedIds,
     pendingPinnedIds: null
   }))
+  const [reasoningExpansionOffset, setReasoningExpansionOffset] = useState(0)
 
   if (!haveSameOrder(customizeOrderState.syncedPinnedIds, pinnedIds)) {
     const isLocalPreferenceUpdate =
@@ -257,9 +262,30 @@ export const ComposerToolbarShortcuts = ({
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-1.5 transition-[transform,margin-right] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+            reasoningExpansionOffset > 0 ? 'duration-200' : 'duration-150'
+          )}
+          style={{
+            marginRight: -reasoningExpansionOffset,
+            transform: `translateX(${-reasoningExpansionOffset}px)`
+          }}>
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
+            if (shortcut.id === 'thinking' && shortcut.launcher) {
+              return (
+                <ReasoningShortcutButton
+                  key={shortcut.id}
+                  disabled={shortcut.disabled}
+                  inputAdapter={inputAdapter}
+                  label={typeof shortcut.label === 'string' ? shortcut.label : ''}
+                  launcher={shortcut.launcher}
+                  onClick={shortcut.select}
+                  onExpansionOffsetChange={setReasoningExpansionOffset}
+                />
+              )
+            }
             const tooltip =
               shortcut.disabled && shortcut.disabledReason
                 ? shortcut.disabledReason

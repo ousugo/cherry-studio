@@ -1228,6 +1228,7 @@
         "minimal_description": "最小程度的推理",
         "off": "关闭",
         "off_description": "禁用推理",
+        "wheel_switch_hint": "滚轮切换思维链长度",
         "xhigh": "穷究",
         "xhigh_description": "超高强度推理"
       },

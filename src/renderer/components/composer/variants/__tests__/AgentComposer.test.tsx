@@ -963,7 +963,10 @@ describe('AgentComposer', () => {
     const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'assistants.settings.reasoning_effort.label'
     })
+    const reasoningTooltip = reasoningButton.closest('[data-testid="tooltip"]')
     expect(reasoningButton).toBeDisabled()
+    expect(reasoningTooltip).not.toBeNull()
+    fireEvent.mouseEnter(reasoningTooltip!)
     expect(screen.getByText('chat.input.thinking.unsupported_model')).toBeInTheDocument()
 
     fireEvent.click(reasoningButton)
@@ -991,7 +994,7 @@ describe('AgentComposer', () => {
     )
 
     const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
+      name: 'assistants.settings.reasoning_effort.label: assistants.settings.reasoning_effort.high'
     })
     expect(reasoningButton).toHaveAttribute('data-active', 'true')
     expect(reasoningButton).toHaveClass('bg-accent', 'data-[active=true]:text-primary!')

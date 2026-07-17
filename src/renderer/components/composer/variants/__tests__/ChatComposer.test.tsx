@@ -726,7 +726,8 @@ describe('ChatComposer', () => {
       label: 'assistants.settings.reasoning_effort.label',
       icon: <span data-testid="thinking-icon" />,
       sources: ['popover'],
-      active: true
+      active: true,
+      suffix: 'High'
     }
     const webSearchLauncher = {
       id: 'web-search',
@@ -743,7 +744,7 @@ describe('ChatComposer', () => {
 
     const leftControls = screen.getByTestId('composer-left-controls')
     const reasoningButton = within(leftControls).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
+      name: 'assistants.settings.reasoning_effort.label: High'
     })
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })

@@ -668,7 +668,7 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, ...props }) => {
+    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, isOpen, onOpenChange, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       // Mirror the real Tooltip: the trigger wrapper carries classNames.placeholder.
@@ -681,10 +681,13 @@ vi.mock('@cherrystudio/ui', () => {
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
           'data-mouse-enter-delay': mouseEnterDelay,
-          className: classNames?.placeholder
+          className: classNames?.placeholder,
+          onMouseEnter: () => onOpenChange?.(true)
         },
         children,
-        tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
+        tooltipText && isOpen !== false
+          ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText)
+          : null
       )
     },
     CircularProgress: ({ value, renderLabel, showLabel, ...props }) =>

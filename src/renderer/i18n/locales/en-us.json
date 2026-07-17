@@ -1228,6 +1228,7 @@
         "minimal_description": "Minimal reasoning",
         "off": "Off",
         "off_description": "Disable reasoning",
+        "wheel_switch_hint": "Scroll to switch reasoning length",
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },
