@@ -57,6 +57,8 @@ interface Props {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  pendingQuoteText?: string
+  onQuoteInserted?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
@@ -208,6 +210,8 @@ const Chat: FC<Props> = (props) => {
       <ChatContent
         key={activeTopic.id}
         topic={activeTopic}
+        pendingQuoteText={props.pendingQuoteText}
+        onQuoteInserted={props.onQuoteInserted}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}

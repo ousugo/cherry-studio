@@ -146,6 +146,8 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  pendingQuoteText?: string
+  onQuoteInserted?: () => void
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -390,6 +392,8 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  pendingQuoteText,
+  onQuoteInserted,
   scopeKey,
   topicId,
   assistantId,
@@ -448,6 +452,8 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            pendingQuoteText={pendingQuoteText}
+            onQuoteInserted={onQuoteInserted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -488,6 +494,8 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  pendingQuoteText,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -1353,7 +1361,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, pendingQuoteText, onQuoteInserted)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })

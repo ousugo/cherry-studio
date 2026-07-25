@@ -1,7 +1,6 @@
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { RefObject } from 'react'
-import { useEffect, useEffectEvent } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerDraftToken } from '../../tokens'
@@ -19,21 +18,26 @@ interface QuoteInsertionActions {
 }
 
 /**
- * Subscribes to the main-process quote IPC and inserts the quoted text as a quote token via
- * the composer's imperative actions ref. The insertion runs through `useEffectEvent` so the
- * IPC listener subscribes once and stays stable across renders.
+ * Inserts a selection quote routed to this composer by the owning chat page.
  */
-export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actionsRef: RefObject<T>): void {
+export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
+  actionsRef: RefObject<T>,
+  selectedText?: string,
+  onInserted?: () => void
+): void {
   const { t } = useTranslation()
-
-  const insertQuote = useEffectEvent((selectedText: string) => {
-    if (!selectedText) return
-    actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
-  })
+  const insertedTextRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
-      insertQuote(selectedText)
-    })
-  }, [insertQuote])
+    if (!selectedText) {
+      insertedTextRef.current = undefined
+      return
+    }
+    if (insertedTextRef.current === selectedText) return
+    const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
+    actionsRef.current.insertToken(token)
+
+    insertedTextRef.current = selectedText
+    onInserted?.()
+  }, [actionsRef, onInserted, selectedText, t])
 }

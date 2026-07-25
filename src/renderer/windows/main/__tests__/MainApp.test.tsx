@@ -24,6 +24,16 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
   AppShell: () => <div data-testid="app-shell">app-shell</div>
 }))
 
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({
+    activeTab: undefined,
+    openTab: vi.fn(),
+    setActiveTab: vi.fn(),
+    tabs: [],
+    updateTab: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useMainWindowNavigation: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))

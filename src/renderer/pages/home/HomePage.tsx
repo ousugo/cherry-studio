@@ -34,6 +34,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
@@ -91,6 +92,8 @@ const HomePage: FC = () => {
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
+  const routeQuoteRequestId = routeSearch.quoteRequestId
+  const [pendingQuoteText, setPendingQuoteText] = useState<string>()
   const routeAssistantId = routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -261,6 +264,15 @@ const HomePage: FC = () => {
   const toggleAssistantResourceView = useCallback(() => toggleResource('assistant'), [toggleResource])
   const manageAssistantsActive = activeResourceKind === 'assistant'
   const onManageAssistants = conversationResourcesEnabled ? toggleAssistantResourceView : undefined
+
+  useEffect(() => {
+    const text = selectionQuoteService.take(routeQuoteRequestId)
+    if (!text) return
+
+    closeSurface()
+    setPendingQuoteText(text)
+  }, [closeSurface, routeQuoteRequestId])
+  const handleQuoteInserted = useCallback(() => setPendingQuoteText(undefined), [])
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -480,6 +492,17 @@ const HomePage: FC = () => {
     },
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
+
+  useEffect(() => {
+    if (!routeQuoteRequestId || activeTopic || isActiveTopicLoading || !isAssistantListResolved) return
+    void createAndActivateEmptyTopic()
+  }, [
+    activeTopic,
+    createAndActivateEmptyTopic,
+    isActiveTopicLoading,
+    isAssistantListResolved,
+    routeQuoteRequestId
+  ])
 
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
@@ -785,6 +808,8 @@ const HomePage: FC = () => {
           <Chat
             activeTopic={visibleTopic}
             topicPending={isActiveTopicLoading || isRouteTopicLoading}
+            pendingQuoteText={pendingQuoteText}
+            onQuoteInserted={handleQuoteInserted}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}

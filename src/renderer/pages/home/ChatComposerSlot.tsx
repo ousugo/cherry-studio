@@ -19,6 +19,8 @@ import type { AddNewTopicPayload } from './types'
 interface ChatComposerSlotBaseProps {
   topic: Topic
   contextUsage: ChatContextUsageSource | null
+  pendingQuoteText?: string
+  onQuoteInserted?: () => void
   onSend: (
     text: string,
     options?: {
@@ -44,6 +46,8 @@ function ChatComposerSlot({
   placement,
   topic,
   contextUsage,
+  pendingQuoteText,
+  onQuoteInserted,
   onSend,
   chatTarget,
   onNewTopic,
@@ -62,6 +66,8 @@ function ChatComposerSlot({
         scopeKey={topic.id}
         topicId={topic.id}
         contextUsage={contextUsage}
+        pendingQuoteText={pendingQuoteText}
+        onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -79,6 +85,8 @@ function ChatComposerSlot({
         scopeKey={topic.id}
         topicId={topic.id}
         contextUsage={contextUsage}
+        pendingQuoteText={pendingQuoteText}
+        onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
