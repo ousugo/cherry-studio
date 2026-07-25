@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -340,7 +341,9 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled,
     onPaneCollapse,
     onPaneAutoCollapseChange,
-    paneManualToggle
+    paneManualToggle,
+    pendingQuoteText,
+    onQuoteInserted
   }: {
     activeTopic?: Topic
     centerSurface?: { content?: ReactNode } | null
@@ -357,6 +360,8 @@ vi.mock('../Chat', () => ({
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
     paneManualToggle?: { seq: number; open: boolean }
+    pendingQuoteText?: string
+    onQuoteInserted?: () => void
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -374,6 +379,12 @@ vi.mock('../Chat', () => ({
             <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
             <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+            <output data-testid="selection-quote">{pendingQuoteText ?? ''}</output>
+            {onQuoteInserted && (
+              <button type="button" onClick={onQuoteInserted}>
+                Quote inserted
+              </button>
+            )}
             {showResourceListControls && onSidebarToggle && (
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
@@ -734,6 +745,40 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('creates a blank chat and delivers a routed selection quote instead of resuming history', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.latestTopicOverride = historyTopic
+    homeMocks.routeSearch = { quoteRequestId: 'quote-request-1' }
+    selectionQuoteService.store('quote-request-1', 'Selected text')
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(homeMocks.createTopic).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('selection-quote')).toHaveTextContent('Selected text')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quote inserted' }))
+    expect(screen.getByTestId('selection-quote')).toBeEmptyDOMElement()
+  })
+
+  it.each([
+    ['history records', 'Open history records', 'history-records-view'],
+    ['assistant resources', 'assistants.presets.manage.title', 'resource-catalog-assistant']
+  ])('closes %s before delivering a routed selection quote', async (_, openSurfaceLabel, surfaceTestId) => {
+    const { rerender } = render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: openSurfaceLabel }))
+    expect(screen.getByTestId(surfaceTestId)).toBeInTheDocument()
+
+    const requestId = `quote-request-${surfaceTestId}`
+    selectionQuoteService.store(requestId, 'Selected text')
+    homeMocks.routeSearch = { quoteRequestId: requestId }
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(screen.queryByTestId(surfaceTestId)).not.toBeInTheDocument())
+    expect(screen.getByTestId('selection-quote')).toHaveTextContent('Selected text')
   })
 
   it('shows both assistant and topic panes by default when topics are on the right', () => {

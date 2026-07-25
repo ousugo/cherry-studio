@@ -41,6 +41,7 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
@@ -154,6 +155,8 @@ const HomePage: FC = () => {
   const currentTab = useCurrentTab()
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
+  const routeQuoteRequestId = routeSearch.quoteRequestId
+  const [pendingQuoteText, setPendingQuoteText] = useState<string>()
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
@@ -252,7 +255,7 @@ const HomePage: FC = () => {
   // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
   // targets and assistant deep links take precedence over resume.
   const [resumeTopicId] = useState<string | null>(() =>
-    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId && !routeQuoteRequestId ? lastUsedTopicId : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
@@ -310,6 +313,15 @@ const HomePage: FC = () => {
     resourceDefinitions: resourceViewDefinitions,
     disabled: isMessageOnlyView || isWindowFrame
   })
+
+  useEffect(() => {
+    const text = selectionQuoteService.take(routeQuoteRequestId)
+    if (!text) return
+
+    closeSurface()
+    setPendingQuoteText(text)
+  }, [closeSurface, routeQuoteRequestId])
+  const handleQuoteInserted = useCallback(() => setPendingQuoteText(undefined), [])
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -594,7 +606,7 @@ const HomePage: FC = () => {
     // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
     // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
     // for that assistant instead.
-    if (!routeAssistantId && latestTopic) {
+    if (!routeAssistantId && !routeQuoteRequestId && latestTopic) {
       initialTopicStartStateRef.current.firstLaunchStarted = true
       setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
       return
@@ -619,6 +631,7 @@ const HomePage: FC = () => {
     resumeApiTopic,
     resumeTopicId,
     routeAssistantId,
+    routeQuoteRequestId,
     setActiveTopic,
     shouldAutoCreateTopic,
     state?.topic
@@ -915,6 +928,8 @@ const HomePage: FC = () => {
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}
+            pendingQuoteText={pendingQuoteText}
+            onQuoteInserted={handleQuoteInserted}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}

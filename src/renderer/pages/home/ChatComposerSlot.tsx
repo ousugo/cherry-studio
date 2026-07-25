@@ -14,6 +14,8 @@ import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
+  pendingQuoteText?: string
+  onQuoteInserted?: () => void
   onSend: (
     text: string,
     options?: {
@@ -37,6 +39,8 @@ type ChatComposerSlotProps =
 export default function ChatComposerSlot({
   placement,
   topic,
+  pendingQuoteText,
+  onQuoteInserted,
   onSend,
   captureLocalSendScrollEligibility,
   onNewTopic,
@@ -53,6 +57,8 @@ export default function ChatComposerSlot({
         placement="home"
         scopeKey={topic.id}
         topicId={topic.id}
+        pendingQuoteText={pendingQuoteText}
+        onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}
         captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
@@ -68,6 +74,8 @@ export default function ChatComposerSlot({
         placement="docked"
         scopeKey={topic.id}
         topicId={topic.id}
+        pendingQuoteText={pendingQuoteText}
+        onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}
         captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}

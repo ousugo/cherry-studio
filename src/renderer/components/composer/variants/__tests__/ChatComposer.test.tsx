@@ -3,7 +3,6 @@ import { MessageEditingProvider, useMessageEditing } from '@renderer/components/
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -1261,27 +1260,31 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
+  it('inserts the selection quote routed to this chat composer', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
+    const onQuoteInserted = vi.fn()
 
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    render(
+      <ChatComposer
+        topic={topic}
+        onSend={vi.fn()}
+        pendingQuoteText="Selected message text"
+        onQuoteInserted={onQuoteInserted}
+      />
+    )
 
     await waitFor(() => {
-      expect(mocks.ipcOn).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, expect.any(Function))
+      expect(mocks.insertToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'quote',
+          label: 'selection.action.builtin.quote',
+          description: 'Selected message text',
+          promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+        })
+      )
     })
 
-    act(() => {
-      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
-    })
-
-    expect(mocks.insertToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'quote',
-        label: 'selection.action.builtin.quote',
-        description: 'Selected message text',
-        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
-      })
-    )
+    expect(onQuoteInserted).toHaveBeenCalledOnce()
     expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })

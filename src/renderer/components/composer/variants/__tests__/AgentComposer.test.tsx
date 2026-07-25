@@ -3889,9 +3889,7 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
-  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
-
+  it('does not consume main-window selection quote broadcasts', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -3902,24 +3900,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => {
-      expect(mocks.ipcOn).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, expect.any(Function))
-    })
-
-    act(() => {
-      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
-    })
-
-    expect(mocks.insertToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'quote',
-        label: 'selection.action.builtin.quote',
-        description: 'Selected message text',
-        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
-      })
-    )
-    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.text).toBe('Existing draft')
+    expect(mocks.ipcOn).not.toHaveBeenCalled()
+    expect(mocks.insertToken).not.toHaveBeenCalled()
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

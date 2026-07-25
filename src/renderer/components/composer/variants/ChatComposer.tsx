@@ -130,6 +130,8 @@ export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationC
 
 export interface ChatComposerProps {
   topic?: Topic
+  pendingQuoteText?: string
+  onQuoteInserted?: () => void
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -319,6 +321,8 @@ const ChatComposerRoot = ({
   topic,
   scopeKey,
   topicId,
+  pendingQuoteText,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -371,6 +375,8 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
+            pendingQuoteText={pendingQuoteText}
+            onQuoteInserted={onQuoteInserted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -407,6 +413,8 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
+  pendingQuoteText,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -1077,7 +1085,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, pendingQuoteText, onQuoteInserted)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
