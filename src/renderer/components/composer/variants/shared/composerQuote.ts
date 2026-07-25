@@ -14,7 +14,7 @@ export const createQuoteToken = (selectedText: string, label: string): ComposerD
 })
 
 interface QuoteInsertionActions {
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken) => boolean
 }
 
 /**
@@ -35,7 +35,7 @@ export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
     }
     if (insertedTextRef.current === selectedText) return
     const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
-    actionsRef.current.insertToken(token)
+    if (!actionsRef.current.insertToken(token)) return
 
     insertedTextRef.current = selectedText
     onInserted?.()
