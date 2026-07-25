@@ -1263,6 +1263,11 @@ describe('ChatComposer', () => {
   it('inserts the selection quote routed to this chat composer', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
     const onQuoteInserted = vi.fn()
+    mocks.insertToken.mockReturnValue(true)
+    mocks.getDraft.mockReturnValue({
+      text: 'Existing draft <blockquote>\n\nSelected message text\n</blockquote>',
+      tokens: []
+    })
 
     render(
       <ChatComposer
@@ -1286,7 +1291,38 @@ describe('ChatComposer', () => {
 
     expect(onQuoteInserted).toHaveBeenCalledOnce()
     expect(mocks.toggleExpanded).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.text).toBe('Existing draft')
+    expect(mocks.surfaceProps?.text).toBe('Existing draft <blockquote>\n\nSelected message text\n</blockquote>')
+  })
+
+  it('keeps every routed selection quote in the serialized draft across repeated insertions', async () => {
+    let liveDraft = { text: '', tokens: [] as ComposerSerializedToken[] }
+    mocks.insertToken.mockImplementation((token) => {
+      const separator = liveDraft.text ? ' ' : ''
+      const promptText = token.promptText ?? ''
+      liveDraft = {
+        text: `${liveDraft.text}${separator}${promptText}`,
+        tokens: [
+          ...liveDraft.tokens,
+          {
+            ...token,
+            index: liveDraft.tokens.length,
+            textOffset: liveDraft.text.length + separator.length
+          }
+        ]
+      }
+      return true
+    })
+    mocks.getDraft.mockImplementation(() => liveDraft)
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} pendingQuoteText="First quote" />)
+    await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledTimes(1))
+
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} pendingQuoteText="Second quote" />)
+    await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledTimes(2))
+
+    expect(mocks.surfaceProps?.draftTokens).toEqual(liveDraft.tokens)
+    expect(mocks.surfaceProps?.draftTokens).toHaveLength(2)
+    expect(mocks.surfaceProps?.draftTokens?.map((token) => token.description)).toEqual(['First quote', 'Second quote'])
   })
 
   it('updates the topic assistant from the composer toolbar', () => {

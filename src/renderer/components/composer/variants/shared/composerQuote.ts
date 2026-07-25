@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerDraftToken } from '../../tokens'
+import type { ComposerDraftToken, ComposerSerializedDraft } from '../../tokens'
 
 export const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
   id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
@@ -14,7 +14,8 @@ export const createQuoteToken = (selectedText: string, label: string): ComposerD
 })
 
 interface QuoteInsertionActions {
-  insertToken: (token: ComposerDraftToken) => void
+  getDraft: () => ComposerSerializedDraft
+  insertToken: (token: ComposerDraftToken) => boolean
 }
 
 /**
@@ -23,6 +24,7 @@ interface QuoteInsertionActions {
 export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
   actionsRef: RefObject<T>,
   selectedText?: string,
+  onDraftChange?: (draft: ComposerSerializedDraft) => void,
   onInserted?: () => void
 ): void {
   const { t } = useTranslation()
@@ -35,9 +37,10 @@ export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
     }
     if (insertedTextRef.current === selectedText) return
     const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
-    actionsRef.current.insertToken(token)
+    if (!actionsRef.current.insertToken(token)) return
 
     insertedTextRef.current = selectedText
+    onDraftChange?.(actionsRef.current.getDraft())
     onInserted?.()
-  }, [actionsRef, onInserted, selectedText, t])
+  }, [actionsRef, onDraftChange, onInserted, selectedText, t])
 }

@@ -547,6 +547,10 @@ const ChatComposerInner = ({
     },
     [resetHistoryIndex]
   )
+  const handleSelectionQuoteDraftChange = useCallback((draft: ComposerSerializedDraft) => {
+    setText(draft.text)
+    setDraftTokens(draft.tokens.length ? draft.tokens : undefined)
+  }, [])
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
@@ -1085,7 +1089,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef, pendingQuoteText, onQuoteInserted)
+  useComposerQuoteInsertion(actionsRef, pendingQuoteText, handleSelectionQuoteDraftChange, onQuoteInserted)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
