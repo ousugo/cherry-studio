@@ -22,22 +22,22 @@ interface QuoteInsertionActions {
  */
 export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
   actionsRef: RefObject<T>,
-  selectedText?: string,
+  request?: SelectionQuoteRequest,
   onInserted?: () => void
-): void {
+): () => void {
   const { t } = useTranslation()
-  const insertedTextRef = useRef<string | undefined>(undefined)
+  const insertedRequestIdRef = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
-    if (!selectedText) {
-      insertedTextRef.current = undefined
-      return
-    }
-    if (insertedTextRef.current === selectedText) return
-    const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
+  const insertPendingQuote = useCallback(() => {
+    if (!request || insertedRequestIdRef.current === request.id) return
+    const token = createQuoteToken(request.text, t('selection.action.builtin.quote'))
     if (!actionsRef.current.insertToken(token)) return
 
-    insertedTextRef.current = selectedText
+    insertedRequestIdRef.current = request.id
     onInserted?.()
-  }, [actionsRef, onInserted, selectedText, t])
+  }, [actionsRef, onInserted, request, t])
+
+  useEffect(() => insertPendingQuote(), [insertPendingQuote])
+
+  return insertPendingQuote
 }

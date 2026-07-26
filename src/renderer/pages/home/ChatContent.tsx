@@ -16,6 +16,7 @@ import type {
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId } from '@shared/data/types/model'
@@ -32,7 +33,7 @@ import { useChatRuntimeState } from './useChatRuntimeState'
 
 interface Props {
   topic: Topic
-  pendingQuoteText?: string
+  pendingQuote?: SelectionQuoteRequest
   onQuoteInserted?: () => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -57,7 +58,7 @@ interface Props {
  */
 const ChatContent: FC<Props> = ({
   topic,
-  pendingQuoteText,
+  pendingQuote,
   onQuoteInserted,
   onOpenCitationsPanel,
   onNewTopic,
@@ -84,7 +85,7 @@ const ChatContent: FC<Props> = ({
   return (
     <ChatContentInner
       topic={topic}
-      pendingQuoteText={pendingQuoteText}
+      pendingQuote={pendingQuote}
       onQuoteInserted={onQuoteInserted}
       onOpenCitationsPanel={onOpenCitationsPanel}
       onNewTopic={onNewTopic}
@@ -131,7 +132,7 @@ interface InnerProps extends Props {
 
 const ChatContentInner: FC<InnerProps> = ({
   topic,
-  pendingQuoteText,
+  pendingQuote,
   onQuoteInserted,
   onOpenCitationsPanel,
   onNewTopic,
@@ -242,7 +243,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       contextUsage={contextUsage}
-      pendingQuoteText={pendingQuoteText}
+      pendingQuote={pendingQuote}
       onQuoteInserted={onQuoteInserted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
@@ -257,7 +258,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       contextUsage={contextUsage}
-      pendingQuoteText={pendingQuoteText}
+      pendingQuote={pendingQuote}
       onQuoteInserted={onQuoteInserted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
