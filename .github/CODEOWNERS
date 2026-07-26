@@ -9,8 +9,8 @@
 /src/main/services/
 /src/main/utils/
 /src/main/ai/ @DeJeune
-/src/main/features/fileProcessing/ @eeeee0717
-/src/main/features/knowledge/ @eeeee0717
+/src/main/features/fileProcessing/ @eeee0717
+/src/main/features/knowledge/ @eeee0717
 
 /src/renderer/ @0xfullex
 /src/renderer/assets/
