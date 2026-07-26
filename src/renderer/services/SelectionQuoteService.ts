@@ -1,18 +1,42 @@
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 class SelectionQuoteService {
-  private pendingQuotes = new Map<string, string>()
+  private pendingRequests = new Map<string, SelectionQuoteRequest>()
+  private reservedTargetTabId: string | undefined
 
-  store(requestId: string, text: string): void {
-    this.pendingQuotes.set(requestId, text)
+  store(targetTabId: string, request: SelectionQuoteRequest): void {
+    this.pendingRequests.set(targetTabId, request)
   }
 
-  take(requestId: string | undefined): string | undefined {
+  peek(targetTabId: string, requestId: string | undefined): SelectionQuoteRequest | undefined {
     if (!requestId) return undefined
 
-    const text = this.pendingQuotes.get(requestId)
-    this.pendingQuotes.delete(requestId)
-    return text
+    const request = this.pendingRequests.get(targetTabId)
+    return request?.id === requestId ? request : undefined
+  }
+
+  ack(targetTabId: string, requestId: string): void {
+    if (this.pendingRequests.get(targetTabId)?.id !== requestId) return
+
+    this.pendingRequests.delete(targetTabId)
+    if (this.reservedTargetTabId === targetTabId) this.reservedTargetTabId = undefined
+  }
+
+  getCurrentRequestId(targetTabId: string): string | undefined {
+    return this.pendingRequests.get(targetTabId)?.id
+  }
+
+  reserveTargetTab(targetTabId: string): void {
+    this.reservedTargetTabId = targetTabId
+  }
+
+  getReservedTargetTabId(): string | undefined {
+    return this.reservedTargetTabId
+  }
+
+  confirmTargetTab(targetTabId: string): void {
+    if (this.reservedTargetTabId === targetTabId) this.reservedTargetTabId = undefined
   }
 }
 
@@ -35,7 +59,7 @@ export function findSelectionQuoteTargetTab(tabs: Tab[], activeTab: Tab | undefi
 type SelectionQuoteNavigation = {
   activeTab: Tab | undefined
   openTab: (url: string, options: { forceNew: true }) => string
-  requestId: string
+  request: SelectionQuoteRequest
   setActiveTab: (id: string) => void
   tabs: Tab[]
   updateTab: (id: string, updates: Partial<Tab>) => void
@@ -44,19 +68,30 @@ type SelectionQuoteNavigation = {
 export function routeSelectionQuoteToChat({
   activeTab,
   openTab,
-  requestId,
+  request,
   setActiveTab,
   tabs,
   updateTab
 }: SelectionQuoteNavigation): void {
   const targetTab = findSelectionQuoteTargetTab(tabs, activeTab)
-  if (!targetTab) {
-    openTab(`/app/chat?quoteRequestId=${encodeURIComponent(requestId)}`, { forceNew: true })
+  if (targetTab) {
+    selectionQuoteService.confirmTargetTab(targetTab.id)
+    selectionQuoteService.store(targetTab.id, request)
+    const targetUrl = new URL(targetTab.url, 'https://www.cherry-ai.com')
+    targetUrl.searchParams.set('quoteRequestId', request.id)
+    updateTab(targetTab.id, { url: `${targetUrl.pathname}${targetUrl.search}` })
+    setActiveTab(targetTab.id)
     return
   }
 
-  const targetUrl = new URL(targetTab.url, 'https://www.cherry-ai.com')
-  targetUrl.searchParams.set('quoteRequestId', requestId)
-  updateTab(targetTab.id, { url: `${targetUrl.pathname}${targetUrl.search}` })
-  setActiveTab(targetTab.id)
+  const reservedTargetTabId = selectionQuoteService.getReservedTargetTabId()
+  if (reservedTargetTabId) {
+    selectionQuoteService.store(reservedTargetTabId, request)
+    setActiveTab(reservedTargetTabId)
+    return
+  }
+
+  const newTabId = openTab(`/app/chat?quoteRequestId=${encodeURIComponent(request.id)}`, { forceNew: true })
+  selectionQuoteService.store(newTabId, request)
+  selectionQuoteService.reserveTargetTab(newTabId)
 }

@@ -12,7 +12,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useTabs } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { routeSelectionQuoteToChat, selectionQuoteService } from '@renderer/services/SelectionQuoteService'
+import { routeSelectionQuoteToChat } from '@renderer/services/SelectionQuoteService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -65,9 +65,14 @@ function SelectionQuoteNavigation(): null {
     return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, text: string) => {
       if (!text) return
 
-      const requestId = uuid()
-      selectionQuoteService.store(requestId, text)
-      routeSelectionQuoteToChat({ activeTab, openTab, requestId, setActiveTab, tabs, updateTab })
+      routeSelectionQuoteToChat({
+        activeTab,
+        openTab,
+        request: { id: uuid(), text },
+        setActiveTab,
+        tabs,
+        updateTab
+      })
     })
   }, [activeTab, openTab, setActiveTab, tabs, updateTab])
 

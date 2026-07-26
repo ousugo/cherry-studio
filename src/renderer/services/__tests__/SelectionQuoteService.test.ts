@@ -30,11 +30,19 @@ describe('SelectionQuoteService', () => {
     expect(findSelectionQuoteTargetTab([settings, messageView], settings)).toBeUndefined()
   })
 
-  it('delivers a stored quote exactly once', () => {
-    selectionQuoteService.store('request-1', 'Selected text')
+  it('keeps a request pending until its matching acknowledgement', () => {
+    selectionQuoteService.store('delivery-chat', { id: 'delivery-request-1', text: 'Selected text' })
 
-    expect(selectionQuoteService.take('request-1')).toBe('Selected text')
-    expect(selectionQuoteService.take('request-1')).toBeUndefined()
+    expect(selectionQuoteService.peek('delivery-chat', 'delivery-request-1')).toEqual({
+      id: 'delivery-request-1',
+      text: 'Selected text'
+    })
+    expect(selectionQuoteService.peek('delivery-chat', 'delivery-request-1')).toEqual({
+      id: 'delivery-request-1',
+      text: 'Selected text'
+    })
+    selectionQuoteService.ack('delivery-chat', 'delivery-request-1')
+    expect(selectionQuoteService.peek('delivery-chat', 'delivery-request-1')).toBeUndefined()
   })
 
   it('routes to an existing chat without creating another tab', () => {
@@ -47,7 +55,7 @@ describe('SelectionQuoteService', () => {
     routeSelectionQuoteToChat({
       activeTab: settings,
       openTab,
-      requestId: 'request-1',
+      request: { id: 'existing-request-1', text: 'Selected text' },
       setActiveTab,
       tabs: [settings, chat],
       updateTab
@@ -55,9 +63,10 @@ describe('SelectionQuoteService', () => {
 
     expect(openTab).not.toHaveBeenCalled()
     expect(updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/chat?topicId=topic-1&quoteRequestId=request-1'
+      url: '/app/chat?topicId=topic-1&quoteRequestId=existing-request-1'
     })
     expect(setActiveTab).toHaveBeenCalledWith('chat')
+    selectionQuoteService.ack('chat', 'existing-request-1')
   })
 
   it('opens a new chat only when no usable chat tab exists', () => {
@@ -69,14 +78,86 @@ describe('SelectionQuoteService', () => {
     routeSelectionQuoteToChat({
       activeTab: settings,
       openTab,
-      requestId: 'request-1',
+      request: { id: 'new-request-1', text: 'Selected text' },
       setActiveTab,
       tabs: [settings],
       updateTab
     })
 
-    expect(openTab).toHaveBeenCalledWith('/app/chat?quoteRequestId=request-1', { forceNew: true })
+    expect(openTab).toHaveBeenCalledWith('/app/chat?quoteRequestId=new-request-1', { forceNew: true })
     expect(updateTab).not.toHaveBeenCalled()
     expect(setActiveTab).not.toHaveBeenCalled()
+
+    expect(selectionQuoteService.peek('new-tab', 'new-request-1')).toEqual({
+      id: 'new-request-1',
+      text: 'Selected text'
+    })
+    selectionQuoteService.ack('new-tab', 'new-request-1')
+  })
+
+  it('bounds rapid quotes to the target tab single pending slot', () => {
+    const chat = tab('replacement-chat', '/app/chat?topicId=topic-1', 2)
+    const openTab = vi.fn(() => 'unused-tab')
+    const setActiveTab = vi.fn()
+    const updateTab = vi.fn()
+
+    routeSelectionQuoteToChat({
+      activeTab: chat,
+      openTab,
+      request: { id: 'replacement-request-1', text: 'First selection' },
+      setActiveTab,
+      tabs: [chat],
+      updateTab
+    })
+    routeSelectionQuoteToChat({
+      activeTab: chat,
+      openTab,
+      request: { id: 'replacement-request-2', text: 'Second selection' },
+      setActiveTab,
+      tabs: [chat],
+      updateTab
+    })
+
+    expect(updateTab).toHaveBeenCalledTimes(2)
+    expect(selectionQuoteService.peek('replacement-chat', 'replacement-request-1')).toBeUndefined()
+    expect(selectionQuoteService.peek('replacement-chat', 'replacement-request-2')).toEqual({
+      id: 'replacement-request-2',
+      text: 'Second selection'
+    })
+    selectionQuoteService.ack('replacement-chat', 'replacement-request-1')
+    expect(selectionQuoteService.getCurrentRequestId('replacement-chat')).toBe('replacement-request-2')
+    selectionQuoteService.ack('replacement-chat', 'replacement-request-2')
+  })
+
+  it('reuses the reserved tab while a newly opened chat has not entered tab state', () => {
+    const settings = tab('reserved-settings', '/settings/general', 3)
+    const openTab = vi.fn(() => 'reserved-chat')
+    const setActiveTab = vi.fn()
+    const updateTab = vi.fn()
+
+    routeSelectionQuoteToChat({
+      activeTab: settings,
+      openTab,
+      request: { id: 'reserved-request-1', text: 'First selection' },
+      setActiveTab,
+      tabs: [settings],
+      updateTab
+    })
+    routeSelectionQuoteToChat({
+      activeTab: settings,
+      openTab,
+      request: { id: 'reserved-request-2', text: 'Second selection' },
+      setActiveTab,
+      tabs: [settings],
+      updateTab
+    })
+
+    expect(openTab).toHaveBeenCalledOnce()
+    expect(selectionQuoteService.peek('reserved-chat', 'reserved-request-1')).toBeUndefined()
+    expect(selectionQuoteService.peek('reserved-chat', 'reserved-request-2')).toEqual({
+      id: 'reserved-request-2',
+      text: 'Second selection'
+    })
+    selectionQuoteService.ack('reserved-chat', 'reserved-request-2')
   })
 })

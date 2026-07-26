@@ -1,6 +1,7 @@
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { RefObject } from 'react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerDraftToken, ComposerSerializedDraft } from '../../tokens'
@@ -23,24 +24,24 @@ interface QuoteInsertionActions {
  */
 export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
   actionsRef: RefObject<T>,
-  selectedText?: string,
+  request?: SelectionQuoteRequest,
   onDraftChange?: (draft: ComposerSerializedDraft) => void,
   onInserted?: () => void
-): void {
+): () => void {
   const { t } = useTranslation()
-  const insertedTextRef = useRef<string | undefined>(undefined)
+  const insertedRequestIdRef = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
-    if (!selectedText) {
-      insertedTextRef.current = undefined
-      return
-    }
-    if (insertedTextRef.current === selectedText) return
-    const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
+  const insertPendingQuote = useCallback(() => {
+    if (!request || insertedRequestIdRef.current === request.id) return
+    const token = createQuoteToken(request.text, t('selection.action.builtin.quote'))
     if (!actionsRef.current.insertToken(token)) return
 
-    insertedTextRef.current = selectedText
+    insertedRequestIdRef.current = request.id
     onDraftChange?.(actionsRef.current.getDraft())
     onInserted?.()
-  }, [actionsRef, onDraftChange, onInserted, selectedText, t])
+  }, [actionsRef, onDraftChange, onInserted, request, t])
+
+  useEffect(() => insertPendingQuote(), [insertPendingQuote])
+
+  return insertPendingQuote
 }

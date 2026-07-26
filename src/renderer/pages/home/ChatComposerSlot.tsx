@@ -5,6 +5,7 @@ import {
   type ChatConversationControlsChangeHandler,
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -14,7 +15,7 @@ import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
-  pendingQuoteText?: string
+  pendingQuote?: SelectionQuoteRequest
   onQuoteInserted?: () => void
   onSend: (
     text: string,
@@ -39,7 +40,7 @@ type ChatComposerSlotProps =
 export default function ChatComposerSlot({
   placement,
   topic,
-  pendingQuoteText,
+  pendingQuote,
   onQuoteInserted,
   onSend,
   captureLocalSendScrollEligibility,
@@ -57,7 +58,7 @@ export default function ChatComposerSlot({
         placement="home"
         scopeKey={topic.id}
         topicId={topic.id}
-        pendingQuoteText={pendingQuoteText}
+        pendingQuote={pendingQuote}
         onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}
@@ -74,7 +75,7 @@ export default function ChatComposerSlot({
         placement="docked"
         scopeKey={topic.id}
         topicId={topic.id}
-        pendingQuoteText={pendingQuoteText}
+        pendingQuote={pendingQuote}
         onQuoteInserted={onQuoteInserted}
         assistantId={topic.assistantId}
         onSend={onSend}

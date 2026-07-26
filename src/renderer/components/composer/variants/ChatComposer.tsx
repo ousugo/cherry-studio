@@ -35,6 +35,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -130,7 +131,7 @@ export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationC
 
 export interface ChatComposerProps {
   topic?: Topic
-  pendingQuoteText?: string
+  pendingQuote?: SelectionQuoteRequest
   onQuoteInserted?: () => void
   scopeKey?: string
   topicId?: string
@@ -321,7 +322,7 @@ const ChatComposerRoot = ({
   topic,
   scopeKey,
   topicId,
-  pendingQuoteText,
+  pendingQuote,
   onQuoteInserted,
   assistantId,
   resolvedContext,
@@ -375,7 +376,7 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
-            pendingQuoteText={pendingQuoteText}
+            pendingQuote={pendingQuote}
             onQuoteInserted={onQuoteInserted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
@@ -413,7 +414,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
-  pendingQuoteText,
+  pendingQuote,
   onQuoteInserted,
   assistantId,
   resolvedContext,
@@ -1070,11 +1071,19 @@ const ChatComposerInner = ({
     return items
   }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
 
+  const insertPendingQuote = useComposerQuoteInsertion(
+    actionsRef,
+    pendingQuote,
+    handleSelectionQuoteDraftChange,
+    onQuoteInserted
+  )
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
+      insertPendingQuote()
     },
-    [actionsRef]
+    [actionsRef, insertPendingQuote]
   )
 
   useEffect(() => {
@@ -1088,8 +1097,6 @@ const ChatComposerInner = ({
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
-
-  useComposerQuoteInsertion(actionsRef, pendingQuoteText, handleSelectionQuoteDraftChange, onQuoteInserted)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })

@@ -903,27 +903,6 @@ export default function ComposerSurface({
     trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
   }, [])
 
-  useEffect(() => {
-    onActionsChange?.({
-      focus: focusEditor,
-      onTextChange: handleTextChangeFromTool,
-      replaceDraft,
-      toggleExpanded: toggleEditorExpanded,
-      removeToken,
-      insertToken,
-      getDraft
-    })
-  }, [
-    focusEditor,
-    getDraft,
-    handleTextChangeFromTool,
-    insertToken,
-    onActionsChange,
-    removeToken,
-    replaceDraft,
-    toggleEditorExpanded
-  ])
-
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
   const unifiedPanelListRefreshKeyRef = useRef<
@@ -1787,6 +1766,30 @@ export default function ComposerSurface({
   useEffect(() => {
     editorRef.current = editor
   }, [editor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+
+    onActionsChange?.({
+      focus: focusEditor,
+      onTextChange: handleTextChangeFromTool,
+      replaceDraft,
+      toggleExpanded: toggleEditorExpanded,
+      removeToken,
+      insertToken,
+      getDraft
+    })
+  }, [
+    editor,
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return

@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   topicPending: false,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  surfaceActionsReady: true,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
@@ -136,6 +137,8 @@ const modelBWithFunctionCall = {
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
+      if (!mocks.surfaceActionsReady) return
+
       props.onActionsChange?.({
         focus: mocks.focusComposer,
         onTextChange: (updater) => {
@@ -148,7 +151,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         replaceDraft: mocks.replaceDraft,
         getDraft: mocks.getDraft
       })
-    }, [props])
+    }, [props.onActionsChange])
 
     const inputAdapter = {
       focus: mocks.inputAdapterFocus,
@@ -723,6 +726,7 @@ describe('ChatComposer', () => {
     mocks.topicPending = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
+    mocks.surfaceActionsReady = true
     mocks.derivedToolState = undefined
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
@@ -1263,6 +1267,7 @@ describe('ChatComposer', () => {
   it('inserts the selection quote routed to this chat composer', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
     const onQuoteInserted = vi.fn()
+    mocks.surfaceActionsReady = true
     mocks.insertToken.mockReturnValue(true)
     mocks.getDraft.mockReturnValue({
       text: 'Existing draft <blockquote>\n\nSelected message text\n</blockquote>',
@@ -1273,7 +1278,7 @@ describe('ChatComposer', () => {
       <ChatComposer
         topic={topic}
         onSend={vi.fn()}
-        pendingQuoteText="Selected message text"
+        pendingQuote={{ id: 'quote-request-1', text: 'Selected message text' }}
         onQuoteInserted={onQuoteInserted}
       />
     )
@@ -1294,7 +1299,43 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft <blockquote>\n\nSelected message text\n</blockquote>')
   })
 
+  it('retries a pending selection quote when composer actions become ready', async () => {
+    const onQuoteInserted = vi.fn()
+    mocks.surfaceActionsReady = false
+    mocks.insertToken.mockReturnValue(false)
+
+    render(
+      <ChatComposer
+        topic={topic}
+        onSend={vi.fn()}
+        pendingQuote={{ id: 'quote-request-1', text: 'Selected message text' }}
+        onQuoteInserted={onQuoteInserted}
+      />
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps).toBeDefined())
+    expect(mocks.insertToken).not.toHaveBeenCalled()
+    expect(onQuoteInserted).not.toHaveBeenCalled()
+
+    mocks.insertToken.mockReturnValue(true)
+    act(() => {
+      mocks.surfaceProps?.onActionsChange?.({
+        focus: mocks.focusComposer,
+        onTextChange: vi.fn(),
+        toggleExpanded: mocks.toggleExpanded,
+        removeToken: vi.fn(),
+        insertToken: mocks.insertToken,
+        replaceDraft: mocks.replaceDraft,
+        getDraft: mocks.getDraft
+      })
+    })
+
+    await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledOnce())
+    expect(onQuoteInserted).toHaveBeenCalledOnce()
+  })
+
   it('keeps every routed selection quote in the serialized draft across repeated insertions', async () => {
+    mocks.surfaceActionsReady = true
     let liveDraft = { text: '', tokens: [] as ComposerSerializedToken[] }
     mocks.insertToken.mockImplementation((token) => {
       const separator = liveDraft.text ? ' ' : ''
@@ -1314,15 +1355,33 @@ describe('ChatComposer', () => {
     })
     mocks.getDraft.mockImplementation(() => liveDraft)
 
-    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} pendingQuoteText="First quote" />)
+    const view = render(
+      <ChatComposer topic={topic} onSend={vi.fn()} pendingQuote={{ id: 'quote-1', text: 'First quote' }} />
+    )
     await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledTimes(1))
 
-    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} pendingQuoteText="Second quote" />)
+    view.rerender(
+      <ChatComposer topic={topic} onSend={vi.fn()} pendingQuote={{ id: 'quote-2', text: 'Second quote' }} />
+    )
     await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledTimes(2))
 
     expect(mocks.surfaceProps?.draftTokens).toEqual(liveDraft.tokens)
     expect(mocks.surfaceProps?.draftTokens).toHaveLength(2)
     expect(mocks.surfaceProps?.draftTokens?.map((token) => token.description)).toEqual(['First quote', 'Second quote'])
+  })
+
+  it('inserts distinct selection quote requests even when their text matches', async () => {
+    mocks.surfaceActionsReady = true
+    mocks.insertToken.mockReturnValue(true)
+
+    const view = render(
+      <ChatComposer topic={topic} onSend={vi.fn()} pendingQuote={{ id: 'quote-1', text: 'Same quote' }} />
+    )
+    await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledOnce())
+
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} pendingQuote={{ id: 'quote-2', text: 'Same quote' }} />)
+
+    await waitFor(() => expect(mocks.insertToken).toHaveBeenCalledTimes(2))
   })
 
   it('updates the topic assistant from the composer toolbar', () => {
