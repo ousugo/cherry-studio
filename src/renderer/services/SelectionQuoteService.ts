@@ -3,6 +3,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 class SelectionQuoteService {
   private pendingRequests = new Map<string, SelectionQuoteRequest>()
+  // Covers only the gap between opening a Chat tab and its appearance in TabsProvider state.
   private reservedTargetTabId: string | undefined
 
   store(targetTabId: string, request: SelectionQuoteRequest): void {
@@ -37,6 +38,20 @@ class SelectionQuoteService {
 
   confirmTargetTab(targetTabId: string): void {
     if (this.reservedTargetTabId === targetTabId) this.reservedTargetTabId = undefined
+  }
+
+  reconcileTabs(tabs: Tab[]): void {
+    const tabIds = new Set(tabs.map((tab) => tab.id))
+
+    if (this.reservedTargetTabId && tabIds.has(this.reservedTargetTabId)) {
+      this.reservedTargetTabId = undefined
+    }
+
+    for (const targetTabId of this.pendingRequests.keys()) {
+      if (targetTabId !== this.reservedTargetTabId && !tabIds.has(targetTabId)) {
+        this.pendingRequests.delete(targetTabId)
+      }
+    }
   }
 }
 
