@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
@@ -358,7 +359,9 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled,
     onPaneCollapse,
     onPaneAutoCollapseChange,
-    paneManualToggle
+    paneManualToggle,
+    pendingQuote,
+    onQuoteInserted
   }: {
     activeTopic?: Topic
     centerSurface?: { content?: ReactNode } | null
@@ -375,6 +378,8 @@ vi.mock('../Chat', () => ({
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
     paneManualToggle?: { seq: number; open: boolean }
+    pendingQuote?: { id: string; text: string }
+    onQuoteInserted?: () => void
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -392,6 +397,12 @@ vi.mock('../Chat', () => ({
             <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
             <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+            <output data-testid="selection-quote">{pendingQuote?.text ?? ''}</output>
+            {onQuoteInserted && (
+              <button type="button" onClick={onQuoteInserted}>
+                Quote inserted
+              </button>
+            )}
             {showResourceListControls && onSidebarToggle && (
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
@@ -722,6 +733,7 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
+    selectionQuoteService.reconcileTabs([])
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.topicsById.clear()
@@ -793,6 +805,23 @@ describe('HomePage', () => {
         ([path, options]) => path === '/models/provider-a::model-a' && options?.enabled !== false
       )
     ).toBe(true)
+  })
+
+  it('delivers a routed quote to the active chat and acknowledges it after insertion', async () => {
+    homeMocks.routeSearch = { topicId: 'topic-initial', quoteRequestId: 'quote-request-1' }
+    selectionQuoteService.store('chat-tab', { id: 'quote-request-1', text: 'Selected text' })
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('selection-quote')).toHaveTextContent('Selected text'))
+    fireEvent.click(screen.getByRole('button', { name: 'Quote inserted' }))
+
+    expect(selectionQuoteService.getCurrentRequestId('chat-tab')).toBeUndefined()
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { topicId: 'topic-initial' },
+      replace: true
+    })
   })
 
   it('shows both assistant and topic panes by default when topics are on the right', () => {

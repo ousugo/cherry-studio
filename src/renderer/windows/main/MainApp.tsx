@@ -14,7 +14,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { routeSelectionQuoteToChat } from '@renderer/services/SelectionQuoteService'
+import { routeSelectionQuoteToChat, selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { lazy, Suspense, useEffect } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -75,6 +75,10 @@ function MainWindowRuntime(): null {
 
 function SelectionQuoteNavigation(): null {
   const { activeTab, openTab, setActiveTab, tabs, updateTab } = useTabs()
+
+  useEffect(() => {
+    selectionQuoteService.reconcileTabs(tabs)
+  }, [tabs])
 
   useEffect(() => {
     return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, text: string) => {

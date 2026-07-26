@@ -1,6 +1,7 @@
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { RefObject } from 'react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerDraftToken } from '../../tokens'

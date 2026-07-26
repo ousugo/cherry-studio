@@ -160,4 +160,40 @@ describe('SelectionQuoteService', () => {
     })
     selectionQuoteService.ack('reserved-chat', 'reserved-request-2')
   })
+
+  it('opens a new chat after the reserved target was mounted and closed before insertion', () => {
+    const settings = tab('closed-settings', '/settings/general', 3)
+    const closedChat = tab('closed-chat', '/app/chat?quoteRequestId=closed-request-1', 4)
+    const openTab = vi.fn().mockReturnValueOnce('closed-chat').mockReturnValueOnce('replacement-chat')
+    const setActiveTab = vi.fn()
+    const updateTab = vi.fn()
+
+    routeSelectionQuoteToChat({
+      activeTab: settings,
+      openTab,
+      request: { id: 'closed-request-1', text: 'First selection' },
+      setActiveTab,
+      tabs: [settings],
+      updateTab
+    })
+    selectionQuoteService.reconcileTabs([settings, closedChat])
+    selectionQuoteService.reconcileTabs([settings])
+
+    routeSelectionQuoteToChat({
+      activeTab: settings,
+      openTab,
+      request: { id: 'replacement-request-1', text: 'Second selection' },
+      setActiveTab,
+      tabs: [settings],
+      updateTab
+    })
+
+    expect(openTab).toHaveBeenCalledTimes(2)
+    expect(selectionQuoteService.peek('closed-chat', 'closed-request-1')).toBeUndefined()
+    expect(selectionQuoteService.peek('replacement-chat', 'replacement-request-1')).toEqual({
+      id: 'replacement-request-1',
+      text: 'Second selection'
+    })
+    selectionQuoteService.ack('replacement-chat', 'replacement-request-1')
+  })
 })
