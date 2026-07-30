@@ -146,6 +146,10 @@
         "whoamiTip": "Sfat: Trimiteți /whoami în WeChat pentru a obține ID-ul unui utilizator."
       }
     },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -321,16 +325,25 @@
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",
         "no_subagents": "Fără subagenți",
-        "subagents": "Subagenți"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Subagenți",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Activitate",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "Nicio sarcină activă",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Instrument selectat",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Activ",
         "tools_done": "Gata",
         "tools_failed": "Eșuat",
@@ -3844,6 +3857,7 @@
     },
     "citation": "{{count}} citări",
     "citations": "Referințe",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiat!",
     "copy": {
       "failed": "Copiere eșuată",
@@ -4125,6 +4139,7 @@
         "write": "Salvează",
         "writing": "Salvare"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
@@ -4156,6 +4171,7 @@
         "tool": "Unelte",
         "webFetch": "Preluare web",
         "webSearch": "Căutare pe web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Scrie"
       },
       "noData": "Nu sunt disponibile date pentru acest instrument",
@@ -4213,6 +4229,15 @@
         "plan_other": "{{count}} planuri",
         "result_one": "{{count}} rezultat",
         "result_other": "{{count}} rezultate"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {

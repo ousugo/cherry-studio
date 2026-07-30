@@ -146,6 +146,10 @@
         "whoamiTip": "Tipp: Sende /whoami in WeChat, um die ID eines Benutzers zu erhalten."
       }
     },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
@@ -321,16 +325,25 @@
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
         "no_subagents": "Keine Unteragenten",
-        "subagents": "Unteragenten"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Unteragenten",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Aktivität",
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ausgewähltes Werkzeug",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
         "tasks": "Aufgaben",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Aktiv",
         "tools_done": "Fertig",
         "tools_failed": "Fehlgeschlagen",
@@ -3844,6 +3857,7 @@
     },
     "citation": "{{count}} Zitate",
     "citations": "Zitate",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Kopiert",
     "copy": {
       "failed": "Kopieren fehlgeschlagen",
@@ -4125,6 +4139,7 @@
         "write": "Speichern",
         "writing": "Speichern"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
@@ -4156,6 +4171,7 @@
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
         "webSearch": "Websuche",
+        "workflow": "[to be translated]:Workflow",
         "write": "Schreiben"
       },
       "noData": "Keine Daten für dieses Tool verfügbar",
@@ -4213,6 +4229,15 @@
         "plan_other": "{{count}} Pläne",
         "result_one": "{{count}} Ergebnis",
         "result_other": "{{count}} Ergebnisse"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {

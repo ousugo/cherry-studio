@@ -146,6 +146,10 @@
         "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
       }
     },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
+    },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
       "error": {
@@ -321,16 +325,25 @@
         "more": "+{{count}} más",
         "no_artifacts": "No se han declarado entregables",
         "no_subagents": "Sin subagentes",
-        "subagents": "Subagentes"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Subagentes",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Actividad",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Herramienta seleccionada",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Activo",
         "tools_done": "Hecho",
         "tools_failed": "Falló",
@@ -3844,6 +3857,7 @@
     },
     "citation": "{{count}} contenido citado",
     "citations": "Citas",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
     "copy": {
       "failed": "Copia fallida",
@@ -4125,6 +4139,7 @@
         "write": "Guardar",
         "writing": "Guardando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
@@ -4156,6 +4171,7 @@
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
         "webSearch": "Búsqueda en la web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Escribir"
       },
       "noData": "No hay datos disponibles para esta herramienta.",
@@ -4213,6 +4229,15 @@
         "plan_other": "{{count}} planes",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {

@@ -146,6 +146,10 @@
         "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
       }
     },
+    "composer": {
+      "background_running_one": "{{count}} background task running",
+      "background_running_other": "{{count}} background tasks running"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -321,16 +325,25 @@
         "more": "+{{count}} more",
         "no_artifacts": "No declared deliverables",
         "no_subagents": "No sub-agents",
-        "subagents": "Sub-agents"
+        "shell_tasks": "Background commands",
+        "subagents": "Sub-agents",
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Activity",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "No active tasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
+        "stop_run_task": "Stop task",
+        "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
+        "tool_uses_one": "{{count}} tool call",
+        "tool_uses_other": "{{count}} tool calls",
         "tools_active": "Active",
         "tools_done": "Done",
         "tools_failed": "Failed",
@@ -3844,6 +3857,7 @@
     },
     "citation": "{{count}} citations",
     "citations": "References",
+    "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
     "copy": {
       "failed": "Copy failed",
@@ -4125,6 +4139,7 @@
         "write": "Write",
         "writing": "Writing it out"
       },
+      "agent_background": "Running in background",
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
@@ -4156,6 +4171,7 @@
         "tool": "Tool",
         "webFetch": "Web Fetch",
         "webSearch": "Web Search",
+        "workflow": "Workflow",
         "write": "Write"
       },
       "noData": "No data available for this tool",
@@ -4213,6 +4229,15 @@
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} result",
         "result_other": "{{count}} results"
+      },
+      "workflow": {
+        "orchestrating": "Orchestrating workflow",
+        "run_id": "Run ID",
+        "script": "Workflow script",
+        "script_path": "Script path",
+        "started": "Started workflow",
+        "summary": "Summary",
+        "workflow": "workflow"
       }
     },
     "topic": {
