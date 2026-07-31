@@ -61,7 +61,8 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
     attachments.map(async (attachment, index) => {
       const entry = await window.api.file.createInternalEntry({
         source: 'path',
-        path: paths[index]
+        path: paths[index],
+        cleanupPolicy: 'delete_when_unreferenced'
       })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
