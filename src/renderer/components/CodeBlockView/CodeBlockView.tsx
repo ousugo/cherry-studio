@@ -33,6 +33,8 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
+const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
+const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -128,6 +130,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+  const handleRequestExpand = useCallback(() => setExpandOverride(true), [])
 
   // 重置用户操作
   useEffect(() => {
@@ -309,11 +312,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           expanded={shouldExpand}
           wrapped={shouldWrap}
           maxHeight={sourceMaxHeight}
-          onRequestExpand={maxHeight === undefined && codeCollapsible ? () => setExpandOverride(true) : undefined}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
-          options={{
-            highlight: !isStreaming
-          }}
+          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
         />
       ),
     [
@@ -325,6 +326,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      handleRequestExpand,
       isStreaming,
       language,
       maxHeight,
