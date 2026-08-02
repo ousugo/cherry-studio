@@ -3363,7 +3363,7 @@
             "label": "Small model"
           }
         },
-        "model_config": "Model configuration",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Max turns and environment variables",
@@ -8090,7 +8090,7 @@
           "save_failed": "Save failed",
           "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
-        "fetch_urls_provider": "Default URL fetch provider",
+        "fetch_urls_provider": "URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {

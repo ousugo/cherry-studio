@@ -3354,7 +3354,7 @@
             "label": "小型模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "執行限制與執行時期參數",
@@ -8079,7 +8079,7 @@
           "save_failed": "儲存失敗",
           "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
-        "fetch_urls_provider": "預設 URL 擷取供應商",
+        "fetch_urls_provider": "URL 擷取供應商",
         "free": "免費",
         "is_default": "預設",
         "local_provider": {
