@@ -74,6 +74,12 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
+  it('enables triple-space input translation for new users', () => {
+    const autoTranslateDefault: PreferenceSchemas['default']['chat.input.translate.auto_translate_with_space'] = true
+
+    expect(DefaultPreferences.default['chat.input.translate.auto_translate_with_space']).toBe(autoTranslateDefault)
+  })
+
   it('does not keep legacy classic/modern layout preferences', () => {
     expect('topic.layout' in DefaultPreferences.default).toBe(false)
     expect('agent.layout' in DefaultPreferences.default).toBe(false)

@@ -4,6 +4,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -19,6 +20,8 @@ const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
+const mockTranslate = vi.hoisted(() => vi.fn())
+const mockCancelTranslate = vi.hoisted(() => vi.fn())
 // The composer's live draft attachments. Mutable because the image-required gate
 // reads them, and its whole contract is that it tracks the draft rather than the
 // last-generated `painting.inputFiles`.
@@ -46,9 +49,13 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
         <textarea
           aria-label="prompt"
           value={props.text}
-          disabled={props.sendDisabled && false}
+          disabled={props.editable === false}
           onChange={(event) => props.onTextChange(event.target.value)}
+          onKeyDown={(event) => props.onKeyDown?.(event.nativeEvent)}
         />
+        {props.trailingActivityIndicatorLabel && (
+          <span role="status" aria-label={props.trailingActivityIndicatorLabel} />
+        )}
         <button
           type="button"
           aria-label="send"
@@ -98,7 +105,30 @@ vi.mock('@renderer/components/composer/variants/shared/composerTokens', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [key === 'chat.message.font_size' ? 14 : false]
+  usePreference: (key: string) => {
+    if (key === 'chat.message.font_size') return [14]
+    if (key === 'chat.input.translate.auto_translate_with_space') return [true]
+    if (key === 'chat.input.translate.target_language') return ['zh-cn']
+    return [false]
+  }
+}))
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useTranslate: () => {
+    const [isTranslating, setIsTranslating] = useState(false)
+    return {
+      translate: async (text: string, targetLanguage: string) => {
+        setIsTranslating(true)
+        try {
+          return await mockTranslate(text, targetLanguage)
+        } finally {
+          setIsTranslating(false)
+        }
+      },
+      isTranslating,
+      cancel: mockCancelTranslate
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -193,6 +223,9 @@ describe('PaintingComposer', () => {
     mockMaterializeInputs.mockResolvedValue({ entries: [], complete: true })
     mockIsEditImageModel.mockReset()
     mockIsEditImageModel.mockReturnValue(false)
+    mockTranslate.mockReset()
+    mockTranslate.mockResolvedValue('translated painting prompt')
+    mockCancelTranslate.mockReset()
   })
 
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
@@ -280,6 +313,35 @@ describe('PaintingComposer', () => {
     const { onPromptChange } = renderComposer()
     fireEvent.change(screen.getByLabelText('prompt'), { target: { value: 'a cat' } })
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
+  })
+
+  it('translates the painting prompt after three rapid spaces and exposes progress', async () => {
+    let resolveTranslation: ((value: string) => void) | undefined
+    mockTranslate.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveTranslation = resolve
+      })
+    )
+    const { onPromptChange } = renderComposer({ painting: makePainting({ prompt: 'Paint this  ' }) })
+    const prompt = screen.getByLabelText('prompt')
+
+    fireEvent.keyDown(prompt, { key: ' ' })
+    fireEvent.keyDown(prompt, { key: ' ' })
+    fireEvent.keyDown(prompt, { key: ' ' })
+
+    await waitFor(() => {
+      expect(mockTranslate).toHaveBeenCalledWith('Paint this  ', 'zh-cn')
+      expect(prompt).toBeDisabled()
+      expect(screen.getByRole('status', { name: 'chat.input.translating' })).toBeInTheDocument()
+    })
+
+    resolveTranslation?.('绘制这个')
+
+    await waitFor(() => {
+      expect(onPromptChange).toHaveBeenCalledWith('绘制这个')
+      expect(prompt).not.toBeDisabled()
+      expect(screen.queryByRole('status', { name: 'chat.input.translating' })).not.toBeInTheDocument()
+    })
   })
 
   it('syncs an externally selected prompt into the composer', () => {

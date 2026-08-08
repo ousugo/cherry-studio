@@ -77,7 +77,12 @@ const mocks = vi.hoisted(() => ({
         onReasoningEffortChange: (effort: string) => void
         onFastModeChange: (enabled: boolean) => void
       }
-    | undefined
+    | undefined,
+  autoTranslateWithSpace: true,
+  translateTargetLanguage: 'en-us',
+  translate: vi.fn(),
+  cancelTranslate: vi.fn(),
+  isTranslating: false
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -463,11 +468,21 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.translate.auto_translate_with_space': mocks.autoTranslateWithSpace,
+      'chat.input.translate.target_language': mocks.translateTargetLanguage,
       'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
   }
+}))
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useTranslate: () => ({
+    translate: mocks.translate,
+    isTranslating: mocks.isTranslating,
+    cancel: mocks.cancelTranslate
+  })
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
@@ -755,6 +770,12 @@ describe('ChatComposer', () => {
     mocks.modelHookArgs = []
     mocks.providerHookArgs = []
     mocks.speedControlProps = undefined
+    mocks.autoTranslateWithSpace = true
+    mocks.translateTargetLanguage = 'en-us'
+    mocks.translate.mockReset()
+    mocks.translate.mockResolvedValue('Translated draft')
+    mocks.cancelTranslate.mockReset()
+    mocks.isTranslating = false
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -801,6 +822,89 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('translates the current draft after three rapid spaces using the configured translation target', async () => {
+    mocks.translateTargetLanguage = 'zh-cn'
+    mocks.getDraft.mockReturnValue({ text: 'Hello  ', tokens: [] })
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    expect(onKeyDown).toBeTypeOf('function')
+
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    await waitFor(() => {
+      expect(mocks.translate).toHaveBeenCalledWith('Hello  ', 'zh-cn')
+      expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Translated draft', tokens: [] })
+    })
+  })
+
+  it('does not trigger triple-space translation when the preference is disabled', () => {
+    mocks.autoTranslateWithSpace = false
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    expect(mocks.translate).not.toHaveBeenCalled()
+  })
+
+  it('does not start another translation while the first triple-space trigger is still in flight', async () => {
+    const deferred = createDeferred<string>()
+    mocks.translate.mockReturnValue(deferred.promise)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    for (let index = 0; index < 6; index += 1) {
+      onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    }
+
+    expect(mocks.translate).toHaveBeenCalledOnce()
+
+    await act(async () => deferred.resolve('Translated draft'))
+  })
+
+  it('discards a late translation result after the composer scope changes', async () => {
+    const deferred = createDeferred<string>()
+    mocks.translate.mockReturnValue(deferred.promise)
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    view.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={vi.fn()} />)
+    await act(async () => deferred.resolve('Stale translated draft'))
+
+    expect(mocks.cancelTranslate).toHaveBeenCalled()
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+  })
+
+  it('ignores composing space key events', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ', isComposing: true }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ', isComposing: true }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ', isComposing: true }))
+
+    expect(mocks.translate).not.toHaveBeenCalled()
+  })
+
+  it('locks the composer while an input translation is running', () => {
+    mocks.isTranslating = true
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.placeholder).toBe('chat.input.placeholder')
+    expect(mocks.surfaceProps?.trailingActivityIndicatorLabel).toBe('chat.input.translating')
   })
 
   it('renders context usage after the speed control next to the send action', () => {
