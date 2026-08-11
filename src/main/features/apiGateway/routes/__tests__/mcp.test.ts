@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * `/v1/mcps*` integration tests — drive the real Elysia app via `app.handle(Request)`
@@ -7,16 +7,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * `mcpServerService` and the MCP runtime/catalog services.
  */
 
-const { mockPreferenceGet, mockList, mockFindByIdOrName, mockListTools, mockWarmToolsCache, mockCallTool } = vi.hoisted(
-  () => ({
-    mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-    mockList: vi.fn(),
-    mockFindByIdOrName: vi.fn(),
-    mockListTools: vi.fn(),
-    mockWarmToolsCache: vi.fn(async () => undefined),
-    mockCallTool: vi.fn()
-  })
-)
+const {
+  mockPreferenceGet,
+  mockList,
+  mockFindByIdOrName,
+  mockListTools,
+  mockWarmToolsCache,
+  mockCallTool,
+  toolsCacheListeners
+} = vi.hoisted(() => ({
+  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+  mockList: vi.fn(),
+  mockFindByIdOrName: vi.fn(),
+  mockListTools: vi.fn(),
+  mockWarmToolsCache: vi.fn(async () => undefined),
+  mockCallTool: vi.fn(),
+  // Real listener set so a test can actually fire the event the bridge relays as
+  // `tools/list_changed` — the whole point of sessions.
+  toolsCacheListeners: new Set<(event: { serverId: string }) => void>()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -27,7 +36,10 @@ vi.mock('@application', async () => {
       warmToolsCache: mockWarmToolsCache,
       listResources: vi.fn(async () => []),
       listPrompts: vi.fn(async () => []),
-      onToolsCacheUpdated: vi.fn(() => ({ dispose: vi.fn() }))
+      onToolsCacheUpdated: vi.fn((listener: (event: { serverId: string }) => void) => {
+        toolsCacheListeners.add(listener)
+        return { dispose: () => toolsCacheListeners.delete(listener) }
+      })
     },
     McpRuntimeService: { callTool: mockCallTool }
   }
@@ -61,6 +73,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 }))
 
 import { buildApp } from '../../app'
+import { McpSessionStore } from '../../McpSessionStore'
 
 const ACTIVE_SERVER = { id: 'server-1', name: 'filesystem', type: 'stdio', description: 'Local files', isActive: true }
 const TOOL = {
@@ -88,10 +101,62 @@ function get(
   return app.handle(new Request(`http://localhost${path}`, { method: 'GET', headers }))
 }
 
-function rpc(app: ReturnType<typeof buildApp>, path: string, body: unknown) {
+function rpc(app: ReturnType<typeof buildApp>, path: string, body: unknown, extraHeaders: Record<string, string> = {}) {
   return app.handle(
-    new Request(`http://localhost${path}`, { method: 'POST', headers: MCP_HEADERS, body: JSON.stringify(body) })
+    new Request(`http://localhost${path}`, {
+      method: 'POST',
+      headers: { ...MCP_HEADERS, ...extraHeaders },
+      body: JSON.stringify(body)
+    })
   )
+}
+
+/** Drive the full handshake and return the id the transport assigned. */
+async function openSession(app: ReturnType<typeof buildApp>, path = '/v1/mcps/server-1/mcp'): Promise<string> {
+  const res = await rpc(app, path, INITIALIZE)
+  const sessionId = res.headers.get('mcp-session-id')
+  if (!sessionId) throw new Error(`no session id issued (status ${res.status})`)
+  // The SDK client always follows initialize with this; it is what arms the bridge's relay.
+  await rpc(app, path, { jsonrpc: '2.0', method: 'notifications/initialized' }, { 'mcp-session-id': sessionId })
+  return sessionId
+}
+
+/**
+ * Drain a session POST response. Session transports answer in SSE (not JSON) so that
+ * request-related notifications such as `notifications/progress` are actually written —
+ * the SDK drops those under `enableJsonResponse`. Returns every JSON-RPC message in order.
+ */
+async function readSseMessages(res: Response): Promise<any[]> {
+  const text = await res.text()
+  return text
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice(6)))
+}
+
+/** The final result message of a session POST (notifications may precede it). */
+async function sseResult(res: Response): Promise<any> {
+  const messages = await readSseMessages(res)
+  return messages.find((message) => 'result' in message || 'error' in message)
+}
+
+/** Read SSE frames off a stream until `predicate` matches or the budget runs out. */
+async function readFrames(res: Response, predicate: (text: string) => boolean, budget = 40): Promise<string> {
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (let i = 0; i < budget; i++) {
+    const chunk = await Promise.race([
+      reader.read(),
+      new Promise<{ value: undefined; done: false }>((resolve) =>
+        setTimeout(() => resolve({ value: undefined, done: false }), 25)
+      )
+    ])
+    if (chunk.value) buffer += decoder.decode(chunk.value, { stream: true })
+    if (predicate(buffer)) break
+  }
+  void reader.cancel()
+  return buffer
 }
 
 const INITIALIZE = {
@@ -103,15 +168,22 @@ const INITIALIZE = {
 
 describe('/v1/mcps', () => {
   let app: ReturnType<typeof buildApp>
+  let sessions: McpSessionStore
 
   beforeEach(() => {
     vi.clearAllMocks()
+    toolsCacheListeners.clear()
     mockPreferenceGet.mockReturnValue('test-key')
     mockList.mockReturnValue({ items: [ACTIVE_SERVER], total: 1, page: 1 })
     mockFindByIdOrName.mockImplementation((id: string) => (id === 'server-1' ? ACTIVE_SERVER : undefined))
     mockListTools.mockReturnValue([TOOL])
     mockWarmToolsCache.mockResolvedValue(undefined)
-    app = buildApp()
+    sessions = new McpSessionStore()
+    app = buildApp({ mcpSessions: sessions })
+  })
+
+  afterEach(async () => {
+    await sessions.closeAll()
   })
 
   it('GET /v1/mcps lists active servers with an absolute proxy url', async () => {
@@ -155,13 +227,7 @@ describe('/v1/mcps', () => {
     expect(res.status).toBe(404)
   })
 
-  it('proxies tools/list over stateless Streamable HTTP without a session header', async () => {
-    const init = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
-    expect(init.status).toBe(200)
-    // Stateless mode issues no session id, so the client has nothing to echo back.
-    expect(init.headers.get('mcp-session-id')).toBeNull()
-    expect((await init.json()).result.serverInfo.name).toBe('filesystem')
-
+  it('proxies tools/list with full tool metadata', async () => {
     const list = await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', id: 2, method: 'tools/list' })
     expect(list.status).toBe(200)
     const body = await list.json()
@@ -220,11 +286,13 @@ describe('/v1/mcps', () => {
     expect(mockWarmToolsCache).toHaveBeenCalledWith('server-1')
   })
 
-  // Declaring listChanged on a transport that cannot deliver it makes clients trust a heal
-  // that never arrives and keep a stale tool list.
-  it('does not advertise tools.listChanged to a stateless HTTP client', async () => {
+  // The capability must track what the transport can actually deliver. A session holds a
+  // stream, so it advertises listChanged; the one-shot path builds its bridge with
+  // `listChanged: false` (it has no stream), and never reaches a client because only an
+  // `initialize` — which opens a session — is answered with capabilities at all.
+  it('advertises tools.listChanged to a session client, which can receive it', async () => {
     const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
-    expect((await res.json()).result.capabilities.tools).toEqual({})
+    expect((await sseResult(res)).result.capabilities.tools).toEqual({ listChanged: true })
   })
 
   // The MCP transport spec requires Origin validation to block DNS rebinding; native
@@ -269,8 +337,198 @@ describe('/v1/mcps', () => {
       })
     )
     expect(res.status).toBe(405)
-    expect(res.headers.get('allow')).toBe('POST')
+    expect(res.headers.get('allow')).toBe('POST, GET, DELETE')
     expect((await res.json()).error).toMatchObject({ code: -32000, message: 'Method not allowed.' })
+  })
+
+  describe('sessions (opt-in via initialize)', () => {
+    it('issues an Mcp-Session-Id on initialize and reuses it for follow-up calls', async () => {
+      const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+      const sessionId = res.headers.get('mcp-session-id')
+      expect(res.status).toBe(200)
+      expect(sessionId).toBeTruthy()
+      expect(sessions.size).toBe(1)
+
+      const list = await rpc(
+        app,
+        '/v1/mcps/server-1/mcp',
+        { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+        { 'mcp-session-id': sessionId! }
+      )
+      expect(list.status).toBe(200)
+      expect((await sseResult(list)).result.tools).toHaveLength(1)
+    })
+
+    // Regression for the silent-drop this PR fixes: with `enableJsonResponse: true` the SDK
+    // resolves the call but never writes request-related notifications, so an HTTP client
+    // saw the result and lost every progress update. An in-memory transport cannot show this.
+    it('delivers notifications/progress to a session client over the HTTP transport', async () => {
+      mockCallTool.mockImplementation(async ({ onProgress }: { onProgress?: (p: unknown) => void }) => {
+        onProgress?.({ progress: 1, total: 2 })
+        onProgress?.({ progress: 2, total: 2 })
+        return { content: [{ type: 'text', text: 'done' }] }
+      })
+
+      const sessionId = await openSession(app)
+      const res = await rpc(
+        app,
+        '/v1/mcps/server-1/mcp',
+        {
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'tools/call',
+          params: { name: 'read_file', arguments: { path: '/tmp/a.txt' }, _meta: { progressToken: 'tok-1' } }
+        },
+        { 'mcp-session-id': sessionId }
+      )
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/event-stream')
+      const messages = await readSseMessages(res)
+      const progress = messages.filter((m) => m.method === 'notifications/progress')
+      expect(progress.map((m) => m.params.progress)).toEqual([1, 2])
+      expect(progress.every((m) => m.params.progressToken === 'tok-1')).toBe(true)
+      expect(messages.find((m) => 'result' in m).result.content).toEqual([{ type: 'text', text: 'done' }])
+    })
+
+    // The hybrid contract: clients that never handshake keep the behaviour shipped in #18080.
+    it('still serves a sessionless tools/list with no handshake', async () => {
+      const res = await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', id: 3, method: 'tools/list' })
+      expect(res.status).toBe(200)
+      expect((await res.json()).result.tools).toHaveLength(1)
+      expect(sessions.size).toBe(0)
+    })
+
+    it('rejects an unknown session id with 404', async () => {
+      const res = await rpc(
+        app,
+        '/v1/mcps/server-1/mcp',
+        { jsonrpc: '2.0', id: 4, method: 'tools/list' },
+        { 'mcp-session-id': 'nope' }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('GET opens an SSE stream for a session and still 405s without one', async () => {
+      expect((await get(app, '/v1/mcps/server-1/mcp', { 'x-api-key': 'test-key' })).status).toBe(405)
+
+      const sessionId = await openSession(app)
+      const stream = await get(app, '/v1/mcps/server-1/mcp', {
+        'x-api-key': 'test-key',
+        accept: 'text/event-stream',
+        'mcp-session-id': sessionId
+      })
+      expect(stream.status).toBe(200)
+      expect(stream.headers.get('content-type')).toContain('text/event-stream')
+      void stream.body?.cancel()
+    })
+
+    // The feature itself: without this, sessions buy nothing over #18080's stateless proxy.
+    it('pushes tools/list_changed onto a session stream when the tools cache changes', async () => {
+      const sessionId = await openSession(app)
+      const stream = await get(app, '/v1/mcps/server-1/mcp', {
+        'x-api-key': 'test-key',
+        accept: 'text/event-stream',
+        'mcp-session-id': sessionId
+      })
+      expect(toolsCacheListeners.size).toBeGreaterThan(0)
+
+      for (const listener of toolsCacheListeners) listener({ serverId: 'server-1' })
+
+      const frames = await readFrames(stream, (text) => text.includes('tools/list_changed'))
+      expect(frames).toContain('notifications/tools/list_changed')
+    })
+
+    it('DELETE terminates a session; the id is unusable afterwards', async () => {
+      const sessionId = await openSession(app)
+      const del = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method: 'DELETE',
+          headers: { 'x-api-key': 'test-key', 'mcp-session-id': sessionId }
+        })
+      )
+      expect(del.status).toBe(200)
+      expect(sessions.size).toBe(0)
+
+      const after = await rpc(
+        app,
+        '/v1/mcps/server-1/mcp',
+        { jsonrpc: '2.0', id: 5, method: 'tools/list' },
+        { 'mcp-session-id': sessionId }
+      )
+      expect(after.status).toBe(404)
+    })
+
+    // The cap used to be checked against `sessions.size` alone, which is only updated after
+    // `bridge.connect()` resolves — so a concurrent burst all passed the check at once.
+    it('holds the session cap under a concurrent initialize burst', async () => {
+      const burst = 80
+      const responses = await Promise.all(
+        Array.from({ length: burst }, () => rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE))
+      )
+
+      const opened = responses.filter((res) => res.headers.get('mcp-session-id')).length
+      const refused = responses.filter((res) => res.status === 503).length
+      expect(sessions.size).toBeLessThanOrEqual(64)
+      expect(opened).toBeLessThanOrEqual(64)
+      expect(opened + refused).toBe(burst)
+    })
+
+    // Browsers cannot read a response header that is not in access-control-expose-headers,
+    // so without this the official client reads a null id and orphans the session.
+    it('exposes mcp-session-id to browser clients', async () => {
+      const res = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method: 'POST',
+          // Loopback: a non-local Origin is rejected outright by the transport-boundary check.
+          headers: { ...MCP_HEADERS, origin: 'http://localhost:5173' },
+          body: JSON.stringify(INITIALIZE)
+        })
+      )
+      expect(res.headers.get('mcp-session-id')).toBeTruthy()
+      expect(res.headers.get('access-control-expose-headers')?.toLowerCase()).toContain('mcp-session-id')
+    })
+
+    // The SDK unregisters its standalone stream from that stream's `cancel` callback, so a
+    // cancellation that never reaches the source strands the mapping and every later GET on
+    // the session answers 409 — for the rest of its life, since nothing else clears it.
+    it('lets a client reopen the stream after cancelling the previous one', async () => {
+      const sessionId = await openSession(app)
+      const streamHeaders = {
+        'x-api-key': 'test-key',
+        accept: 'text/event-stream',
+        'mcp-session-id': sessionId
+      }
+
+      const first = await get(app, '/v1/mcps/server-1/mcp', streamHeaders)
+      expect(first.status).toBe(200)
+      await first.body!.cancel()
+
+      const second = await get(app, '/v1/mcps/server-1/mcp', streamHeaders)
+      expect(second.status).toBe(200)
+      void second.body?.cancel()
+    })
+
+    it('refuses new sessions once closed, so a shutdown race cannot strand one', async () => {
+      await sessions.closeAll()
+      const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+      expect(res.status).toBe(503)
+      expect(sessions.size).toBe(0)
+    })
+
+    it('closeAll drops every session, so gateway shutdown cannot leak bridges', async () => {
+      const sessionId = await openSession(app)
+      await sessions.closeAll()
+      expect(sessions.size).toBe(0)
+
+      const after = await rpc(
+        app,
+        '/v1/mcps/server-1/mcp',
+        { jsonrpc: '2.0', id: 6, method: 'tools/list' },
+        { 'mcp-session-id': sessionId }
+      )
+      expect(after.status).toBe(404)
+    })
   })
 
   it('documents the endpoints in the OpenAPI spec', async () => {
@@ -280,5 +538,14 @@ describe('/v1/mcps', () => {
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].post.description).toBe('apiGateway.docs.operations.mcp_proxy::en-US')
     // GET/DELETE on the proxy path are transport plumbing, not part of the documented API.
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].get).toBeUndefined()
+  })
+
+  // The proxy answers JSON on the one-shot path and SSE on a session, so a client generated
+  // from this spec must be told about both — declaring only JSON makes it pick a JSON parser
+  // and never see a session response.
+  it('advertises both response media types for the proxy', async () => {
+    const spec = await (await get(app, '/openapi/json', {})).json()
+    const content = spec.paths['/v1/mcps/{server_id}/mcp'].post.responses['200'].content
+    expect(Object.keys(content).sort()).toEqual(['application/json', 'text/event-stream'])
   })
 })
