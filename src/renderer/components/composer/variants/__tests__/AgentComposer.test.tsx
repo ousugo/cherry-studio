@@ -964,6 +964,7 @@ describe('AgentComposer', () => {
       expect(mocks.translate).toHaveBeenCalledWith('Agent prompt  ', 'en-us')
       expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Translated agent draft', tokens: [] })
       expect(mocks.surfaceProps?.text).toBe('Translated agent draft')
+      expect(mocks.surfaceFocus).toHaveBeenLastCalledWith('end')
     })
   })
 

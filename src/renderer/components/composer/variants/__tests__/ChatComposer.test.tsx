@@ -839,6 +839,7 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(mocks.translate).toHaveBeenCalledWith('Hello  ', 'zh-cn')
       expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Translated draft', tokens: [] })
+      expect(mocks.focusComposer).toHaveBeenLastCalledWith('end')
     })
   })
 

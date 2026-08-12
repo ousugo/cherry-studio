@@ -964,6 +964,7 @@ const AgentComposerInner = ({
       setText(translatedDraft.text)
       setDraftTokens(translatedDraft.tokens)
       draftTokensRef.current = translatedDraft.tokens
+      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     },
     [actionsRef, setText]
   )

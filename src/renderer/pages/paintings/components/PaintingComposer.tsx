@@ -254,6 +254,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     (translatedDraft: ComposerSerializedDraft) => {
       composerActionsRef.current?.replaceDraft(translatedDraft)
       onPromptChange(translatedDraft.text)
+      window.requestAnimationFrame(() => composerActionsRef.current?.focus('end'))
     },
     [onPromptChange]
   )

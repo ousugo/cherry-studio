@@ -4,7 +4,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -22,6 +22,8 @@ const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
 const mockTranslate = vi.hoisted(() => vi.fn())
 const mockCancelTranslate = vi.hoisted(() => vi.fn())
+const mockSurfaceFocus = vi.hoisted(() => vi.fn())
+const mockReplaceDraft = vi.hoisted(() => vi.fn())
 // The composer's live draft attachments. Mutable because the image-required gate
 // reads them, and its whole contract is that it tracks the draft rather than the
 // last-generated `painting.inputFiles`.
@@ -41,8 +43,22 @@ const imageGenerationSupportWithFields = {
 }
 
 // Stand in for the Tiptap surface: expose the text + send wiring the variant drives.
-vi.mock('@renderer/components/composer/ComposerSurface', () => ({
-  default: (props: ComposerSurfaceProps) => {
+vi.mock('@renderer/components/composer/ComposerSurface', () => {
+  function MockComposerSurface(props: ComposerSurfaceProps) {
+    useEffect(() => {
+      props.onActionsChange?.({
+        focus: (position) => {
+          if (props.editable !== false) mockSurfaceFocus(position)
+        },
+        onTextChange: vi.fn(),
+        toggleExpanded: vi.fn(),
+        removeToken: vi.fn(),
+        insertToken: vi.fn(),
+        replaceDraft: mockReplaceDraft,
+        getDraft: () => ({ text: props.text, tokens: [] })
+      })
+    }, [props])
+
     captured.surfaceProps = props
     return (
       <div>
@@ -67,7 +83,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
       </div>
     )
   }
-}))
+
+  return { default: MockComposerSurface }
+})
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -226,6 +244,8 @@ describe('PaintingComposer', () => {
     mockTranslate.mockReset()
     mockTranslate.mockResolvedValue('translated painting prompt')
     mockCancelTranslate.mockReset()
+    mockSurfaceFocus.mockReset()
+    mockReplaceDraft.mockReset()
   })
 
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
@@ -339,6 +359,8 @@ describe('PaintingComposer', () => {
 
     await waitFor(() => {
       expect(onPromptChange).toHaveBeenCalledWith('绘制这个')
+      expect(mockReplaceDraft).toHaveBeenCalledWith({ text: '绘制这个', tokens: [] })
+      expect(mockSurfaceFocus).toHaveBeenLastCalledWith('end')
       expect(prompt).not.toBeDisabled()
       expect(screen.queryByRole('status', { name: 'chat.input.translating' })).not.toBeInTheDocument()
     })

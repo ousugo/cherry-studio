@@ -657,6 +657,7 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(translatedDraft)
       setText(translatedDraft.text)
       setDraftTokens(translatedDraft.tokens.length ? translatedDraft.tokens : undefined)
+      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     },
     [actionsRef]
   )
