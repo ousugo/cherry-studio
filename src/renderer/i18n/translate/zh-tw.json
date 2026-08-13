@@ -673,7 +673,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "警告：所有工具都會在無核准情況下執行。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1087,6 +1087,34 @@
         },
         "Write": {
           "description": "建立或覆寫檔案",
+          "label": "寫入檔案"
+        },
+        "bash": {
+          "description": "執行 Shell 命令",
+          "label": "執行 Shell 命令"
+        },
+        "edit": {
+          "description": "編輯檔案",
+          "label": "編輯檔案"
+        },
+        "find": {
+          "description": "尋找檔案",
+          "label": "尋找檔案"
+        },
+        "grep": {
+          "description": "搜尋檔案內容",
+          "label": "搜尋檔案內容"
+        },
+        "ls": {
+          "description": "列出目錄內容",
+          "label": "列出目錄內容"
+        },
+        "read": {
+          "description": "讀取檔案",
+          "label": "讀取檔案"
+        },
+        "write": {
+          "description": "寫入檔案",
           "label": "寫入檔案"
         }
       }
@@ -3452,6 +3480,18 @@
           "plan_model": {
             "hint": "任務分解與規劃",
             "label": "計畫模型"
+          },
+          "runtime": {
+            "immutable_hint": "建立後不可切換",
+            "label": "執行模式",
+            "option": {
+              "claude_code": "增強：Claude Agent",
+              "pi": "快速：Pi"
+            },
+            "selected": {
+              "claude_code": "增強",
+              "pi": "快速"
+            }
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
