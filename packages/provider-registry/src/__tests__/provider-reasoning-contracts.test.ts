@@ -141,6 +141,33 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }])
   })
 
+  it('uses the documented Dots OpenAI-compatible protocol contract', () => {
+    const dots = provider('dots')
+
+    expect(dots.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toMatchObject({
+      off: {
+        operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false } }]
+      },
+      auto: {
+        operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }]
+      }
+    })
+    expect(dots.endpointConfigs?.['anthropic-messages']).toBeUndefined()
+    expect(override('dots', 'dots-3-note-preview')).toMatchObject({
+      endpointTypes: ['openai-chat-completions'],
+      parameterSupport: {
+        temperature: { supported: true },
+        topP: { supported: true },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+  })
+
   it.each([
     'glm-5-2',
     'minimax-m2-7',

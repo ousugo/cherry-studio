@@ -323,6 +323,57 @@
       ]
     },
     {
+      "apiFeatures": {
+        "streamOptions": false
+      },
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Dots Studio - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://note3-prev-api.askdiandian.com",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "dots",
+      "metadata": {
+        "website": {
+          "apiKey": "https://dots.ai/platform/apikeys",
+          "docs": "https://dots.ai/platform/docs",
+          "models": "https://huggingface.co/dots-studio/dots3-note-prev",
+          "official": "https://dots.ai/"
+        }
+      },
+      "modelListSource": "registry",
+      "name": "Dots Studio"
+    },
+    {
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AlayaNew - AI model provider",
       "endpointConfigs": {
@@ -2410,5 +2461,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d4aebe86a12ca8f8"
+  "version": "faf2e913b83c1ffc"
 }

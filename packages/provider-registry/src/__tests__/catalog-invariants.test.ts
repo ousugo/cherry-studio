@@ -203,6 +203,28 @@ describe('catalog invariants (data/*.json)', () => {
     expect(broken).toEqual([])
   })
 
+  it('narrows Dots3-Note Preview to the capabilities exposed by OpenRouter', () => {
+    const base = models.find((model) => model.id === 'dots-3-note-preview')
+    const openRouter = providerModelOverrides.find(
+      (override) =>
+        override.providerId === 'openrouter' && override.apiModelId === 'dots-studio/dots-3-note-preview:free'
+    )
+
+    expect(base).toMatchObject({
+      capabilities: expect.arrayContaining(['audio-recognition', 'video-recognition']),
+      contextWindow: 524_288,
+      inputModalities: ['text', 'image', 'audio', 'video']
+    })
+    expect(openRouter).toMatchObject({
+      capabilities: {
+        add: ['structured-output'],
+        remove: ['audio-recognition', 'video-recognition']
+      },
+      inputModalities: ['text', 'image'],
+      limits: { contextWindow: 512_000 }
+    })
+  })
+
   // OpenCode Go is one base URL over three wire protocols picked per model, and its served list comes
   // from models.dev — so a newly synced model lands here unpinned and silently falls back to
   // chat/completions (#17860). Classify it against models.dev's per-model `provider.npm`.

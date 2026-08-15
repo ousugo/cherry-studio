@@ -219,6 +219,12 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
+    // Dots documents `api-key` for its OpenAI-compatible endpoint.
+    // Keep the standard adapter, but add the selected provider key under that exact header.
+    {
+      match: (p) => matchesPreset(p, SystemProviderIds.dots),
+      build: withSelectedApiKey(buildDotsConfig)
+    },
     // Local embedding runs fully in-process (transformers.js in a worker): no
     // endpoint, baseURL, or apiKey. Without this entry it falls through to the
     // openai-compatible builder, which hands ai-core an empty baseURL and throws
@@ -789,6 +795,14 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
+}
+
+function buildDotsConfig(ctx: BuilderContext): ProviderConfig {
+  const config =
+    ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
+  const settings = config.providerSettings as { headers?: Record<string, string | undefined> }
+  settings.headers = { ...settings.headers, 'api-key': ctx.baseConfig.apiKey }
+  return config
 }
 
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {

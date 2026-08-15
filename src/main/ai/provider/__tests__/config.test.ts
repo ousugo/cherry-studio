@@ -73,6 +73,31 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 
+  it('sends the selected Dots key through api-key on the OpenAI-compatible endpoint', async () => {
+    const provider = makeProvider({
+      id: 'dots',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://note3-prev-api.askdiandian.com',
+          adapterFamily: 'openai-compatible'
+        }
+      }
+    })
+    const model = makeModel({
+      providerId: 'dots',
+      apiModelId: 'dots3-note-prev',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as { headers?: Record<string, string | undefined> }
+
+    expect(config.providerId).toBe('openai-compatible')
+    expect((config.providerSettings as { baseURL?: string }).baseURL).toBe('https://note3-prev-api.askdiandian.com/v1')
+    expect(settings.headers).toMatchObject({ 'api-key': 'sk-test-key' })
+  })
+
   it('returns the safe provenance captured with the serving key', async () => {
     const apiKeySelection = {
       attribution: 'explicit',
