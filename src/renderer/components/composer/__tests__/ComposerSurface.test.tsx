@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   setContent: vi.fn(),
   setHardBreak: vi.fn(),
   setNodeSelection: vi.fn(),
+  setTextSelection: vi.fn(),
   chainRun: vi.fn(),
   docContentSize: 0,
   docDescendants: vi.fn(),
@@ -193,6 +194,10 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
+            return { run: mocks.chainRun }
+          },
+          setTextSelection: (...args: unknown[]) => {
+            mocks.setTextSelection(...args)
             return { run: mocks.chainRun }
           },
           deleteSelection: () => {
@@ -450,6 +455,7 @@ describe('ComposerSurface', () => {
     mocks.setContent.mockReset()
     mocks.setHardBreak.mockReset()
     mocks.setNodeSelection.mockReset()
+    mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docContentSize = 0
     mocks.docDescendants.mockReset()
@@ -562,6 +568,32 @@ describe('ComposerSurface', () => {
       expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('applies the transferred text selection when the editor is created', async () => {
+    const text = 'previous chat prompt'
+    const textEndPosition = text.length + 1
+    mocks.stabilizeEditor = true
+    mocks.docContentSize = text.length + 2
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => text.slice(0, Math.max(0, to - 1)))
+    const hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+
+    try {
+      render(
+        <ComposerSurface {...baseProps} text={text} initialTextSelection={{ start: text.length, end: text.length }} />
+      )
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
+      await waitFor(() =>
+        expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: textEndPosition, to: textEndPosition })
+      )
+    } finally {
+      hasFocusSpy.mockRestore()
     }
   })
 
