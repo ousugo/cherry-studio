@@ -329,6 +329,13 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Dots Studio - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://note3-prev-api.askdiandian.com",
+          "reasoningFormat": {
+            "type": "anthropic"
+          }
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://note3-prev-api.askdiandian.com",
@@ -2461,5 +2468,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "faf2e913b83c1ffc"
+  "version": "022cccb55cf608cf"
 }

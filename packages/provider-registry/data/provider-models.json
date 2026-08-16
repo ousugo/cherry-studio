@@ -9230,7 +9230,7 @@
     },
     {
       "apiModelId": "dots3-note-prev",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "dots-3-note-preview",
       "parameterSupport": {
         "frequencyPenalty": false,
@@ -36938,5 +36938,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5fc34c42ddbebdf3"
+  "version": "673712788eafeced"
 }

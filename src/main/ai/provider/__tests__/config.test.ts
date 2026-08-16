@@ -1,3 +1,4 @@
+import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAICompatible, type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import {
   CHERRYAI_API_BASE_URL,
@@ -113,6 +114,62 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
     ).rejects.toThrow('request captured')
     expect(requestHeaders?.get('api-key')).toBe('sk-test-key')
+    expect(requestHeaders?.has('authorization')).toBe(false)
+  })
+
+  it('sends Dots Anthropic requests to /v1/messages with only the documented api-key header', async () => {
+    const provider = makeProvider({
+      id: 'dots',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://note3-prev-api.askdiandian.com',
+          adapterFamily: 'openai-compatible'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://note3-prev-api.askdiandian.com',
+          adapterFamily: 'anthropic'
+        }
+      }
+    })
+    const model = makeModel({
+      providerId: 'dots',
+      apiModelId: 'dots3-note-prev',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model, {
+      resolvedEndpoint: {
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://note3-prev-api.askdiandian.com'
+      }
+    })
+    const settings = config.providerSettings as AnthropicProviderSettings
+
+    expect(config.providerId).toBe('anthropic')
+    expect(settings.baseURL).toBe('https://note3-prev-api.askdiandian.com/v1')
+
+    let requestUrl: RequestInfo | URL | undefined
+    let requestHeaders: Headers | undefined
+    vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+      requestUrl = input
+      requestHeaders = new Headers(init?.headers)
+      throw new Error('request captured')
+    })
+
+    await expect(
+      createAnthropic(settings)
+        .messages('dots3-note-prev')
+        .doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+          maxOutputTokens: 64
+        })
+    ).rejects.toThrow()
+
+    expect(requestUrl?.toString()).toBe('https://note3-prev-api.askdiandian.com/v1/messages')
+    expect(requestHeaders?.get('api-key')).toBe('sk-test-key')
+    expect(requestHeaders?.get('anthropic-version')).toBe('2023-06-01')
+    expect(requestHeaders?.has('x-api-key')).toBe(false)
     expect(requestHeaders?.has('authorization')).toBe(false)
   })
 

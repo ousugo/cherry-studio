@@ -141,7 +141,7 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }])
   })
 
-  it('uses the documented Dots OpenAI-compatible protocol contract', () => {
+  it('uses the documented Dots OpenAI-compatible and Anthropic protocol contracts', () => {
     const dots = provider('dots')
 
     expect(dots.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toMatchObject({
@@ -152,9 +152,13 @@ describe('provider reasoning contracts', () => {
         operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }]
       }
     })
-    expect(dots.endpointConfigs?.['anthropic-messages']).toBeUndefined()
+    expect(dots.endpointConfigs?.['anthropic-messages']).toMatchObject({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://note3-prev-api.askdiandian.com',
+      reasoningFormat: { type: 'anthropic' }
+    })
     expect(override('dots', 'dots-3-note-preview')).toMatchObject({
-      endpointTypes: ['openai-chat-completions'],
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       parameterSupport: {
         temperature: { supported: true },
         topP: { supported: true },

@@ -650,6 +650,39 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('adds the documented api-key header to direct Dots Anthropic requests', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'dots::dots-3-note-preview' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'dots',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://note3-prev-api.askdiandian.com'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://note3-prev-api.askdiandian.com'
+        }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'dots-3-note-preview',
+      apiModelId: 'dots3-note-prev',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://note3-prev-api.askdiandian.com',
+      ANTHROPIC_MODEL: 'dots3-note-prev'
+    })
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('api-key: api-key')
+  })
+
   it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
     // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
     // effective host would post Messages bodies at an OpenAI-compatible endpoint.

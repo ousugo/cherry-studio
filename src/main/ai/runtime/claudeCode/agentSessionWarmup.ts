@@ -21,6 +21,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { DOTS_API_KEY_HEADER } from '@shared/data/presets/dots'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
@@ -33,8 +34,10 @@ import {
   isExternalCliProvider,
   isOllamaProvider,
   isSupportFastMode,
+  matchesPreset,
   OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
@@ -788,10 +791,18 @@ async function resolveClaudeCodeRuntimeRoute(
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
       const runtimeApiKey =
         resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      const providerAuthHeaders =
+        runtimeApiKey && matchesPreset(primaryProvider, SystemProviderIds.dots)
+          ? { [DOTS_API_KEY_HEADER]: runtimeApiKey }
+          : undefined
       return {
         ...facts,
         apiKey: runtimeApiKey,
-        customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
+        customHeaders: mergeAnthropicCustomHeaders(
+          defaultAppHeaders(),
+          getExtraHeaders(primaryProvider),
+          providerAuthHeaders
+        ),
         usageCapture: {
           owner: 'agent-sdk',
           credentialReceipt: resolvedApiKey.apiKeySelection,

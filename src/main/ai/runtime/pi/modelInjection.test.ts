@@ -120,6 +120,30 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
   })
 
+  it('marks Dots Anthropic Messages for api-key auth remapping', () => {
+    const provider = makeProvider({
+      id: 'dots',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://note3-prev-api.askdiandian.com'
+        },
+        'anthropic-messages': {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://note3-prev-api.askdiandian.com'
+        }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions', 'anthropic-messages'] })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.api).toBe('anthropic-messages')
+    expect(injection.anthropicApiKeyHeader).toBe('api-key')
+    expect(injection.providerConfig.models?.[0]?.compat).toMatchObject({ forceAdaptiveThinking: true })
+  })
+
   it('does not prefer Anthropic Messages for other endpoint combinations', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-responses',

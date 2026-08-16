@@ -17,6 +17,11 @@ export default defineProvider({
       adapterFamily: 'openai-compatible',
       baseUrl: 'https://note3-prev-api.askdiandian.com',
       reasoningFormat: { type: 'openai-chat', wire: openAIThinkingWire }
+    },
+    'anthropic-messages': {
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://note3-prev-api.askdiandian.com',
+      reasoningFormat: { type: 'anthropic' }
     }
   },
   apiFeatures: { streamOptions: false },
@@ -32,7 +37,7 @@ export default defineProvider({
     {
       modelId: 'dots-3-note-preview',
       apiModelId: 'dots3-note-prev',
-      endpointTypes: ['openai-chat-completions'],
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       parameterSupport: {
         temperature: { supported: true },
         topP: { supported: true },

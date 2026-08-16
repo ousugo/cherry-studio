@@ -12,6 +12,7 @@ import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { DOTS_API_KEY_HEADER } from '@shared/data/presets/dots'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
@@ -219,8 +220,8 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
-    // Dots documents `api-key` for its OpenAI-compatible endpoint.
-    // Move the selected key to that header so the SDK does not also add Authorization: Bearer.
+    // Dots documents `api-key` for both its OpenAI-compatible and Anthropic endpoints.
+    // Normalize each SDK's default auth header at the provider boundary.
     {
       match: (p) => matchesPreset(p, SystemProviderIds.dots),
       build: withSelectedApiKey(buildDotsConfig)
@@ -802,10 +803,22 @@ function buildDotsConfig(ctx: BuilderContext): ProviderConfig {
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
   const settings = config.providerSettings as {
     apiKey?: string
+    fetch?: typeof customFetch
     headers?: Record<string, string | undefined>
   }
+
+  if (ctx.aiSdkProviderId === 'anthropic') {
+    settings.fetch = (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.delete('x-api-key')
+      headers.set(DOTS_API_KEY_HEADER, ctx.baseConfig.apiKey)
+      return customFetch(input, { ...init, headers })
+    }
+    return config
+  }
+
   delete settings.apiKey
-  settings.headers = { ...settings.headers, 'api-key': ctx.baseConfig.apiKey }
+  settings.headers = { ...settings.headers, [DOTS_API_KEY_HEADER]: ctx.baseConfig.apiKey }
   return config
 }
 
