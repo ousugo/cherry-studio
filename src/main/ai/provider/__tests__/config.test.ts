@@ -1,3 +1,4 @@
+import { createOpenAICompatible, type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import {
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -73,7 +74,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 
-  it('sends the selected Dots key through api-key on the OpenAI-compatible endpoint', async () => {
+  it('sends the selected Dots key only through api-key on the OpenAI-compatible endpoint', async () => {
     const provider = makeProvider({
       id: 'dots',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -96,6 +97,23 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect(config.providerId).toBe('openai-compatible')
     expect((config.providerSettings as { baseURL?: string }).baseURL).toBe('https://note3-prev-api.askdiandian.com/v1')
     expect(settings.headers).toMatchObject({ 'api-key': 'sk-test-key' })
+
+    let requestHeaders: Headers | undefined
+    const sdkProvider = createOpenAICompatible({
+      ...(config.providerSettings as OpenAICompatibleProviderSettings),
+      fetch: async (_input, init) => {
+        requestHeaders = new Headers(init?.headers)
+        throw new Error('request captured')
+      }
+    })
+
+    await expect(
+      sdkProvider.chatModel('dots3-note-prev').doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestHeaders?.get('api-key')).toBe('sk-test-key')
+    expect(requestHeaders?.has('authorization')).toBe(false)
   })
 
   it('returns the safe provenance captured with the serving key', async () => {

@@ -220,7 +220,7 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Dots documents `api-key` for its OpenAI-compatible endpoint.
-    // Keep the standard adapter, but add the selected provider key under that exact header.
+    // Move the selected key to that header so the SDK does not also add Authorization: Bearer.
     {
       match: (p) => matchesPreset(p, SystemProviderIds.dots),
       build: withSelectedApiKey(buildDotsConfig)
@@ -800,7 +800,11 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 function buildDotsConfig(ctx: BuilderContext): ProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
-  const settings = config.providerSettings as { headers?: Record<string, string | undefined> }
+  const settings = config.providerSettings as {
+    apiKey?: string
+    headers?: Record<string, string | undefined>
+  }
+  delete settings.apiKey
   settings.headers = { ...settings.headers, 'api-key': ctx.baseConfig.apiKey }
   return config
 }
