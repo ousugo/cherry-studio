@@ -15,10 +15,10 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { DOTS_API_KEY_HEADER } from '@main/ai/constants'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
-import { DOTS_API_KEY_HEADER } from '@shared/data/presets/dots'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
   ENDPOINT_TYPE,

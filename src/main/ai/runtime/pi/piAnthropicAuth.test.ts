@@ -1,7 +1,12 @@
 import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { withAnthropicApiKeyHeaderStream } from './piAnthropicAuth'
+import { loadPiAnthropicMessagesApi } from './piSdk'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('withAnthropicApiKeyHeaderStream', () => {
   it('moves the runtime key to the provider-specific header and suppresses Anthropic defaults', () => {
@@ -22,6 +27,51 @@ describe('withAnthropicApiKeyHeaderStream', () => {
         'x-api-key': null,
         'x-extra': 'kept'
       }
+    })
+  })
+
+  it('sends the final Dots request to /v1/messages with only the documented api-key auth header', async () => {
+    let request: Request | undefined
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      request = new Request(input, init)
+      return new Response('', { status: 200, headers: { 'content-type': 'text/event-stream' } })
+    })
+    vi.stubGlobal('fetch', fetch)
+
+    const apiStreamSimple = (await loadPiAnthropicMessagesApi()).streamSimple as NonNullable<
+      ProviderConfig['streamSimple']
+    >
+    const config = withAnthropicApiKeyHeaderStream({} as ProviderConfig, 'api-key', apiStreamSimple)
+
+    config.streamSimple?.(
+      {
+        id: 'dots3-note-prev',
+        name: 'dots3-note-prev',
+        api: 'anthropic-messages',
+        provider: 'dots',
+        baseUrl: 'https://note3-prev-api.askdiandian.com',
+        reasoning: true,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200_000,
+        maxTokens: 8_192,
+        compat: { forceAdaptiveThinking: true }
+      } as never,
+      { messages: [{ role: 'user', content: 'hello', timestamp: 0 }] } as never,
+      { apiKey: 'sk-dots-key' }
+    )
+
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+
+    expect(request?.url).toBe('https://note3-prev-api.askdiandian.com/v1/messages')
+    expect(request?.headers.get('api-key')).toBe('sk-dots-key')
+    expect(request?.headers.has('authorization')).toBe(false)
+    expect(request?.headers.has('x-api-key')).toBe(false)
+    await expect(request?.json()).resolves.toMatchObject({
+      model: 'dots3-note-prev',
+      messages: [{ role: 'user' }],
+      max_tokens: 8_192,
+      stream: true
     })
   })
 })
