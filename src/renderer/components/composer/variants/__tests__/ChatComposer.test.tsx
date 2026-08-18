@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import type * as PopupServiceModule from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -88,7 +89,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/services/popup', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/services/popup')>()
+  const actual = await importOriginal<typeof PopupServiceModule>()
   return {
     ...actual,
     popup: { ...actual.popup, confirm: mocks.confirmTranslation }
