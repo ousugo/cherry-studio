@@ -7221,10 +7221,10 @@
     "history": {
       "back": "Back to list",
       "clear": "Clear History",
-      "clear_description": "Clear history will delete all translation history, continue?",
+      "clear_description": "Clear history will delete all translation history and reclaim the translated files it produced, continue?",
       "copy_target": "Copy result",
       "delete": "Delete translation history",
-      "delete_description": "Delete this translation history record? This action cannot be undone.",
+      "delete_description": "Delete this translation history record? For a file translation the translated file is reclaimed too. This action cannot be undone.",
       "empty": "No translation history",
       "error": {
         "add": "Failed to add translation history",
@@ -7232,6 +7232,17 @@
         "delete": "Deletion failed",
         "load": "Failed to load translation history",
         "save": "Failed to save translation history"
+      },
+      "file": {
+        "action_failed": "Could not complete that action on the file",
+        "badge": "File translation",
+        "export": "Save translated file as…",
+        "open": "Open translated file",
+        "preview": "Side-by-side preview",
+        "reveal": "Show in folder",
+        "source": "Source file",
+        "target": "Translated file",
+        "unavailable": "The files of this translation are no longer available"
       },
       "filter": {
         "starred": "Only starred"
@@ -7266,17 +7277,21 @@
       "action": {
         "close": "Close PDF translation",
         "export": "Export translated PDF",
-        "install_babeldoc": "Install BabelDOC"
+        "install_babeldoc": "Install BabelDOC",
+        "update_babeldoc": "Update BabelDOC"
       },
       "dependency": {
         "checking": "Checking BabelDOC...",
         "description": "Install the BabelDOC plugin to translate PDFs while preserving their original layout.",
         "installing": "Installing BabelDOC...",
+        "outdated_description": "Update BabelDOC to continue translating PDFs with layout preservation.",
+        "outdated_title": "BabelDOC update required",
         "title": "PDF detected"
       },
       "error": {
         "generic": "Something went wrong during translation. Please try again.",
         "ocr_required": "Scanned PDFs are not supported yet.",
+        "persist_failed": "The PDF was translated, but the result could not be saved. Please try again.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export translated PDF",
@@ -7286,12 +7301,18 @@
       },
       "progress": {
         "analyzing": "Analyzing document layout",
+        "checking_assets": "Checking PDF processing resources",
         "downloading_assets": "Downloading PDF processing resources...",
-        "generating": "Generating translated PDF",
+        "extracting_terms": "Extracting document terminology",
+        "loading_model": "Loading PDF processing model",
+        "parsing": "Parsing PDF document",
         "percent": "{{progress}}%",
-        "preparing": "Preparing document",
+        "preparing": "Initializing PDF translation",
+        "preparing_hint": "The first initialization may take about 2 minutes; later runs are usually faster",
+        "rendering": "Rendering translated PDF",
         "translating": "Translating content",
-        "value": "{{stage}}, {{progress}}%"
+        "typesetting": "Typesetting translated PDF",
+        "value": "{{stage}}, stage {{stageProgress}}%, overall {{overallProgress}}%"
       },
       "ready": {
         "description": "Select a target language and start translation.",

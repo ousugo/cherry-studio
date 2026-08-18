@@ -35,7 +35,11 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import {
+  BABELDOC_MINIMUM_VERSION,
+  BABELDOC_TOOL_NAME,
+  getBabelDocInstallationStatus
+} from '@shared/data/presets/binaryTools'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
@@ -59,9 +63,11 @@ import type {
   BabelDocAvailability,
   PdfTranslationFile,
   PdfTranslationHandle,
+  PdfTranslationOutput,
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
+import type { TranslationFiles } from './translationFiles'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -83,7 +89,7 @@ const useBabelDoc = (enabled: boolean) => {
     void ipcApi
       .request('binary.get_tool_snapshots', [BABELDOC_TOOL_NAME])
       .then((snapshots) => {
-        if (!cancelled) setAvailability(isBabelDocInstalled(snapshots[BABELDOC_TOOL_NAME]) ? 'available' : 'missing')
+        if (!cancelled) setAvailability(getBabelDocInstallationStatus(snapshots[BABELDOC_TOOL_NAME]))
       })
       .catch((error) => {
         if (cancelled) return
@@ -104,20 +110,23 @@ const useBabelDoc = (enabled: boolean) => {
     if (installing) return
     setInstalling(true)
     try {
-      await ipcApi.request('binary.install_tool', { name: BABELDOC_TOOL_NAME })
+      await ipcApi.request('binary.install_tool', {
+        name: BABELDOC_TOOL_NAME,
+        ...(availability === 'outdated' ? { targetVersion: BABELDOC_MINIMUM_VERSION } : {})
+      })
       setAvailability('available')
     } catch (error) {
       logger.error('Failed to install BabelDOC', error as Error)
-      setAvailability('missing')
+      setAvailability((current) => (current === 'checking' ? 'missing' : current))
       toast.error(formatErrorMessageWithPrefix(error, t('settings.dependencies.installError')))
     } finally {
       setInstalling(false)
     }
-  }, [installing, t])
+  }, [availability, installing, t])
 
-  const markUnavailable = useCallback(() => setAvailability('missing'), [])
+  const refresh = useCallback(() => setAvailabilityRevision((revision) => revision + 1), [])
 
-  return { availability, installing, install, markUnavailable }
+  return { availability, installing, install, refresh }
 }
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
@@ -237,6 +246,8 @@ const TranslatePage: FC = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
+  /** Set only when reopening a finished translation from history; `key` remounts the view. */
+  const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
   const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
@@ -281,6 +292,7 @@ const TranslatePage: FC = () => {
     setIsPdfTextExtracting(false)
     setIsProcessing(false)
     setPdfFile(null)
+    setRestoredPdf(null)
   }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
 
   const safePersist = useCallback(
@@ -554,14 +566,31 @@ const TranslatePage: FC = () => {
   ])
 
   const onHistoryItemClick = useCallback(
-    (history: TranslateHistory) => {
+    (history: TranslateHistory, files?: TranslationFiles) => {
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
 
-      resetPdfMode()
-      setTranslateInput(history.sourceText)
-      setTranslateOutput(history.targetText)
+      // Only reachable from the detail panel's preview action, which `isPdfTranslation`
+      // already gated — a future non-PDF file translation has no viewer to restore into
+      // and never offers the button.
+      if (history.kind === 'file') {
+        // A moved-away source still resolves (external entries keep their recorded path,
+        // and the left pane renders its own unavailable state); a null path means the
+        // entry itself is gone, which leaves nothing to show side by side.
+        if (!files?.source?.path || !files.target?.path) {
+          toast.error(t('translate.history.file.unavailable'))
+          return
+        }
+        resetPdfMode()
+        setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
+        setPdfFile({ name: history.sourceText, path: files.source.path })
+      } else {
+        resetPdfMode()
+        setTranslateInput(history.sourceText)
+        setTranslateOutput(history.targetText)
+      }
+
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
@@ -573,6 +602,7 @@ const TranslatePage: FC = () => {
       setTargetLanguage,
       setTranslateInput,
       setTranslateOutput,
+      t,
       targetLanguage
     ]
   )
@@ -990,8 +1020,9 @@ const TranslatePage: FC = () => {
               </div>
             }>
             <PdfTranslationView
-              key={pdfFile.path}
+              key={restoredPdf?.key ?? pdfFile.path}
               file={pdfFile}
+              restoredOutput={restoredPdf?.output}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}
               babelDocAvailability={babelDoc.availability}
@@ -1020,7 +1051,7 @@ const TranslatePage: FC = () => {
               onHandleChange={handlePdfHandleChange}
               onStatusChange={handlePdfStatusChange}
               onInstallBabelDoc={() => void babelDoc.install()}
-              onBabelDocUnavailable={babelDoc.markUnavailable}
+              onBabelDocUnavailable={babelDoc.refresh}
             />
           </Suspense>
         ) : (

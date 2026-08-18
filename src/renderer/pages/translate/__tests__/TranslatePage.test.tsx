@@ -2,12 +2,15 @@ import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TranslationFiles } from '../translationFiles'
 
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
@@ -29,14 +32,14 @@ const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => 
 const babeldocInstalledSnapshot: BinaryToolSnapshot = {
   name: 'babeldoc-stream',
   availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-  application: { status: 'applied' }
+  application: { status: 'applied', version: '0.6.4.post2' }
 }
 const binaryMock = vi.hoisted(() => ({
   snapshots: {
     'babeldoc-stream': {
       name: 'babeldoc-stream',
       availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-      application: { status: 'applied' }
+      application: { status: 'applied', version: '0.6.4.post2' }
     }
   } as Record<string, BinaryToolSnapshot>
 }))
@@ -63,6 +66,12 @@ const translateInputPaneMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
+const historyFilesMock = vi.hoisted(() => ({
+  files: {
+    source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
+    target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
+  } as TranslationFiles
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -252,12 +261,17 @@ vi.mock('../components/TranslateHistory', () => ({
     onHistoryItemClick
   }: {
     isOpen: boolean
-    onHistoryItemClick: (history: {
-      sourceText: string
-      targetText: string
-      sourceLanguage: string | null
-      targetLanguage: string | null
-    }) => void
+    onHistoryItemClick: (
+      history: {
+        id?: string
+        kind: 'text' | 'file'
+        sourceText: string
+        targetText: string
+        sourceLanguage: string | null
+        targetLanguage: string | null
+      },
+      files?: TranslationFiles
+    ) => void
   }) =>
     isOpen ? (
       <div data-testid="translate-history-open">
@@ -266,11 +280,29 @@ vi.mock('../components/TranslateHistory', () => ({
           aria-label="reuse-null-target-history"
           onClick={() =>
             onHistoryItemClick({
+              kind: 'text',
               sourceText: 'hello',
               targetText: '你好',
               sourceLanguage: null,
               targetLanguage: null
             })
+          }
+        />
+        <button
+          type="button"
+          aria-label="reuse-pdf-history"
+          onClick={() =>
+            onHistoryItemClick(
+              {
+                id: 'history-pdf',
+                kind: 'file',
+                sourceText: 'paper.pdf',
+                targetText: 'paper.zh-CN.pdf',
+                sourceLanguage: null,
+                targetLanguage: null
+              },
+              historyFilesMock.files
+            )
           }
         />
       </div>
@@ -358,9 +390,10 @@ vi.mock('../pdf/PdfTranslationView', () => {
     file: { name: string; path: string }
     modelId?: string
     sourceLangCode: string
-    babelDocAvailability: 'checking' | 'available' | 'missing'
+    babelDocAvailability: 'checking' | 'available' | 'missing' | 'outdated'
     babelDocInstalling: boolean
     textFallback?: { content: React.ReactNode; ocrRequired: boolean }
+    restoredOutput?: { outputPath: string; fileName: string } | null
     onClose: () => void
     onHandleChange: (handle: typeof pdfHandleMock | null) => void
     onStatusChange: (status: { phase: 'idle'; running: false }) => void
@@ -375,11 +408,24 @@ vi.mock('../pdf/PdfTranslationView', () => {
       return () => onHandleChange(null)
     }, [onHandleChange, onStatusChange])
     return (
-      <div data-testid="pdf-translation-view" data-file-path={props.file.path} data-state-file-path={stateFilePath}>
+      <div
+        data-testid="pdf-translation-view"
+        data-file-path={props.file.path}
+        data-state-file-path={stateFilePath}
+        data-restored-output={props.restoredOutput?.outputPath}>
         <span data-testid="babeldoc-availability">{props.babelDocAvailability}</span>
-        {props.babelDocAvailability === 'missing' && !props.textFallback && (
-          <button type="button" aria-label="translate.pdf.action.install_babeldoc" onClick={props.onInstallBabelDoc} />
-        )}
+        {(props.babelDocAvailability === 'missing' || props.babelDocAvailability === 'outdated') &&
+          !props.textFallback && (
+            <button
+              type="button"
+              aria-label={
+                props.babelDocAvailability === 'outdated'
+                  ? 'translate.pdf.action.update_babeldoc'
+                  : 'translate.pdf.action.install_babeldoc'
+              }
+              onClick={props.onInstallBabelDoc}
+            />
+          )}
         {props.textFallback?.content}
         <button type="button" aria-label="translate.pdf.action.close" onClick={props.onClose} />
       </div>
@@ -466,6 +512,10 @@ describe('TranslatePage', () => {
     pdfViewMock.mockReset()
     pdfHandleMock.cancel.mockReset()
     pdfHandleMock.start.mockReset()
+    historyFilesMock.files = {
+      source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
+    }
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -830,6 +880,32 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc-stream' }))
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it('updates an outdated BabelDOC before layout-preserving translation', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    binaryMock.snapshots = {
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
+        availability: { source: 'mise', path: '/shims/babeldoc-stream' },
+        application: { status: 'applied', version: '0.6.4.post1' }
+      }
+    }
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('outdated'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.update_babeldoc' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
+        name: 'babeldoc-stream',
+        targetVersion: '0.6.4.post2'
+      })
+    )
   })
 
   it('keeps text fallback available when inline BabelDOC installation fails', async () => {
@@ -1540,6 +1616,54 @@ describe('TranslatePage', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
     })
+  })
+
+  it('restores the side-by-side preview when reusing a PDF history entry', async () => {
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    const view = await screen.findByTestId('pdf-translation-view')
+    expect(view).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
+    expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-target.pdf')
+    // A PDF row's texts are file names — they must not land in the text panes.
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).not.toBe('paper.pdf')
+  })
+
+  it('reports a PDF history entry whose files are gone instead of opening an empty preview', async () => {
+    historyFilesMock.files = { source: null, target: null }
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
+    expect(screen.queryByTestId('pdf-translation-view')).toBeNull()
+  })
+
+  it('keeps the current PDF open when a history entry is only partially available', async () => {
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([
+      { name: 'current.pdf', path: '/tmp/current.pdf', size: 10, type: 'document' }
+    ])
+    historyFilesMock.files = {
+      source: null,
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
+    }
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/current.pdf')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
+    expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/current.pdf')
   })
 
   it('keeps history and settings drawers mutually exclusive and exposes open state through aria-pressed', () => {

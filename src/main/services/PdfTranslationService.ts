@@ -4,7 +4,9 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
@@ -13,15 +15,21 @@ import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import {
+  toPersistedLangCodeOrNull,
+  type TranslateLangCode,
+  type TranslateSourceLanguage
+} from '@shared/data/preference/preferenceTypes'
+import { BABELDOC_TOOL_NAME, getBabelDocInstallationStatus } from '@shared/data/presets/binaryTools'
+import { type FileEntry, SafeNameSchema } from '@shared/data/types/file'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type {
-  PdfTranslationProgress,
-  PdfTranslationProgressStage,
-  PdfTranslationStage
+import {
+  PDF_TRANSLATION_PROGRESS_STAGES,
+  type PdfTranslationProgress,
+  type PdfTranslationProgressStage,
+  type PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -29,16 +37,13 @@ import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
-const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v1'
-const BABELDOC_ASSET_DOWNLOAD_PATTERNS = [
-  /not found or corrupted, downloading/i,
-  /downloading (?:all assets|fonts|cmaps)(?: from)?/i
-]
+const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
 const babeldocStreamProgressSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
   type: z.literal('progress'),
-  stage: z.string().min(1),
-  progress: z.number().finite().min(0).max(100)
+  stage: z.enum(PDF_TRANSLATION_PROGRESS_STAGES),
+  stage_progress: z.number().finite().min(0).max(100).nullable(),
+  overall_progress: z.number().finite().min(0).max(100)
 })
 const babeldocStreamErrorSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
@@ -101,6 +106,7 @@ interface PdfTranslationRequest {
 }
 
 interface PdfTranslationResult {
+  /** Managed path of the translated PDF (`{userData}/Data/Files/{id}.pdf`), not the sidecar's temp output. */
   outputPath: AbsoluteFilePath
   fileName: string
 }
@@ -108,8 +114,9 @@ interface PdfTranslationResult {
 interface ActivePdfTranslation {
   cancelled: boolean
   child: ChildProcess | null
-  progress: number
+  overallProgress: number
   progressStage: PdfTranslationProgressStage | null
+  stageProgress: number | null
 }
 
 const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
@@ -158,15 +165,15 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
 
 @Injectable('PdfTranslationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiGatewayService'])
+@DependsOn(['ApiGatewayService', 'FileManager'])
 export class PdfTranslationService extends BaseService {
   private readonly activeJobs = new Map<string, ActivePdfTranslation>()
   private readonly activeRuns = new Set<Promise<PdfTranslationResult>>()
 
   protected async onInit(): Promise<void> {
-    // Success-path output dirs are cleaned only by the renderer effect, which never runs
-    // on window close / app quit. No jobs are active at init, so drop the whole feature
-    // temp root here to clear anything a prior session left behind.
+    // `runTranslation`'s `finally` removes each job's dir, so this only ever finds residue
+    // from a crash or a force-quit mid-run. No jobs are active at init, so drop the whole
+    // feature temp root.
     const tempRoot = application.getPath('feature.pdf_translation.temp')
     await fs.promises.rm(tempRoot, { force: true, recursive: true }).catch((error) => {
       logger.warn('Failed to sweep stale PDF translation temp dirs', { error: String(error) })
@@ -208,11 +215,16 @@ export class PdfTranslationService extends BaseService {
       throw new Error(`PDF translation job already exists: ${request.jobId}`)
     }
 
-    const job: ActivePdfTranslation = { cancelled: false, child: null, progress: 0, progressStage: null }
+    const job: ActivePdfTranslation = {
+      cancelled: false,
+      child: null,
+      overallProgress: 0,
+      progressStage: null,
+      stageProgress: null
+    }
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
-    let completed = false
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
@@ -246,7 +258,7 @@ export class PdfTranslationService extends BaseService {
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onStage, onProgress)
+      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
       this.throwIfCancelled(job)
 
       // BabelDOC Stream 0.6.4.post1 inserts a `.no_watermark` segment into the mono filename whenever the
@@ -255,9 +267,10 @@ export class PdfTranslationService extends BaseService {
       const fileName = `${path.parse(request.sourcePath).name}.no_watermark.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
       const outputPath = AbsoluteFilePathSchema.parse(path.join(outputDir, fileName))
       await fs.promises.access(outputPath, fs.constants.R_OK)
-      this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
-      completed = true
-      return { outputPath, fileName }
+      this.reportProgress(job, { stage: 'rendering', stageProgress: 100, overallProgress: 100 }, onProgress)
+      // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
+      // out from under the copy into FileManager.
+      return await this.persistResult(request, outputPath, job)
     } catch (error) {
       // Surface the failure to the main-process log (the stderr tail rides along in the
       // reject message on the non-zero-exit path). Cancellation is expected; IpcErrors
@@ -270,11 +283,11 @@ export class PdfTranslationService extends BaseService {
       throw error
     } finally {
       this.activeJobs.delete(request.jobId)
-      if (!completed) {
-        await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
-          logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
-        })
-      }
+      // Unconditional: on success the artifact already lives in FileManager, on failure
+      // there is nothing worth keeping. Nobody outside this method reads the temp dir.
+      await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
+        logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
+      })
       if (gatewayLeaseAcquired) gateway.releaseLease()
     }
   }
@@ -286,19 +299,129 @@ export class PdfTranslationService extends BaseService {
     if (job.child) killProcessTree(job.child)
   }
 
-  public async cleanup(jobId: string): Promise<void> {
-    if (this.activeJobs.has(jobId)) return
-    await fs.promises.rm(application.getPath('feature.pdf_translation.temp', jobId), {
-      force: true,
-      recursive: true
-    })
+  /**
+   * Hand the finished translation to FileManager and record it in translate history.
+   *
+   * The artifact is copied into Cherry storage as a `delete_when_unreferenced` internal
+   * entry, so the history row's `translate_history_file_ref` is what keeps it alive:
+   * deleting the row (or clearing history) releases the PDF to the cleanup pass. The
+   * user's original is only *referenced* (external entry) — never copied, never deleted.
+   *
+   * If the history write throws, the just-created entry would linger as an unreferenced
+   * file the user sees in the file manager until the cleanup grace window elapses, so it
+   * is compensated away — the same shape as `withCreatedImageEntry`.
+   */
+  private async persistResult(request: PdfTranslationRequest, outputPath: AbsoluteFilePath, job: ActivePdfTranslation) {
+    const fileManager = application.get('FileManager')
+    let translated: FileEntry | null = null
+
+    try {
+      const created = await fileManager.createInternalEntry({
+        source: 'path',
+        path: outputPath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      translated = created
+      const entry = await this.renameToDisplayName(created, request)
+      const fileName = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
+
+      const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
+      this.throwIfCancelled(job)
+
+      const history = application.get('DbService').withWriteTx((tx) =>
+        translateHistoryService.createFileTx(tx, {
+          sourceText: path.basename(request.sourcePath),
+          targetText: fileName,
+          sourceLanguage: toPersistedLangCodeOrNull(request.sourceLangCode),
+          targetLanguage: toPersistedLangCodeOrNull(request.targetLangCode),
+          targetFileEntryId: entry.id,
+          ...(source ? { sourceFileEntryId: source.id } : {})
+        })
+      )
+      notifyDataApiDataChange([{ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] }])
+
+      return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
+    } catch (error) {
+      const cancelled = job.cancelled
+      if (!cancelled) {
+        logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+      }
+      if (translated) {
+        const translatedId = translated.id
+        await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
+          logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
+        })
+      }
+      if (cancelled) this.throwIfCancelled(job)
+      throw new IpcError(
+        translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+        'The PDF was translated, but its result could not be saved'
+      )
+    }
+  }
+
+  /**
+   * Trade BabelDOC's artifact name — `<stem>.no_watermark.<lang>.mono.pdf`, which the
+   * entry inherits from the copied file's basename — for the name a user expects in the
+   * file manager and in "save as". Internal entries are stored at `{id}.{ext}`, so this
+   * only rewrites the DB's display name.
+   *
+   * A source stem that cannot form a safe name (over-long, `.`/`..`) keeps the derived
+   * name instead: cosmetics must not sink a translation the user already paid for.
+   */
+  private async renameToDisplayName(entry: FileEntry, request: PdfTranslationRequest): Promise<FileEntry> {
+    const displayName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}`
+    if (!SafeNameSchema.safeParse(displayName).success) {
+      logger.warn('Kept the BabelDOC-derived name; the display name is not a safe file name', {
+        jobId: request.jobId
+      })
+      return entry
+    }
+    try {
+      return await application.get('FileManager').rename(entry.id, displayName)
+    } catch (error) {
+      logger.warn('Failed to apply the translated PDF display name; keeping the BabelDOC-derived name', {
+        entryId: entry.id,
+        error: String(error),
+        jobId: request.jobId
+      })
+      return entry
+    }
+  }
+
+  /**
+   * Reference the user's source PDF so history can offer the side-by-side view again.
+   *
+   * Best-effort: `ensureExternalEntry` rejects paths it cannot canonicalize (UNC) and
+   * case-collisions `fs.realpath` proves are distinct files. Neither says anything about
+   * the translation, which is already on disk — so a failure costs the "source" ref, not
+   * the history row.
+   */
+  private async registerSourceEntry(sourcePath: AbsoluteFilePath, jobId: string): Promise<FileEntry | null> {
+    try {
+      return await application.get('FileManager').ensureExternalEntry({
+        externalPath: sourcePath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    } catch (error) {
+      logger.warn('Failed to reference the source PDF; recording the translation without it', {
+        error: String(error),
+        jobId,
+        sourcePath
+      })
+      return null
+    }
   }
 
   private async resolveSidecar(): Promise<string> {
     const binaryManager = application.get('BinaryManager')
     const snapshot = (await binaryManager.getToolSnapshots([BABELDOC_TOOL_NAME]))[BABELDOC_TOOL_NAME]
-    if (!isBabelDocInstalled(snapshot)) {
+    const status = getBabelDocInstallationStatus(snapshot)
+    if (status === 'missing') {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not installed')
+    }
+    if (status === 'outdated') {
+      throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_OUTDATED, 'BabelDOC must be updated')
     }
 
     const installedPath = await getBinaryPath(BABELDOC_TOOL_NAME)
@@ -321,7 +444,6 @@ export class PdfTranslationService extends BaseService {
     gatewayModelId: string,
     baseUrl: string,
     apiKey: string,
-    onStage?: (stage: PdfTranslationStage) => void,
     onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
@@ -345,6 +467,8 @@ export class PdfTranslationService extends BaseService {
       '--report-interval',
       '0.2',
       '--progress-json',
+      '--progress-json-version',
+      '2',
       '--watermark-output-mode',
       'no_watermark',
       '--no-dual'
@@ -365,8 +489,6 @@ export class PdfTranslationService extends BaseService {
         if (job.cancelled) killProcessTree(child)
         let stderr = ''
         let sidecarError: Error | null = null
-        let downloadingAssets = false
-        let assetDownloadObserved = false
         let finishReceived = false
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
@@ -394,26 +516,18 @@ export class PdfTranslationService extends BaseService {
             finishReceived = true
             return
           }
-          if (downloadingAssets) {
-            downloadingAssets = false
-            onStage?.('translating')
-          }
           this.reportProgress(
             job,
             {
-              stage: this.normalizeProgressStage(parsed.data.stage),
-              progress: Math.round(parsed.data.progress)
+              stage: parsed.data.stage,
+              stageProgress: parsed.data.stage_progress,
+              overallProgress: parsed.data.overall_progress
             },
             onProgress
           )
         })
         child.stderr?.on('data', (chunk) => {
           stderr = `${stderr}${String(chunk)}`.slice(-8000)
-          if (!assetDownloadObserved && BABELDOC_ASSET_DOWNLOAD_PATTERNS.some((pattern) => pattern.test(stderr))) {
-            assetDownloadObserved = true
-            downloadingAssets = true
-            onStage?.('downloading_assets')
-          }
         })
         child.once('error', (error) => {
           progressLines?.close()
@@ -426,9 +540,6 @@ export class PdfTranslationService extends BaseService {
             reject(new Error('PDF translation cancelled'))
           } else if (sidecarError) {
             reject(sidecarError)
-          } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
-            // Keep a narrow stderr fallback in case BabelDOC Stream fails before its JSON writer starts.
-            reject(createOcrRequiredError())
           } else if (code === 0 && finishReceived) {
             resolve()
           } else if (code === 0) {
@@ -449,42 +560,22 @@ export class PdfTranslationService extends BaseService {
     }
   }
 
-  private normalizeProgressStage(stage: string): PdfTranslationProgressStage {
-    const normalized = stage.toLowerCase()
-    if (normalized.includes('translate')) return 'translating'
-    if (normalized.includes('term')) return 'extracting_terms'
-    if (normalized.includes('typeset')) return 'typesetting'
-    if (normalized.includes('parse pdf') || normalized.includes('intermediate representation')) return 'parsing'
-    if (
-      normalized.includes('detect') ||
-      normalized.includes('layout') ||
-      normalized.includes('paragraph') ||
-      normalized.includes('formula') ||
-      normalized.includes('style') ||
-      normalized.includes('table')
-    ) {
-      return 'analyzing'
-    }
-    if (
-      normalized.includes('font') ||
-      normalized.includes('drawing') ||
-      normalized.includes('save pdf') ||
-      normalized.includes('generate pdf')
-    ) {
-      return 'rendering'
-    }
-    return 'processing'
-  }
-
   private reportProgress(
     job: ActivePdfTranslation,
     progress: PdfTranslationProgress,
     onProgress?: (progress: PdfTranslationProgress) => void
   ): void {
-    if (progress.progress < job.progress) return
-    if (job.progressStage === progress.stage && job.progress === progress.progress) return
-    job.progress = progress.progress
+    if (progress.overallProgress < job.overallProgress) return
+    if (
+      job.progressStage === progress.stage &&
+      job.stageProgress === progress.stageProgress &&
+      job.overallProgress === progress.overallProgress
+    ) {
+      return
+    }
+    job.overallProgress = progress.overallProgress
     job.progressStage = progress.stage
+    job.stageProgress = progress.stageProgress
     onProgress?.(progress)
   }
 
