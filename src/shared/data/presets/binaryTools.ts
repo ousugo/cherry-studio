@@ -1,3 +1,4 @@
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 // Tool identity validators, shared so the renderer can reject malformed custom
 // tools before sending the install request — not just
 // the main-process install path.
@@ -59,6 +60,18 @@ export interface BinaryToolPreset {
   homepage?: string
 }
 
+/** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
+export const BABELDOC_TOOL_NAME = 'babeldoc-stream'
+
+/**
+ * Whether the pinned BabelDOC version is installed. Shared by the renderer (to gate the
+ * layout-preserving PDF workflow) and the main service (to resolve the sidecar) so the
+ * pin-version predicate lives in one place instead of being duplicated per process.
+ */
+export function isBabelDocInstalled(snapshot: BinaryToolSnapshot | undefined): boolean {
+  return snapshot?.application?.status === 'applied'
+}
+
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
   {
     name: 'uv',
@@ -118,6 +131,13 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     icon: 'simple-icons:notion',
     repoUrl: 'https://github.com/makenotion/cli',
     homepage: 'https://ntn.dev'
+  },
+  {
+    name: BABELDOC_TOOL_NAME,
+    displayName: 'BabelDOC Stream',
+    tool: 'pipx:babeldoc-stream',
+    repoUrl: 'https://github.com/eeee0717/BabelDOC',
+    homepage: 'https://pypi.org/project/babeldoc-stream/'
   }
   // Managed Code CLIs are listed in codeCliTools.ts instead of here.
 ]

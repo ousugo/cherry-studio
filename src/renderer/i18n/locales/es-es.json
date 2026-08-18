@@ -800,6 +800,7 @@
       "restartSuccess": "Servidor API reiniciado exitosamente",
       "startError": "Error al iniciar el Servidor API: ",
       "startSuccess": "Servidor API iniciado exitosamente",
+      "stopDeferred": "El Servidor API se detendrá cuando termine la traducción actual",
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
     },
@@ -5559,6 +5560,7 @@
       },
       "title": "Dependencias del entorno",
       "tools": {
+        "babeldoc-stream": "Motor de traducción de PDF que conserva el diseño. Los recursos del modelo de diseño se descargan en la primera traducción.",
         "bun": "Entorno de ejecución de JavaScript que utilizan los servicios MCP y las cadenas de herramientas relacionadas.",
         "claude": "Herramienta de programación con agentes de Anthropic para el terminal.",
         "codex": "Agente de programación de código abierto de OpenAI que puede leer, editar y ejecutar código en tu repositorio local.",
@@ -7259,6 +7261,43 @@
     "language_settings": "Configuración de idioma",
     "output": {
       "placeholder": "Traducción"
+    },
+    "pdf": {
+      "action": {
+        "close": "Cerrar la traducción de PDF",
+        "export": "Exportar PDF traducido",
+        "install_babeldoc": "Instalar BabelDOC"
+      },
+      "dependency": {
+        "checking": "Comprobando BabelDOC...",
+        "description": "Instala el complemento BabelDOC para traducir PDF conservando su diseño original.",
+        "installing": "Instalando BabelDOC...",
+        "title": "PDF detectado"
+      },
+      "error": {
+        "generic": "Se produjo un error durante la traducción. Inténtalo de nuevo.",
+        "ocr_required": "Los PDF escaneados aún no son compatibles.",
+        "title": "Fallo en la traducción del PDF"
+      },
+      "export_failed": "No se pudo exportar el PDF traducido",
+      "pane": {
+        "translated": "PDF traducido",
+        "translated_text": "Traducción"
+      },
+      "progress": {
+        "analyzing": "Analizando el diseño del documento",
+        "downloading_assets": "Descargando recursos de procesamiento de PDF...",
+        "generating": "Generando el PDF traducido",
+        "percent": "{{progress}}%",
+        "preparing": "Preparando el documento",
+        "translating": "Traduciendo el contenido",
+        "value": "{{stage}}, {{progress}}%"
+      },
+      "ready": {
+        "description": "Selecciona un idioma de destino e inicia la traducción.",
+        "title": "Listo para traducir"
+      },
+      "success": "PDF traducido generado"
     },
     "preferred_target": "Objetivo Preferido",
     "processing": "Traduciendo...",

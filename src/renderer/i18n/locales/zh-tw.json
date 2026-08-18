@@ -800,6 +800,7 @@
       "restartSuccess": "API 閘道重新啟動成功",
       "startError": "啟動 API 閘道失敗：",
       "startSuccess": "API 閘道啟動成功",
+      "stopDeferred": "目前翻譯完成後，API 閘道將自動停止",
       "stopError": "停止 API 閘道失敗：",
       "stopSuccess": "API 閘道停止成功"
     },
@@ -5559,6 +5560,7 @@
       },
       "title": "環境相依套件",
       "tools": {
+        "babeldoc-stream": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端機 Agent 程式設計工具。",
         "codex": "OpenAI 的開源程式設計 Agent，可讀取、編輯和執行本機儲存庫中的程式碼。",
@@ -7259,6 +7261,43 @@
     "language_settings": "語言設定",
     "output": {
       "placeholder": "翻譯"
+    },
+    "pdf": {
+      "action": {
+        "close": "關閉 PDF 翻譯",
+        "export": "匯出譯文 PDF",
+        "install_babeldoc": "安裝 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在偵測 BabelDOC...",
+        "description": "安裝 BabelDOC 外掛程式即可在翻譯 PDF 時保留原始版式。",
+        "installing": "正在安裝 BabelDOC...",
+        "title": "偵測到 PDF"
+      },
+      "error": {
+        "generic": "翻譯過程中發生錯誤，請重試。",
+        "ocr_required": "暫不支援掃描版 PDF",
+        "title": "PDF 翻譯失敗"
+      },
+      "export_failed": "匯出譯文 PDF 失敗",
+      "pane": {
+        "translated": "譯文 PDF",
+        "translated_text": "譯文"
+      },
+      "progress": {
+        "analyzing": "正在分析文件版面",
+        "downloading_assets": "正在下載 PDF 處理資源...",
+        "generating": "正在產生譯文 PDF",
+        "percent": "{{progress}}%",
+        "preparing": "正在準備文件",
+        "translating": "正在翻譯內容",
+        "value": "{{stage}}，{{progress}}%"
+      },
+      "ready": {
+        "description": "選擇目標語言並開始翻譯。",
+        "title": "等待翻譯"
+      },
+      "success": "譯文 PDF 已產生"
     },
     "preferred_target": "首選目標",
     "processing": "翻譯中...",
