@@ -254,13 +254,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     (translatedDraft: ComposerSerializedDraft) => {
       composerActionsRef.current?.replaceDraft(translatedDraft)
       onPromptChange(translatedDraft.text)
-      window.requestAnimationFrame(() => composerActionsRef.current?.focus('end'))
     },
     [onPromptChange]
   )
+  const focusTranslatedDraft = useCallback(() => composerActionsRef.current?.focus('end'), [])
   const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
     getDraft: getDraftForTranslation,
     onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
     loggerContext: 'PaintingComposer',
     scopeKey: painting.id
   })

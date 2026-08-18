@@ -67,6 +67,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
     'chat.input.translate.auto_translate_with_space'
   )
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const [translateTargetLanguage, setTranslateTargetLanguage] = usePreference('chat.input.translate.target_language')
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
@@ -271,6 +272,14 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               checked={autoTranslateWithSpace}
               onCheckedChange={setAutoTranslateWithSpace}
               label={t('settings.input.auto_translate_with_space')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={showTranslateConfirm}
+              onCheckedChange={setShowTranslateConfirm}
+              label={t('settings.input.show_translate_confirm')}
             />
           </SettingRow>
           <SettingDivider />

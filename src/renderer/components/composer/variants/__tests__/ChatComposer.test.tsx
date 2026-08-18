@@ -79,11 +79,21 @@ const mocks = vi.hoisted(() => ({
       }
     | undefined,
   autoTranslateWithSpace: true,
+  showTranslateConfirm: true,
   translateTargetLanguage: 'en-us',
+  confirmTranslation: vi.fn(),
   translate: vi.fn(),
   cancelTranslate: vi.fn(),
   isTranslating: false
 }))
+
+vi.mock('@renderer/services/popup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/services/popup')>()
+  return {
+    ...actual,
+    popup: { ...actual.popup, confirm: mocks.confirmTranslation }
+  }
+})
 
 const originalResizeObserver = globalThis.ResizeObserver
 
@@ -469,6 +479,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
       'chat.input.translate.auto_translate_with_space': mocks.autoTranslateWithSpace,
+      'chat.input.translate.show_confirm': mocks.showTranslateConfirm,
       'chat.input.translate.target_language': mocks.translateTargetLanguage,
       'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
@@ -771,7 +782,10 @@ describe('ChatComposer', () => {
     mocks.providerHookArgs = []
     mocks.speedControlProps = undefined
     mocks.autoTranslateWithSpace = true
+    mocks.showTranslateConfirm = true
     mocks.translateTargetLanguage = 'en-us'
+    mocks.confirmTranslation.mockReset()
+    mocks.confirmTranslation.mockResolvedValue(true)
     mocks.translate.mockReset()
     mocks.translate.mockResolvedValue('Translated draft')
     mocks.cancelTranslate.mockReset()
@@ -837,10 +851,65 @@ describe('ChatComposer', () => {
     onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
 
     await waitFor(() => {
+      expect(mocks.confirmTranslation).toHaveBeenCalledWith({
+        title: 'translate.confirm.title',
+        content: 'translate.confirm.content'
+      })
       expect(mocks.translate).toHaveBeenCalledWith('Hello  ', 'zh-cn')
       expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Translated draft', tokens: [] })
       expect(mocks.focusComposer).toHaveBeenLastCalledWith('end')
     })
+  })
+
+  it('does not translate the draft when the configured confirmation is cancelled', async () => {
+    mocks.confirmTranslation.mockResolvedValue(false)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    await waitFor(() => expect(mocks.confirmTranslation).toHaveBeenCalledOnce())
+    expect(mocks.translate).not.toHaveBeenCalled()
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+  })
+
+  it('skips the confirmation dialog when the preference is disabled', async () => {
+    mocks.showTranslateConfirm = false
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledOnce())
+    expect(mocks.confirmTranslation).not.toHaveBeenCalled()
+  })
+
+  it('cancels pending post-translation focus when the composer unmounts', async () => {
+    let nextFrameId = 1
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => nextFrameId++)
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    try {
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      const onKeyDown = mocks.surfaceProps?.onKeyDown
+      onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+      onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+      onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+      await waitFor(() => expect(requestAnimationFrameSpy).toHaveBeenCalled())
+      const focusFrameId = requestAnimationFrameSpy.mock.results.at(-1)?.value
+
+      view.unmount()
+
+      expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(focusFrameId)
+    } finally {
+      requestAnimationFrameSpy.mockRestore()
+      cancelAnimationFrameSpy.mockRestore()
+    }
   })
 
   it('does not trigger triple-space translation when the preference is disabled', () => {
@@ -865,7 +934,7 @@ describe('ChatComposer', () => {
       onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
     }
 
-    expect(mocks.translate).toHaveBeenCalledOnce()
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledOnce())
 
     await act(async () => deferred.resolve('Translated draft'))
   })

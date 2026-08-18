@@ -1525,7 +1525,7 @@
         {
           "originalKey": "showTranslateConfirm",
           "type": "boolean",
-          "defaultValue": true,
+          "defaultValue": false,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.translate.show_confirm"

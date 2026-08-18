@@ -657,13 +657,14 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(translatedDraft)
       setText(translatedDraft.text)
       setDraftTokens(translatedDraft.tokens.length ? translatedDraft.tokens : undefined)
-      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     },
     [actionsRef]
   )
+  const focusTranslatedDraft = useCallback(() => actionsRef.current.focus('end'), [actionsRef])
   const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
     getDraft: getDraftForTranslation,
     onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
     loggerContext: 'ChatComposer',
     scopeKey: streamScopeKey
   })

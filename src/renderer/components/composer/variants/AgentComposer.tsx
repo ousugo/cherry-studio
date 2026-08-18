@@ -964,13 +964,14 @@ const AgentComposerInner = ({
       setText(translatedDraft.text)
       setDraftTokens(translatedDraft.tokens)
       draftTokensRef.current = translatedDraft.tokens
-      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     },
     [actionsRef, setText]
   )
+  const focusTranslatedDraft = useCallback(() => actionsRef.current.focus('end'), [actionsRef])
   const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
     getDraft: getDraftForTranslation,
     onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
     loggerContext: 'AgentComposer',
     scopeKey: sessionTopicId
   })

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.input.translate.auto_translate_with_space': true,
+    'chat.input.translate.show_confirm': true,
     'chat.input.translate.target_language': 'en-us',
     'chat.message.font': 'system',
     'chat.message.confirm_delete': true,
@@ -143,6 +144,7 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.loadThemeNames.mockClear()
     mocks.preferenceValues['chat.input.translate.auto_translate_with_space'] = true
+    mocks.preferenceValues['chat.input.translate.show_confirm'] = true
     mocks.preferenceValues['chat.input.translate.target_language'] = 'en-us'
     mocks.setPreference.mockClear()
   })
@@ -161,7 +163,7 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
-  it('renders and updates the triple-space translation preferences without restoring the confirmation control', () => {
+  it('renders and updates the triple-space translation preferences', () => {
     render(<ChatPreferenceSections />)
 
     const autoTranslateSwitch = screen.getByRole('button', { name: 'settings.input.auto_translate_with_space' })
@@ -170,6 +172,15 @@ describe('ChatPreferenceSections', () => {
     fireEvent.click(autoTranslateSwitch)
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.auto_translate_with_space', false)
+
+    const showTranslateConfirmSwitch = screen.getByRole('button', {
+      name: 'settings.input.show_translate_confirm'
+    })
+    expect(showTranslateConfirmSwitch).toHaveAttribute('data-checked', 'true')
+
+    fireEvent.click(showTranslateConfirmSwitch)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.show_confirm', false)
     expect(screen.getByText('settings.input.target_language.label')).toBeInTheDocument()
 
     const targetLanguageSelector = screen.getByRole('combobox')
@@ -177,7 +188,6 @@ describe('ChatPreferenceSections', () => {
     fireEvent.change(targetLanguageSelector, { target: { value: 'zh-cn' } })
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.target_language', 'zh-cn')
-    expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {
