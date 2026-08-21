@@ -19,9 +19,13 @@ vi.mock('@data/hooks/useCache', () => ({
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: PropsWithChildren) => children,
   motion: {
-    div: ({ animate: _animate, initial: _initial, exit: _exit, transition: _transition, ...props }: MotionDivProps) => (
-      <div {...props} />
-    )
+    div: ({ animate, initial, exit, transition, ...props }: MotionDivProps) => {
+      void animate
+      void initial
+      void exit
+      void transition
+      return <div {...props} />
+    }
   }
 }))
 
