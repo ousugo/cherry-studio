@@ -145,7 +145,7 @@ describe('mainWindowNavigation', () => {
 
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
         kind: 'navigation',
-        to: '/settings/provider',
+        to: '/settings/general',
         requestId: expect.any(Number)
       })
     })
