@@ -2,7 +2,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -36,7 +36,16 @@ export function PageSidebar({
   const { t } = useTranslation()
   const [hasOpened, setHasOpened] = useState(Boolean(open))
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
-  const resolvedWidth = width ?? paneWidth
+  const resolvedWidth = width ?? CHAT_SHELL_PANE_WIDTH
+
+  // A hidden React Activity destroys effects while preserving Motion's internal values. When the
+  // activity resumes, Motion can restore the pre-resize numeric width even though the persisted
+  // width and CSS variable are current. Rebind the pane at the same layout-effect boundary so the
+  // handle (positioned from this box) and its visible content always share one width source.
+  useLayoutEffect(() => {
+    if (!open || !paneRef.current) return
+    paneRef.current.style.width = typeof resolvedWidth === 'number' ? `${resolvedWidth}px` : resolvedWidth
+  }, [open, paneRef, resolvedWidth])
 
   useEffect(() => {
     if (open) setHasOpened(true)
@@ -66,10 +75,7 @@ export function PageSidebar({
           data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}
-          className={cn(
-            'group/resource-list-pane relative shrink-0 overflow-visible data-[resizing=true]:[&_.conversation-navigation-pane-content]:transition-none data-[resizing=true]:[&_.conversation-navigation-pane]:transition-none',
-            className
-          )}
+          className={cn('group/resource-list-pane relative shrink-0 overflow-visible', className)}
           style={style}>
           {/* Keep the list clipped without covering its scrollbar with the resize hit area. */}
           <div data-resource-list-pane-content className="h-full min-h-0 overflow-hidden">
