@@ -30,7 +30,6 @@ import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/kn
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
-import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/BinaryManager'
@@ -99,7 +98,6 @@ export const services = {
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
-  AppService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
