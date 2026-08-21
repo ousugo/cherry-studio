@@ -1,6 +1,8 @@
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +20,7 @@ import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  clearTopicMessagesTrigger: vi.fn(),
   deleteTopic: vi.fn(),
   deleteTopics: vi.fn(),
   batchUpdateTopics: vi.fn(),
@@ -197,7 +200,6 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
   },
@@ -253,6 +255,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'chat.default.name': 'Default assistant',
         'chat.default.topic.name': 'New conversation',
+        'chat.input.clear.title': 'Clear all messages?',
         'chat.save.topic.knowledge.menu_title': 'Save to knowledge base',
         'chat.topics.auto_rename': 'Generate conversation name',
         'chat.topics.clear.title': 'Clear messages',
@@ -280,6 +283,7 @@ vi.mock('react-i18next', () => ({
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
+        'common.confirm': 'Confirm',
         'common.delete': 'Delete',
         'common.more': 'More',
         'common.name': 'Name',
@@ -424,6 +428,13 @@ let assistantHistoryLoaded = false
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
+    MockUseDataApiUtils.resetMocks()
+    hookMocks.clearTopicMessagesTrigger.mockReset().mockResolvedValue({ deletedIds: ['message-alpha'] })
+    MockUseDataApiUtils.mockMutationWithTrigger(
+      'DELETE',
+      '/topics/:topicId/messages',
+      hookMocks.clearTopicMessagesTrigger
+    )
     confirmActionShow.mockClear()
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
@@ -1019,6 +1030,24 @@ describe('HistoryRecordsView assistant mode', () => {
       '',
       'Delete'
     ])
+  })
+
+  it('clears a topic from history without an active conversation consumer', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory()
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Clear messages' }))
+
+    await vi.waitFor(() =>
+      expect(hookMocks.clearTopicMessagesTrigger).toHaveBeenCalledExactlyOnceWith({
+        params: { topicId: 'topic-alpha' }
+      })
+    )
+    expect(confirmActionShow).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Clear all messages?', okText: 'Confirm', action: expect.any(Function) })
+    )
   })
 
   it('pins a topic from the history row context menu without selecting the row', async () => {
