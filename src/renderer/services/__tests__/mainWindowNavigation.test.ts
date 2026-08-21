@@ -91,7 +91,7 @@ describe('openSettingsTab', () => {
     openSettingsTab('/agents' as never)
 
     const event = handler.mock.calls[0][0] as OpenMainRouteEvent
-    expect(event.detail).toEqual({ path: '/settings/provider' })
+    expect(event.detail).toEqual({ path: '/settings/general' })
 
     window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
   })
