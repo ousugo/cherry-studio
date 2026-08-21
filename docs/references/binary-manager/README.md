@@ -137,6 +137,14 @@ For a Code CLI, add its executable/specification to the Code CLI preset source. 
 
 To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
+`scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
+
+A dev run instead downloads into a cache shared by every worktree of the checkout, at `<git-common-dir>/cherry-binaries/<platform>-<arch>/<tool>/<version>/`, and hard-links from it into `resources/binaries/` — so a second worktree costs links rather than a repeat download, and the runtime still reads the one path it always did. The version is part of the cache path, so two worktrees on branches with different tool versions each keep their own copy instead of overwriting each other. Version markers live only in the bundle, written per worktree; the cache holds binaries alone.
+
+Downloads stage under `.staging-<checkout-id>/` and are renamed into place only after their checksum passes, which keeps concurrent worktrees off each other's files and lets an interrupted transfer resume on the next run. Cache-internal entries (`.staging-*`, `.retired-*`) are never mirrored into a worktree, and `verifyBundledBinaries` refuses to package a bundle containing any.
+
+The cache reclaims itself: a version whose files are hard-linked into some worktree has a link count above one, so anything left at one link and untouched for two weeks is deleted at the end of a run. The sweep covers every platform in the cache, not only the one being built, since running the script for another platform leaves a tree nothing else would visit. Deleting `<git-common-dir>/cherry-binaries/` by hand is always safe — the next run re-downloads what it needs, and `git clean` does not reach inside `.git/`.
+
 ## Consuming a tool
 
 A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the executable is a fixed catalog tool, it calls `installByName({ name: executableName })`; main resolves the canonical recipe. An arbitrary user-supplied recipe goes through `addCustomTool(definition)`. Re-read the snapshot after installation before launching.
