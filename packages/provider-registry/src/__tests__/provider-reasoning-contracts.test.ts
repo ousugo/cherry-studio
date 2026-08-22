@@ -154,8 +154,25 @@ describe('provider reasoning contracts', () => {
     })
     expect(dots.endpointConfigs?.['anthropic-messages']).toMatchObject({
       adapterFamily: 'anthropic',
-      baseUrl: 'https://note3-prev-api.askdiandian.com',
-      reasoningFormat: { type: 'anthropic' }
+      baseUrl: 'https://note3-prev-api.askdiandian.com'
+    })
+    expect(dots.endpointConfigs?.['anthropic-messages']?.reasoningFormat).toEqual({
+      type: 'anthropic',
+      wire: {
+        off: {
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+        },
+        auto: {
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }]
+        },
+        effort: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } },
+            { target: 'effort', value: { source: 'effort' } }
+          ],
+          effortMap: { minimal: 'low' }
+        }
+      }
     })
     expect(override('dots', 'dots-3-note-preview')).toMatchObject({
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],

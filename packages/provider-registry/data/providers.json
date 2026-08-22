@@ -330,7 +330,51 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://note3-prev-api.askdiandian.com",
           "reasoningFormat": {
-            "type": "anthropic"
+            "type": "anthropic",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "adaptive"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "effortMap": {
+                  "minimal": "low"
+                },
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "adaptive"
+                    }
+                  },
+                  {
+                    "target": "effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
           }
         },
         "openai-chat-completions": {
@@ -2468,5 +2512,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "b542453ed8c6b957"
+  "version": "600ea02c6805abea"
 }

@@ -7,6 +7,22 @@ const openAIThinkingWire: ReasoningWireProfile = modeWire('chat_template_kwargs.
   auto: true
 })
 
+const anthropicThinkingWire: ReasoningWireProfile = {
+  off: {
+    operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+  },
+  auto: {
+    operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }]
+  },
+  effort: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } },
+      { target: 'effort', value: { source: 'effort' } }
+    ],
+    effortMap: { minimal: 'low' }
+  }
+}
+
 export default defineProvider({
   id: 'dots',
   name: 'Dots Studio',
@@ -22,7 +38,7 @@ export default defineProvider({
     'anthropic-messages': {
       adapterFamily: 'anthropic',
       baseUrl: 'https://note3-prev-api.askdiandian.com',
-      reasoningFormat: { type: 'anthropic' }
+      reasoningFormat: { type: 'anthropic', wire: anthropicThinkingWire }
     }
   },
   metadata: {
