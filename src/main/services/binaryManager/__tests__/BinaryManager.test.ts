@@ -107,6 +107,7 @@ vi.mock('node:util', async (importOriginal) => {
 const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
 const { findCommandInShellEnv, findExecutable, findMiseExecutable } = await import('@main/utils/commandResolver')
+const { regionService } = await import('@main/services/RegionService')
 const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
@@ -162,6 +163,7 @@ describe('BinaryManager', () => {
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
     vi.mocked(findExecutable).mockReset().mockReturnValue(null)
     vi.mocked(findMiseExecutable).mockReset().mockResolvedValue(null)
+    vi.mocked(regionService.isInChina).mockReset().mockResolvedValue(false)
     vi.mocked(getRawShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
@@ -2774,6 +2776,110 @@ describe('BinaryManager', () => {
   })
 
   describe('installWithMise', () => {
+    const UV_BIN = '/mock/cherry.bin/uv'
+    const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
+    const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
+    const uvCalls = (subcommand: string) =>
+      mockExecFileAsync.mock.calls.filter(
+        (call: any[]) => call[0] === UV_BIN && call[1][0] === 'python' && call[1][1] === subcommand
+      )
+    const miseUseCalls = () => mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+    const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+
+    // Drives a BabelDOC install that finds a healthy Cherry-managed interpreter.
+    const stubManagedPythonInstall = () => {
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+        if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
+        if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
+        if (args[0] === 'ls' && args[2] === 'pipx:babeldoc-stream') {
+          return {
+            stdout: JSON.stringify({ 'pipx:babeldoc-stream': [{ version: '0.6.4.post4', active: true }] }),
+            stderr: ''
+          }
+        }
+        return { stdout: '', stderr: '' }
+      })
+    }
+
+    it('installs BabelDOC against an interpreter already in Cherry storage, without naming Python to mise', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {
+        env: { PIP_INDEX_URL: 'https://pypi.org/simple' },
+        usesDefaultChinaPipIndex: false
+      }
+      stubManagedPythonInstall()
+
+      await expect((service as any).installWithMise(BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
+
+      expect(uvCalls('install')).toHaveLength(0)
+      // Naming a Python runtime here is what makes mise download its own from
+      // GitHub — the one thing this whole path exists to avoid.
+      const useCall = miseUseCalls()[0]
+      expect(useCall?.[1].some((arg: string) => arg.startsWith('python@'))).toBe(false)
+      expect(useCall?.[2].env).toMatchObject({ UV_PYTHON: MANAGED_PYTHON, UV_PYTHON_DOWNLOADS: 'never' })
+    })
+
+    // An older Cherry version passed `python@3.12` to `mise use`, which wrote a
+    // global selection Cherry no longer owns. `--no-prune` is load-bearing:
+    // without it `mise unuse` uninstalls the interpreter, and the tools that
+    // older version installed hold a `pyvenv.cfg` pointing into that directory.
+    it('drops the global Python selection an older version wrote, without uninstalling it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+
+      expect(miseArgs()).toContainEqual(['unuse', '-g', '--no-prune', 'python'])
+    })
+
+    it('leaves a Python the user added as a custom tool selected', async () => {
+      manifestRef.value = [{ name: 'python', tool: 'core:python', requestedVersion: '3.13.0' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+
+      expect(miseArgs()).not.toContainEqual(['unuse', '-g', '--no-prune', 'python'])
+    })
+
+    it('keeps a BabelDOC install that succeeded when the selection cannot be dropped', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+      const stubbed = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'unuse') throw new Error('mise config is read-only')
+        return stubbed(bin, args, opts)
+      })
+
+      await expect((service as any).installWithMise(BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
+    })
+
+    it('preserves and sanitizes command stderr when every pip source fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {
+        env: { PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+        usesDefaultChinaPipIndex: true
+      }
+      mockExecFileAsync.mockRejectedValue(
+        Object.assign(new Error('Command failed'), {
+          stderr: 'download https://user:password@mirror.test/file?api_key=hidden failed\n'
+        })
+      )
+
+      await expect(
+        (service as any).installPipxTool(['use', '-g', 'pipx:babeldoc-stream@0.6.4.post4'], MANAGED_PYTHON, false)
+      ).rejects.toThrow(/Command failed[\s\S]*https:\/\/\*\*\*@mirror\.test\/file\?api_key=\*\*\*/)
+    })
+
     it.each([
       { name: 'resolved latest', definitions: [], runtimeSpec: 'node@22.23.2', resolvesLatest: true },
       {
@@ -2961,21 +3067,21 @@ describe('BinaryManager', () => {
     const TSINGHUA = 'https://pypi.tuna.tsinghua.edu.cn/simple'
     const TENCENT = 'https://mirrors.cloud.tencent.com/pypi/simple'
     const OFFICIAL = 'https://pypi.org/simple'
+    const UV_BIN = '/mock/cherry.bin/uv'
+    const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
 
     let originalEnv: NodeJS.ProcessEnv
 
-    beforeEach(async () => {
+    beforeEach(() => {
       originalEnv = { ...process.env }
       // An ambient index on the dev machine would look like a user-chosen one.
       delete process.env['PIP_INDEX_URL']
-      const { regionService } = await import('@main/services/RegionService')
       vi.mocked(regionService.isInChina).mockResolvedValue(true)
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
     })
 
-    afterEach(async () => {
+    afterEach(() => {
       process.env = originalEnv
-      const { regionService } = await import('@main/services/RegionService')
-      vi.mocked(regionService.isInChina).mockResolvedValue(false)
     })
 
     // The index each `use` attempt actually targeted, in attempt order.
@@ -2985,7 +3091,9 @@ describe('BinaryManager', () => {
         .map((call: any[]) => call[2].env['UV_DEFAULT_INDEX'])
 
     const stubMise = (failing: string[]) => {
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[], opts: any) => {
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
+        if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
         if (args[0] === 'use') {
           const index = opts.env['UV_DEFAULT_INDEX'] ?? opts.env['PIP_INDEX_URL']
           if (failing.includes(index)) throw new Error(`No matching distribution on ${index}`)
@@ -3030,6 +3138,11 @@ describe('BinaryManager', () => {
 
       await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
       expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT])
+      // Switching index must not cost the retry Cherry's own interpreter —
+      // without UV_PYTHON, mise falls back to downloading a Python from GitHub.
+      for (const call of mockExecFileAsync.mock.calls.filter((entry: any[]) => entry[1][0] === 'use')) {
+        expect(call[2].env).toMatchObject({ UV_PYTHON: MANAGED_PYTHON, UV_PYTHON_DOWNLOADS: 'never' })
+      }
     })
 
     it('reaches pypi.org only after every China mirror has failed', async () => {
@@ -3053,7 +3166,6 @@ describe('BinaryManager', () => {
       { name: 'the user chose their own index', inChina: true, pipIndexUrl: 'https://pypi.internal/simple' },
       { name: 'the user is not in China', inChina: false, pipIndexUrl: '' }
     ])('does not reach for another index when $name', async ({ inChina, pipIndexUrl }) => {
-      const { regionService } = await import('@main/services/RegionService')
       vi.mocked(regionService.isInChina).mockResolvedValue(inChina)
       mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, pipIndexUrl })
       const service = chinaService()
@@ -3127,21 +3239,15 @@ describe('BinaryManager', () => {
     it('runs every attempt of one install against the same env, even if settings change mid-retry', async () => {
       const service = chinaService()
       const invalidate = invalidateOn(service)
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[], opts: any) => {
-        if (args[0] === 'use') {
-          if (opts.env['UV_DEFAULT_INDEX'] !== TSINGHUA) return { stdout: '', stderr: '' }
+      stubMise([TSINGHUA])
+      const runMise = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'use' && opts.env['UV_DEFAULT_INDEX'] === TSINGHUA) {
           // The user changes install settings while the first attempt fails.
           mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, githubMirror: 'https://ghproxy.test' })
           invalidate()
-          throw new Error(`No matching distribution on ${TSINGHUA}`)
         }
-        if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({ 'pipx:babeldoc-stream': [{ version: '0.6.4', active: true }] }),
-            stderr: ''
-          }
-        }
-        return { stdout: '', stderr: '' }
+        return runMise(bin, args, opts)
       })
 
       await expect(installBabeldoc(service)).resolves.toBe('0.6.4')

@@ -14,6 +14,7 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
+  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
@@ -41,6 +42,9 @@ import type {
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
+
+import { sanitizedCommandError } from './commandError'
+import { provideManagedPython } from './pythonRuntime'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -177,13 +181,6 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
     () => true,
     () => false
   )
-}
-
-function isPathWithin(root: string, candidate: string): boolean {
-  const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
-  const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
-  const relative = path.relative(normalizedRoot, normalizedCandidate)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 // Single source of truth for tools shipped inside the app and extracted at
@@ -1179,27 +1176,59 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
-  private async installPipxTool(args: string[], includePrerelease: boolean): Promise<void> {
+  private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
+    // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
+    // never needs a Python of its own, and none is passed to `mise use`.
+    const pythonEnv = {
+      UV_PYTHON: pythonPath,
+      UV_PYTHON_DOWNLOADS: 'never',
+      UV_HTTP_TIMEOUT: '30',
+      UV_HTTP_RETRIES: '2'
+    }
     // Every attempt runs against the snapshot the decision came from: an index
     // the user chose is used as-is, since retrying elsewhere would silently pull
     // packages from somewhere they did not ask for.
     const snapshot = await this.getIsolatedEnv()
     const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease, snapshot }
     if (!snapshot.usesDefaultChinaPipIndex) {
-      await this.runMise(args, opts)
+      await this.runMise(args, { ...opts, env: pythonEnv })
       return
     }
 
     const failures: string[] = []
     for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
       try {
-        await this.runMise(args, { ...opts, env: pipIndexEnv(index) })
+        await this.runMise(args, { ...opts, env: { ...pythonEnv, ...pipIndexEnv(index) } })
         return
       } catch (error) {
         failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
       }
     }
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
+  }
+
+  /**
+   * Drop the global Python selection older Cherry versions wrote for the pipx
+   * backend. Cherry provisions the interpreter itself now, so its own leftover
+   * entry leaves mise reporting a runtime it no longer owns as active. A
+   * selection the user made by adding Python as a custom tool stays theirs.
+   *
+   * `--no-prune` is what keeps this to the config file: `mise unuse` uninstalls
+   * the version too by default, and the tools an earlier version installed hold
+   * a `pyvenv.cfg` pointing straight into that install directory.
+   */
+  private async releaseMisePythonSelection(): Promise<void> {
+    const runtimeName = RUNTIME_DEPS.pipx.split('@')[0]
+    const userOwned = this.getCustomDefinitions().some(
+      (entry) => normalizeToolIdentity(entry.tool).split('@')[0] === runtimeName
+    )
+    if (userOwned) return
+    try {
+      await this.runMise(['unuse', '-g', '--no-prune', runtimeName])
+    } catch (error) {
+      // The tool itself installed; a leftover selection is not worth failing over.
+      logger.warn('Failed to drop the legacy mise Python selection', { error: this.errorMessage(error) })
+    }
   }
 
   private async installWithMise(
@@ -1231,10 +1260,23 @@ export class BinaryManager extends BaseService {
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
-    const useArgs = ['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec]
+    // Cherry provisions Python itself, so the pipx runtime stays out of `mise
+    // use` — naming it there is what makes mise fetch its own Python.
+    const pythonPath =
+      backend === 'pipx' && runtime
+        ? await provideManagedPython(runtime.slice(runtime.lastIndexOf('@') + 1), (await this.getIsolatedEnv()).env)
+        : undefined
+    const useArgs = [
+      'use',
+      '-g',
+      ...releaseAgeArgs,
+      ...(!shellOutNpm && runtime && !pythonPath ? [runtime] : []),
+      toolSpec
+    ]
 
-    if (backend === 'pipx') {
-      await this.installPipxTool(useArgs, includePrerelease)
+    if (pythonPath) {
+      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+      await this.releaseMisePythonSelection()
     } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,
@@ -2205,6 +2247,6 @@ export class BinaryManager extends BaseService {
   }
 
   private errorMessage(err: unknown): string {
-    return err instanceof Error ? err.message : String(err)
+    return sanitizedCommandError(err)
   }
 }
