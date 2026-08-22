@@ -1,6 +1,6 @@
 export type SettingsPath = '/settings' | `/settings?${string}` | '/settings/provider' | `/settings/${string}`
 
-export const DEFAULT_SETTINGS_PATH: SettingsPath = '/settings/general'
+export const DEFAULT_SETTINGS_PATH: SettingsPath = '/settings/provider'
 
 export function isSettingsPath(value: unknown): value is SettingsPath {
   return (
