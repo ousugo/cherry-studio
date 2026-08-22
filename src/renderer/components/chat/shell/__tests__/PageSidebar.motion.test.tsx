@@ -1,71 +1,43 @@
-import { render } from '@testing-library/react'
-import { Activity, type ComponentProps, type PropsWithChildren, useLayoutEffect, useRef } from 'react'
+import { render, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { PageSidebar } from '../PageSidebar'
 
 const cache = vi.hoisted(() => ({ width: 200 }))
-type MotionDivProps = ComponentProps<'div'> & {
-  animate?: unknown
-  initial?: unknown
-  exit?: unknown
-  transition?: unknown
-}
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [cache.width, vi.fn()]
 }))
-
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: PropsWithChildren) => children,
-  motion: {
-    div: ({ animate, initial, exit, transition, ...props }: MotionDivProps) => {
-      void animate
-      void initial
-      void exit
-      void transition
-      return <div {...props} />
-    }
-  }
-}))
-
-function RestoreStaleWidth() {
-  const ref = useRef<HTMLDivElement>(null)
-  const resumed = useRef(false)
-
-  useLayoutEffect(() => {
-    if (resumed.current) {
-      const pane = ref.current?.closest('[data-resource-list-pane]') as HTMLElement | null
-      pane?.style.setProperty('width', '200px')
-    }
-    resumed.current = true
-  }, [])
-
-  return <div ref={ref} />
-}
 
 afterEach(() => {
   cache.width = 200
   document.documentElement.style.removeProperty('--assistants-width')
 })
 
-it('restores the current sidebar width after Activity resumes', () => {
-  const Sidebar = ({ visible }: { visible: boolean }) => (
+it('keeps the restored width through the next transition', async () => {
+  const Sidebar = ({ visible, open = true }: { visible: boolean; open?: boolean }) => (
     <Activity mode={visible ? 'visible' : 'hidden'}>
-      <PageSidebar open>
-        <RestoreStaleWidth />
-      </PageSidebar>
+      <PageSidebar open={open}>content</PageSidebar>
     </Activity>
   )
 
   const { container, rerender } = render(<Sidebar visible />)
-  const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
+  const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')!
 
   cache.width = 283
-  rerender(<Sidebar visible />)
   rerender(<Sidebar visible={false} />)
   rerender(<Sidebar visible />)
+  await waitFor(() => {
+    expect(document.documentElement.style.getPropertyValue('--assistants-width')).toBe('283px')
+    expect(pane.style.width).toBe('var(--assistants-width)')
+  })
 
-  expect(document.documentElement.style.getPropertyValue('--assistants-width')).toBe('283px')
-  expect(pane?.style.width).toBe('var(--assistants-width)')
+  rerender(<Sidebar visible open={false} />)
+  await waitFor(() => expect(pane.style.opacity).toBe('0'))
+  rerender(<Sidebar visible />)
+  await waitFor(() => {
+    expect(pane.style.width).toBe('var(--assistants-width)')
+    expect(pane.style.opacity).toBe('1')
+  })
 })

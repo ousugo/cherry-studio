@@ -2,7 +2,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -38,15 +38,6 @@ export function PageSidebar({
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
   const resolvedWidth = width ?? CHAT_SHELL_PANE_WIDTH
 
-  // A hidden React Activity destroys effects while preserving Motion's internal values. When the
-  // activity resumes, Motion can restore the pre-resize numeric width even though the persisted
-  // width and CSS variable are current. Rebind the pane at the same layout-effect boundary so the
-  // handle (positioned from this box) and its visible content always share one width source.
-  useLayoutEffect(() => {
-    if (!open || !paneRef.current) return
-    paneRef.current.style.width = typeof resolvedWidth === 'number' ? `${resolvedWidth}px` : resolvedWidth
-  }, [open, paneRef, resolvedWidth])
-
   useEffect(() => {
     if (open) setHasOpened(true)
   }, [open])
@@ -67,7 +58,7 @@ export function PageSidebar({
           ref={paneRef}
           key="page-sidebar"
           initial={{ width: 0, opacity: 0 }}
-          animate={open ? { width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 } : { width: 0, opacity: 0 }}
+          animate={open ? { width: resolvedWidth, opacity: 1 } : { width: 0, opacity: 0 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
           aria-hidden={!open}
