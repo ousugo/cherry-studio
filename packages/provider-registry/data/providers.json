@@ -323,9 +323,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "streamOptions": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Dots Studio - AI model provider",
       "endpointConfigs": {
@@ -339,6 +336,9 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://note3-prev-api.askdiandian.com",
+          "dialect": {
+            "streamOptions": false
+          },
           "reasoningFormat": {
             "type": "openai-chat",
             "wire": {
@@ -2468,5 +2468,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "022cccb55cf608cf"
+  "version": "b542453ed8c6b957"
 }

@@ -3,10 +3,9 @@ import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
 type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
 
 /**
- * Adapt pi's Anthropic SDK auth to a Messages-compatible provider whose API key
- * header differs from Anthropic's `x-api-key` default.
+ * Adapt pi auth to a provider whose API key uses a provider-specific header.
  */
-export function withAnthropicApiKeyHeaderStream(
+export function withApiKeyHeaderStream(
   config: ProviderConfig,
   apiKeyHeader: string,
   apiStreamSimple: PiStreamSimple

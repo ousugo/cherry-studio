@@ -672,6 +672,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'dots-secret-key',
+      apiKeySelection: { attribution: 'explicit', id: 'dots-key', masked: 'dots-****-key' }
+    })
+    mocks.getApiKeys.mockReturnValue([{ key: 'dots-secret-key', isEnabled: true }])
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -680,7 +685,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_BASE_URL: 'https://note3-prev-api.askdiandian.com',
       ANTHROPIC_MODEL: 'dots3-note-prev'
     })
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('api-key: api-key')
+    const customHeaders = request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS?.split('\n')
+    expect(customHeaders).toContain('api-key: dots-secret-key')
+    expect(customHeaders?.some((header) => header.toLowerCase().startsWith('x-api-key:'))).toBe(false)
   })
 
   it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {

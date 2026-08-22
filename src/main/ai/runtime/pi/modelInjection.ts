@@ -38,7 +38,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import type { AgentSessionUsageCapture } from '../types'
-import { withAnthropicApiKeyHeaderStream } from './piAnthropicAuth'
+import { withApiKeyHeaderStream } from './piAnthropicAuth'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
@@ -106,8 +106,8 @@ export interface PiProviderInjection {
   transportAdapter?: ProviderTransportAdapter
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
-  /** Remap Anthropic SDK auth to this provider-specific API-key header at call time. */
-  anthropicApiKeyHeader?: string
+  /** Remap pi auth to this provider-specific API-key header at call time. */
+  apiKeyHeader?: string
   /** Frozen attribution selected together with the credential used by this connection. */
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
@@ -119,11 +119,11 @@ export async function materializePiProviderStream(injection: PiProviderInjection
 }> {
   const providerConfig = injection.transportAdapter
     ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
-    : injection.api === 'anthropic-messages' && injection.anthropicApiKeyHeader
-      ? withAnthropicApiKeyHeaderStream(
+    : injection.apiKeyHeader
+      ? withApiKeyHeaderStream(
           injection.providerConfig,
-          injection.anthropicApiKeyHeader,
-          (await loadPiAnthropicMessagesApi()).streamSimple as NonNullable<ProviderConfig['streamSimple']>
+          injection.apiKeyHeader,
+          await loadPiApiStreamSimple(injection.api)
         )
       : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
         ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
@@ -214,9 +214,7 @@ export function buildPiProviderInjection(
       ]
     },
     ...(transportAdapter ? { transportAdapter } : {}),
-    ...(api === 'anthropic-messages' && matchesPreset(provider, SystemProviderIds.dots)
-      ? { anthropicApiKeyHeader: DOTS_API_KEY_HEADER }
-      : {}),
+    ...(matchesPreset(provider, SystemProviderIds.dots) ? { apiKeyHeader: DOTS_API_KEY_HEADER } : {}),
     ...(api === 'azure-openai-responses' && provider.settings?.apiVersion?.trim()
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})

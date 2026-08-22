@@ -16,6 +16,7 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
       baseUrl: 'https://note3-prev-api.askdiandian.com',
+      dialect: { streamOptions: false },
       reasoningFormat: { type: 'openai-chat', wire: openAIThinkingWire }
     },
     'anthropic-messages': {
@@ -24,7 +25,6 @@ export default defineProvider({
       reasoningFormat: { type: 'anthropic' }
     }
   },
-  apiFeatures: { streamOptions: false },
   metadata: {
     website: {
       apiKey: 'https://dots.ai/platform/apikeys',
