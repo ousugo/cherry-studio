@@ -203,8 +203,11 @@ describe('catalog invariants (data/*.json)', () => {
     expect(broken).toEqual([])
   })
 
-  it('narrows Dots3-Note Preview to the capabilities exposed by OpenRouter', () => {
+  it("narrows Dots3-Note Preview to each provider's verified transport", () => {
     const base = models.find((model) => model.id === 'dots-3-note-preview')
+    const dots = providerModelOverrides.find(
+      (override) => override.providerId === 'dots' && override.modelId === 'dots-3-note-preview'
+    )
     const openRouter = providerModelOverrides.find(
       (override) =>
         override.providerId === 'openrouter' && override.apiModelId === 'dots-studio/dots-3-note-preview:free'
@@ -214,6 +217,13 @@ describe('catalog invariants (data/*.json)', () => {
       capabilities: expect.arrayContaining(['audio-recognition', 'video-recognition']),
       contextWindow: 524_288,
       inputModalities: ['text', 'image', 'audio', 'video']
+    })
+    expect(dots).toMatchObject({
+      capabilities: {
+        remove: ['audio-recognition', 'video-recognition']
+      },
+      inputModalities: ['text', 'image'],
+      reason: 'Dots transport currently verifies text and image input only'
     })
     expect(openRouter).toMatchObject({
       capabilities: {

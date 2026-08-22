@@ -37,7 +37,10 @@ export default defineProvider({
     {
       modelId: 'dots-3-note-preview',
       apiModelId: 'dots3-note-prev',
+      capabilities: { remove: ['audio-recognition', 'video-recognition'] },
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      inputModalities: ['text', 'image'],
+      reason: 'Dots transport currently verifies text and image input only',
       parameterSupport: {
         temperature: { supported: true },
         topP: { supported: true },

@@ -72,6 +72,7 @@ export default defineProvider({
   overrides: [
     {
       modelId: 'dots-3-note-preview',
+      name: 'Dots3-Note Preview (free)',
       capabilities: {
         add: ['structured-output'],
         remove: ['audio-recognition', 'video-recognition']
