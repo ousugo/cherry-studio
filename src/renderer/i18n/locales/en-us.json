@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Custom parameters",
   "library.config.basic.custom_params_add": "Add parameter",
   "library.config.basic.custom_params_name": "Parameter name",
+  "library.config.basic.custom_params_value": "Parameter value",
   "library.config.basic.default_value": "Model default",
   "library.config.basic.field.context_compress_enabled.hint": "Summarize older turns automatically when nearing the context window",
   "library.config.basic.field.context_count.hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting",

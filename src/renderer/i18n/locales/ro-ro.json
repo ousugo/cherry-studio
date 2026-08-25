@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Parametri personalizați",
   "library.config.basic.custom_params_add": "Adaugă parametru",
   "library.config.basic.custom_params_name": "Nume parametru",
+  "library.config.basic.custom_params_value": "Valoarea parametrului",
   "library.config.basic.default_value": "Model implicit",
   "library.config.basic.field.context_compress_enabled.hint": "Rezuma automat conversațiile mai vechi când te apropii de limita contextului",
   "library.config.basic.field.context_count.hint": "Numărul de mesaje recente păstrate ca context",

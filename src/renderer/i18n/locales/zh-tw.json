@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "自訂參數",
   "library.config.basic.custom_params_add": "新增參數",
   "library.config.basic.custom_params_name": "參數名稱",
+  "library.config.basic.custom_params_value": "參數值",
   "library.config.basic.default_value": "模型預設",
   "library.config.basic.field.context_compress_enabled.hint": "當接近上下文視窗限制時自動摘要較早的對話內容",
   "library.config.basic.field.context_count.hint": "保留作為上下文之近期訊息數量",

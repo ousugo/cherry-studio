@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "自定义参数",
   "library.config.basic.custom_params_add": "添加参数",
   "library.config.basic.custom_params_name": "参数名",
+  "library.config.basic.custom_params_value": "参数值",
   "library.config.basic.default_value": "模型默认",
   "library.config.basic.field.context_compress_enabled.hint": "接近上下文窗口上限时自动摘要较早的对话",
   "library.config.basic.field.context_count.hint": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示跟随全局设置",

@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Προσαρμοσμένες παράμετροι",
   "library.config.basic.custom_params_add": "Προσθήκη παραμέτρου",
   "library.config.basic.custom_params_name": "Όνομα παραμέτρου",
+  "library.config.basic.custom_params_value": "Τιμή παραμέτρου",
   "library.config.basic.default_value": "Προεπιλεγμένο μοντέλο",
   "library.config.basic.field.context_compress_enabled.hint": "Αυτόματη σύνοψη παλαιότερων στροφών όταν πλησιάζει το παράθυρο περιβάλλοντος",
   "library.config.basic.field.context_count.hint": "Αριθμός πρόσφατων μηνυμάτων που διατηρούνται ως συμφραζόμενα",

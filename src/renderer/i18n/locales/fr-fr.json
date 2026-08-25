@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Paramètres personnalisés",
   "library.config.basic.custom_params_add": "Ajouter le paramètre",
   "library.config.basic.custom_params_name": "Nom du paramètre",
+  "library.config.basic.custom_params_value": "Valeur du paramètre",
   "library.config.basic.default_value": "Modèle par défaut",
   "library.config.basic.field.context_compress_enabled.hint": "Résumer automatiquement les tours de conversation précédents lorsqu'on approche de la limite de la fenêtre de contexte",
   "library.config.basic.field.context_count.hint": "Nombre de messages récents conservés comme contexte",

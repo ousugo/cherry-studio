@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Пользовательские параметры",
   "library.config.basic.custom_params_add": "Добавить параметр",
   "library.config.basic.custom_params_name": "Имя параметра",
+  "library.config.basic.custom_params_value": "Значение параметра",
   "library.config.basic.default_value": "Модель по умолчанию",
   "library.config.basic.field.context_compress_enabled.hint": "Автоматически суммировать старые сообщения при приближении к лимиту контекстного окна",
   "library.config.basic.field.context_count.hint": "Количество последних сообщений, сохраняемых в качестве контекста",

@@ -1790,6 +1790,7 @@
   "library.config.basic.custom_params": "Các tham số tùy chỉnh",
   "library.config.basic.custom_params_add": "Thêm tham số",
   "library.config.basic.custom_params_name": "Tên tham số",
+  "library.config.basic.custom_params_value": "Giá trị tham số",
   "library.config.basic.default_value": "Mặc định mô hình",
   "library.config.basic.field.context_compress_enabled.hint": "Tóm tắt tự động các lượt trò chuyện cũ khi gần đến giới hạn ngữ cảnh",
   "library.config.basic.field.context_count.hint": "Số lượng tin nhắn gần đây được giữ lại làm ngữ cảnh",
