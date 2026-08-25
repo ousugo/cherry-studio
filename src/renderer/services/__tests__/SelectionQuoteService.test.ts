@@ -1,14 +1,20 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findSelectionQuoteTargetTab, routeSelectionQuoteToChat, selectionQuoteService } from '../SelectionQuoteService'
+let selectionQuoteModule: typeof import('../SelectionQuoteService')
 
 function tab(id: string, url: string, lastAccessTime: number): Tab {
   return { id, url, lastAccessTime, type: 'route', isDormant: false, title: id }
 }
 
 describe('SelectionQuoteService', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    selectionQuoteModule = await import('../SelectionQuoteService')
+  })
+
   it('keeps the active usable chat tab', () => {
+    const { findSelectionQuoteTargetTab } = selectionQuoteModule
     const activeChat = tab('active-chat', '/app/chat?topicId=active', 1)
     const newerChat = tab('newer-chat', '/app/chat?topicId=newer', 2)
 
@@ -16,6 +22,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('selects the most recently used chat tab when another page is active', () => {
+    const { findSelectionQuoteTargetTab } = selectionQuoteModule
     const settings = tab('settings', '/settings/general', 3)
     const olderChat = tab('older-chat', '/app/chat?topicId=older', 1)
     const newerChat = tab('newer-chat', '/app/chat?topicId=newer', 2)
@@ -24,6 +31,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('requires a new chat when only non-composer pages exist', () => {
+    const { findSelectionQuoteTargetTab } = selectionQuoteModule
     const settings = tab('settings', '/settings/general', 2)
     const messageView = tab('message-view', '/app/chat?topicId=topic&view=message', 1)
 
@@ -31,6 +39,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('keeps a request pending until its matching acknowledgement', () => {
+    const { selectionQuoteService } = selectionQuoteModule
     selectionQuoteService.store('delivery-chat', { id: 'delivery-request-1', text: 'Selected text' })
 
     expect(selectionQuoteService.peek('delivery-chat', 'delivery-request-1')).toEqual({
@@ -46,6 +55,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('routes to an existing chat without creating another tab', () => {
+    const { routeSelectionQuoteToChat, selectionQuoteService } = selectionQuoteModule
     const settings = tab('settings', '/settings/general', 3)
     const chat = tab('chat', '/app/chat?topicId=topic-1', 2)
     const openTab = vi.fn(() => 'new-tab')
@@ -70,6 +80,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('opens a new chat only when no usable chat tab exists', () => {
+    const { routeSelectionQuoteToChat, selectionQuoteService } = selectionQuoteModule
     const settings = tab('settings', '/settings/general', 3)
     const openTab = vi.fn(() => 'new-tab')
     const setActiveTab = vi.fn()
@@ -96,6 +107,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('bounds rapid quotes to the target tab single pending slot', () => {
+    const { routeSelectionQuoteToChat, selectionQuoteService } = selectionQuoteModule
     const chat = tab('replacement-chat', '/app/chat?topicId=topic-1', 2)
     const openTab = vi.fn(() => 'unused-tab')
     const setActiveTab = vi.fn()
@@ -130,6 +142,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('reuses the reserved tab while a newly opened chat has not entered tab state', () => {
+    const { routeSelectionQuoteToChat, selectionQuoteService } = selectionQuoteModule
     const settings = tab('reserved-settings', '/settings/general', 3)
     const openTab = vi.fn(() => 'reserved-chat')
     const setActiveTab = vi.fn()
@@ -162,6 +175,7 @@ describe('SelectionQuoteService', () => {
   })
 
   it('opens a new chat after the reserved target was mounted and closed before insertion', () => {
+    const { routeSelectionQuoteToChat, selectionQuoteService } = selectionQuoteModule
     const settings = tab('closed-settings', '/settings/general', 3)
     const closedChat = tab('closed-chat', '/app/chat?quoteRequestId=closed-request-1', 4)
     const openTab = vi.fn().mockReturnValueOnce('closed-chat').mockReturnValueOnce('replacement-chat')

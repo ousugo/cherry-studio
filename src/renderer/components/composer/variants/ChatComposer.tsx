@@ -148,7 +148,7 @@ export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
   pendingQuote?: SelectionQuoteRequest
-  onQuoteInserted?: () => void
+  onQuoteInserted?: (requestId: string) => void
   scopeKey?: string
   topicId?: string
   assistantId?: string

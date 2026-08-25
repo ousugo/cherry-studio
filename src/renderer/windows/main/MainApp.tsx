@@ -16,7 +16,7 @@ import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitor
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { routeSelectionQuoteToChat, selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useEffectEvent } from 'react'
 import { v4 as uuid } from 'uuid'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
@@ -80,20 +80,26 @@ function SelectionQuoteNavigation(): null {
     selectionQuoteService.reconcileTabs(tabs)
   }, [tabs])
 
+  const handleSelectionQuote = useEffectEvent((text: string) => {
+    if (!text) return
+
+    routeSelectionQuoteToChat({
+      activeTab,
+      openTab,
+      request: { id: uuid(), text },
+      setActiveTab,
+      tabs,
+      updateTab
+    })
+  })
+
   useEffect(() => {
     return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, text: string) => {
-      if (!text) return
-
-      routeSelectionQuoteToChat({
-        activeTab,
-        openTab,
-        request: { id: uuid(), text },
-        setActiveTab,
-        tabs,
-        updateTab
-      })
+      handleSelectionQuote(text)
     })
-  }, [activeTab, openTab, setActiveTab, tabs, updateTab])
+    // `handleSelectionQuote` is an Effect Event that always reads the latest tab state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return null
 }

@@ -1387,7 +1387,7 @@ describe('ChatComposer', () => {
       )
     })
 
-    expect(onQuoteInserted).toHaveBeenCalledOnce()
+    expect(onQuoteInserted).toHaveBeenCalledWith('quote-request-1')
     expect(mocks.ipcOn).not.toHaveBeenCalled()
     expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
@@ -2505,6 +2505,58 @@ describe('ChatComposer', () => {
           mentionedModelIds: [],
           modelMultiSelectMode: false
         },
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('exits input history preview when a routed quote updates the composer', async () => {
+    seedInputHistory(['history entry'])
+    let liveTokens: ComposerSerializedToken[] = []
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: liveTokens
+    }))
+
+    const onQuoteInserted = vi.fn()
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} onQuoteInserted={onQuoteInserted} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('real draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('real draft'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    vi.mocked(cacheService.set).mockClear()
+    mocks.insertToken.mockImplementation((token) => {
+      liveTokens = [serializeComposerToken(token)]
+      mocks.surfaceProps?.onTextChange(mocks.surfaceProps.text)
+      mocks.surfaceProps?.onTokensChange(liveTokens)
+      return true
+    })
+
+    view.rerender(
+      <ChatComposer
+        topic={topic}
+        onSend={vi.fn()}
+        pendingQuote={{ id: 'quote-request-history', text: 'Selected message text' }}
+        onQuoteInserted={onQuoteInserted}
+      />
+    )
+
+    await waitFor(() => expect(onQuoteInserted).toHaveBeenCalledWith('quote-request-history'))
+    expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    await waitFor(() => {
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'chat.composer_draft.topic-1',
+        expect.objectContaining({
+          text: 'history entry',
+          tokens: [expect.objectContaining({ kind: 'quote', description: 'Selected message text' })]
+        }),
         expect.any(Number)
       )
     })

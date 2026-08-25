@@ -295,13 +295,16 @@ const HomePage: FC = () => {
     closeSurface()
     setPendingQuote(request)
   }, [closeSurface, currentQuoteRequestId, currentTabId, replaceQuoteRequestId, routeQuoteRequestId])
-  const handleQuoteInserted = useCallback(() => {
-    if (!pendingQuote || !currentTabId) return
+  const handleQuoteInserted = useCallback(
+    (requestId: string) => {
+      if (!currentTabId) return
 
-    selectionQuoteService.ack(currentTabId, pendingQuote.id)
-    setPendingQuote(undefined)
-    replaceQuoteRequestId(selectionQuoteService.getCurrentRequestId(currentTabId))
-  }, [currentTabId, pendingQuote, replaceQuoteRequestId])
+      selectionQuoteService.ack(currentTabId, requestId)
+      setPendingQuote((current) => (current?.id === requestId ? undefined : current))
+      replaceQuoteRequestId(selectionQuoteService.getCurrentRequestId(currentTabId))
+    },
+    [currentTabId, replaceQuoteRequestId]
+  )
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return

@@ -21,7 +21,7 @@ interface ChatComposerSlotBaseProps {
   topic: Topic
   contextUsage: ChatContextUsageSource | null
   pendingQuote?: SelectionQuoteRequest
-  onQuoteInserted?: () => void
+  onQuoteInserted?: (requestId: string) => void
   onSend: (
     text: string,
     options?: {

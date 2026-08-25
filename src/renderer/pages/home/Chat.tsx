@@ -59,7 +59,7 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   pendingQuote?: SelectionQuoteRequest
-  onQuoteInserted?: () => void
+  onQuoteInserted?: (requestId: string) => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean

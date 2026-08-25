@@ -101,6 +101,7 @@ const homeMocks = vi.hoisted(() => ({
   routeSearch: {} as Record<string, unknown>,
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
+  quoteInsertedCallbacks: new Map<string, () => void>(),
   // Topics resolvable by id through `useTopicById` (resume-by-last-used reads it); an id
   // missing from the map behaves like a deleted topic.
   topicsById: new Map<string, Topic>(),
@@ -379,9 +380,12 @@ vi.mock('../Chat', () => ({
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
     paneManualToggle?: { seq: number; open: boolean }
     pendingQuote?: { id: string; text: string }
-    onQuoteInserted?: () => void
+    onQuoteInserted?: (requestId: string) => void
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
+    if (pendingQuote && onQuoteInserted) {
+      homeMocks.quoteInsertedCallbacks.set(pendingQuote.id, () => onQuoteInserted(pendingQuote.id))
+    }
 
     return (
       <section data-testid="home-chat-shell">
@@ -398,8 +402,8 @@ vi.mock('../Chat', () => ({
             <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
             <output data-testid="selection-quote">{pendingQuote?.text ?? ''}</output>
-            {onQuoteInserted && (
-              <button type="button" onClick={onQuoteInserted}>
+            {onQuoteInserted && pendingQuote && (
+              <button type="button" onClick={() => onQuoteInserted(pendingQuote.id)}>
                 Quote inserted
               </button>
             )}
@@ -733,6 +737,7 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
+    homeMocks.quoteInsertedCallbacks.clear()
     selectionQuoteService.reconcileTabs([])
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
@@ -822,6 +827,28 @@ describe('HomePage', () => {
       search: { topicId: 'topic-initial' },
       replace: true
     })
+  })
+
+  it('does not clear a newer quote when an older insertion callback finishes late', async () => {
+    homeMocks.routeSearch = { topicId: 'topic-initial', quoteRequestId: 'quote-request-1' }
+    selectionQuoteService.store('chat-tab', { id: 'quote-request-1', text: 'First selection' })
+
+    const view = render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('selection-quote')).toHaveTextContent('First selection'))
+    const firstInsertionCallback = homeMocks.quoteInsertedCallbacks.get('quote-request-1')
+    expect(firstInsertionCallback).toBeDefined()
+
+    selectionQuoteService.store('chat-tab', { id: 'quote-request-2', text: 'Second selection' })
+    homeMocks.routeSearch = { topicId: 'topic-initial', quoteRequestId: 'quote-request-2' }
+    view.rerender(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('selection-quote')).toHaveTextContent('Second selection'))
+
+    act(() => firstInsertionCallback?.())
+
+    expect(screen.getByTestId('selection-quote')).toHaveTextContent('Second selection')
+    expect(selectionQuoteService.getCurrentRequestId('chat-tab')).toBe('quote-request-2')
   })
 
   it('shows both assistant and topic panes by default when topics are on the right', () => {

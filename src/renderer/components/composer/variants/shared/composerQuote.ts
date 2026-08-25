@@ -24,7 +24,7 @@ interface QuoteInsertionActions {
 export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
   actionsRef: RefObject<T>,
   request?: SelectionQuoteRequest,
-  onInserted?: () => void
+  onInserted?: (requestId: string) => void
 ): () => void {
   const { t } = useTranslation()
   const insertedRequestIdRef = useRef<string | undefined>(undefined)
@@ -35,7 +35,7 @@ export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
     if (!actionsRef.current.insertToken(token)) return
 
     insertedRequestIdRef.current = request.id
-    onInserted?.()
+    onInserted?.(request.id)
   }, [actionsRef, onInserted, request, t])
 
   useEffect(() => insertPendingQuote(), [insertPendingQuote])

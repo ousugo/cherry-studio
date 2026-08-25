@@ -34,7 +34,7 @@ import { useChatRuntimeState } from './useChatRuntimeState'
 interface Props {
   topic: Topic
   pendingQuote?: SelectionQuoteRequest
-  onQuoteInserted?: () => void
+  onQuoteInserted?: (requestId: string) => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
