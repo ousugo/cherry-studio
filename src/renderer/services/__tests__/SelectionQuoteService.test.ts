@@ -1,7 +1,9 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-let selectionQuoteModule: typeof import('../SelectionQuoteService')
+import type * as SelectionQuoteModule from '../SelectionQuoteService'
+
+let selectionQuoteModule: typeof SelectionQuoteModule
 
 function tab(id: string, url: string, lastAccessTime: number): Tab {
   return { id, url, lastAccessTime, type: 'route', isDormant: false, title: id }
