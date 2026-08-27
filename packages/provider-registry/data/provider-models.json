@@ -17676,6 +17676,9 @@
       "apiModelId": "kimi-k2.5",
       "modelId": "kimi-k2-5",
       "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
         "topP": {
           "supported": false
         }
@@ -17685,6 +17688,14 @@
     {
       "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "moonshot",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -17730,6 +17741,9 @@
     {
       "modelId": "kimi-k3",
       "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
         "topP": {
           "supported": false
         }
