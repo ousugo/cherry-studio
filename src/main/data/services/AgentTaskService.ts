@@ -311,25 +311,34 @@ export class AgentTaskService {
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
     const output = job.output as { sessionId?: string; result?: string } | null
     const startedAt = job.startedAt ?? job.scheduledAt
-    // jobTable stores ISO strings on these columns — use Date.parse so
-    // a NaN result (corrupt row) flows through as durationMs = 0 instead
-    // of `NaN`.
-    const startedMs = Date.parse(startedAt)
-    const finishedMs = job.finishedAt ? Date.parse(job.finishedAt) : NaN
-    const durationMs = Number.isFinite(finishedMs - startedMs) ? finishedMs - startedMs : 0
+    // A cancel-requested row's fate is sealed (live cancel and startup recovery
+    // both end it as cancelled) — show the outcome before the row settles.
+    const provisionalCancel = job.cancelRequested && !job.finishedAt
 
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status: TaskRunLogEntity['status'] =
-      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
+    const status: TaskRunLogEntity['status'] = provisionalCancel
+      ? 'cancelled'
+      : job.status === 'pending' || job.status === 'delayed'
+        ? 'running'
+        : job.status
+
+    // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
+    // at sweep time, up to a process lifetime after the run actually stopped.
+    const endIso = status === 'cancelled' ? (job.cancelRequestedAt ?? job.finishedAt) : job.finishedAt
+    // NaN (never started / unfinished / corrupt row) flows through the
+    // isFinite check as durationMs = null — no duration, not queue-wait time.
+    const startedMs = job.startedAt ? Date.parse(job.startedAt) : NaN
+    const endMs = endIso ? Date.parse(endIso) : NaN
+    const durationMs = Number.isFinite(endMs - startedMs) ? Math.max(0, endMs - startedMs) : null
 
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
       sessionId: output?.sessionId ?? null,
       startedAt,
-      durationMs: Math.max(0, durationMs),
+      durationMs,
       status,
       result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
       error: job.error?.message ?? null
