@@ -980,6 +980,29 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('builds and stages both editions for every selected release platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const releaseJob = workflow.jobs.release
+    const validationStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition release artifacts'
+    )
+    const channelStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Resolve update manifest channel'
+    )
+    const stagingSteps = releaseJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Stage '))
+    const historyStep = releaseJob.steps.find((step: { name?: string }) => step.name === 'Stage stable release history')
+
+    expect(releaseJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(channelStep.run).toContain('getReleaseChannel')
+    expect(stagingSteps).toHaveLength(4)
+    for (const step of stagingSteps.slice(0, 3)) {
+      expect(step.with.name).toContain('${{ matrix.edition }}')
+      expect(step.with.path).toContain('dist/${{ steps.release-channel.outputs.channel }}*.yml')
+    }
+    expect(historyStep.if).toContain("matrix.edition == 'global'")
+  })
+
   it('revalidates the selected release branch head before draft mutation and tag movement', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const finalizeSteps = workflow.jobs['finalize-build'].steps
@@ -1087,6 +1110,40 @@ describe('release workflow gates', () => {
 
     expect(addLabelIndex).toBeGreaterThan(-1)
     expect(addLabelIndex).toBeLessThan(noteCheckIndex)
+  })
+
+  it('requires environment approval before exposing preview signing and service credentials', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const buildJob = workflow.jobs.build
+    const checkoutStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Check out preview commit')
+    const macBuildStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Build Mac')
+
+    expect(buildJob.environment).toBe('release')
+    expect(checkoutStep.with['persist-credentials']).toBe(false)
+    expect(macBuildStep.env).toMatchObject({
+      APPLE_ID: '${{ secrets.APPLE_ID }}',
+      CSC_LINK: '${{ secrets.CSC_LINK }}',
+      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+      MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
+    })
+  })
+
+  it('builds and stages both editions for every selected preview platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const buildJob = workflow.jobs.build
+    const buildSteps = buildJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Build '))
+    const validationStep = buildJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
+    )
+    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
+
+    expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    for (const step of buildSteps) {
+      expect(step.run).toContain("matrix.edition == 'cn'")
+    }
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
+    expect(uploadStep.with.path).toContain('dist/preview*.yml')
   })
 
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
