@@ -1,4 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
 
 export interface ErrorClassification {
   category:
@@ -72,6 +73,23 @@ export function isProxyErrorMessage(message: string): boolean {
     normalized.includes('proxy refused') ||
     normalized.includes('proxy rejected') ||
     normalized.includes('connection to proxies')
+  )
+}
+
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
   )
 }
 
@@ -293,6 +311,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
+  }
+
+  // A wrapper carries no status of its own — diagnose the first attempt that says something.
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown') {
+      return nestedClassification
+    }
   }
 
   return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
