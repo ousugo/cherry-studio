@@ -462,8 +462,8 @@
     }
   ],
   "providers": {
-    "version": "4d44bc4a2d81dbd5",
-    "count": 62,
+    "version": "5b74ff4e1bc9c9e9",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -544,6 +544,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "jalapeno-cloud",
