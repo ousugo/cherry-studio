@@ -2,6 +2,7 @@ import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -263,6 +264,43 @@ describe('aiHandlers', () => {
     expect(error.data).toMatchObject({ message: '401 Unauthorized', statusCode: 401, responseBody: 'bad key' })
   })
 
+  it('exposes only safe details from a direct APICallError', async () => {
+    const providerError = new APICallError({
+      message: 'Forbidden',
+      url: 'https://api.example.com/chat?token=url-secret',
+      requestBodyValues: { prompt: 'private user prompt' },
+      statusCode: 403,
+      responseHeaders: { 'set-cookie': 'session=header-secret' },
+      responseBody: JSON.stringify({ error: { message: 'provider access denied' }, trace: 'response-secret' }),
+      data: { apiKey: 'data-secret' },
+      cause: new Error('Authorization: Bearer cause-secret'),
+      isRetryable: false
+    })
+    aiService.checkModel.mockRejectedValue(providerError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('provider access denied')
+    expect(error.data).toEqual({
+      name: 'AI_APICallError',
+      message: 'provider access denied',
+      providerErrorCategory: 'permission',
+      stack: null,
+      cause: null,
+      url: '',
+      requestBodyValues: null,
+      statusCode: 403,
+      responseHeaders: null,
+      responseBody: null,
+      isRetryable: false,
+      data: null
+    })
+    expect(JSON.stringify(error)).not.toMatch(
+      /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+    )
+  })
+
   it('normalizes a non-Error throw into an AI_REQUEST_FAILED IpcError', async () => {
     aiService.checkModel.mockRejectedValue('boom')
 
@@ -271,6 +309,28 @@ describe('aiHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
+  })
+
+  it('does not expose a RetryError wrapper payload through the AI IPC error', async () => {
+    const terminalError = new Error('Rate limit reached')
+    const privatePayload = '{"prompt":"private user prompt","trace":"internal trace"'
+    const retryError = new RetryError({
+      message: `Failed after 3 attempts. Last error: Provider failed: ${privatePayload}`,
+      reason: 'maxRetriesExceeded',
+      errors: [terminalError]
+    })
+    aiService.checkModel.mockRejectedValue(retryError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('')
+    expect(error.stack).not.toMatch(/private user prompt|internal trace/)
+    expect(error.data).toMatchObject({
+      message: '',
+      stack: null,
+      lastError: { message: 'Rate limit reached', stack: null }
+    })
   })
 })
 
