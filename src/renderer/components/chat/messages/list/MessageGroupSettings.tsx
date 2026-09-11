@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
-import type { MultiModelGridPopoverTrigger } from '@shared/data/preference/preferenceTypes'
 
 import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig } from '../types'
@@ -29,7 +28,7 @@ const MessageGroupSettings: FC = () => {
               value={gridPopoverTrigger || 'hover'}
               onChange={(value) =>
                 actions.updateRenderConfig?.({
-                  multiModelGridPopoverTrigger: value as MultiModelGridPopoverTrigger
+                  multiModelGridPopoverTrigger: value
                 })
               }
               options={[

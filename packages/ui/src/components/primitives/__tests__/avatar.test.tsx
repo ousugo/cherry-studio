@@ -28,7 +28,7 @@ const FIRST_LOGO = 'data:image/png;base64,first'
 const SECOND_LOGO = 'data:image/png;base64,second'
 
 beforeEach(() => {
-  vi.stubGlobal('Image', StubImage as unknown as typeof Image)
+  vi.stubGlobal('Image', StubImage)
 })
 
 afterEach(() => {

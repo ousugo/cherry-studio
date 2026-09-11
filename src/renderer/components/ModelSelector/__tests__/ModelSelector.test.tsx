@@ -162,9 +162,9 @@ const provider: Provider = {
   apiKeys: [],
   authType: 'api-key',
   reportsActualCost: false,
-  settings: {} as Provider['settings'],
+  settings: {},
   isEnabled: true
-} as Provider
+}
 
 function makeModel(modelId: UniqueModelId): Model {
   return {
@@ -175,7 +175,7 @@ function makeModel(modelId: UniqueModelId): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorModelItem> = {}) {
@@ -196,8 +196,8 @@ function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorM
 }
 
 function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModelSelectorDataResult {
-  const firstItem = makeModelItem('openai::gpt-4' as UniqueModelId)
-  const secondItem = makeModelItem('openai::gpt-3.5' as UniqueModelId)
+  const firstItem = makeModelItem('openai::gpt-4')
+  const secondItem = makeModelItem('openai::gpt-3.5')
   const listItems: FlatListItem[] = [
     {
       key: 'provider-openai',
@@ -255,8 +255,8 @@ describe('ModelSelector', () => {
   })
 
   it('shows only the model identifier under a persistent provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
-      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
       modelIdentifier: 'gpt-4-variant-a',
       showIdentifier: true
     })
@@ -288,10 +288,10 @@ describe('ModelSelector', () => {
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
       key: 'openai::gpt-4-variant-a_pinned',
       groupKind: 'pinned',
-      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
       modelIdentifier: 'gpt-4-variant-a',
       isPinned: true,
       showIdentifier: true
@@ -428,7 +428,7 @@ describe('ModelSelector', () => {
       <ModelSelector
         open
         multiple={false}
-        value={makeModel('openai::gpt-4' as UniqueModelId)}
+        value={makeModel('openai::gpt-4')}
         noneOptionLabel="No model"
         trigger={<button type="button">open</button>}
         onOpenChange={onOpenChange}
@@ -596,7 +596,7 @@ describe('ModelSelector', () => {
     mocks.scrollToIndex.mockClear()
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        resolvedSelectedModelIds: ['openai::gpt-4'],
         visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
       })
     )

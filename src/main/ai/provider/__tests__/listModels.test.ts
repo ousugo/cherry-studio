@@ -336,7 +336,7 @@ describe('listModels — geminiFetcher API key transport', () => {
       },
       settings: {
         extraHeaders: { 'http-referer': 'https://provider.example', 'X-Custom': 'on' }
-      } as never
+      }
     })
 
     await listModels(provider)

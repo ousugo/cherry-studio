@@ -13,7 +13,7 @@
 
 import * as z from 'zod'
 
-import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
+import type { ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
   ENDPOINT_TYPE,
@@ -264,9 +264,7 @@ export const ProviderSchema = z.object({
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */
-  endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
-    z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
-  >,
+  endpointConfigs: z.partialRecord(EndpointTypeSchema, EndpointConfigSchema).optional(),
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
   /**

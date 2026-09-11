@@ -41,7 +41,7 @@ export async function createPaddleClient(apiHost: string, apiKey: string) {
     return net.fetch(sanitizeRemoteUrl(url, apiHost), {
       ...init,
       redirect: 'error'
-    } as RequestInit) as unknown as ReturnType<typeof fetch>
+    })
   }
 
   return new PaddleOCRClient({

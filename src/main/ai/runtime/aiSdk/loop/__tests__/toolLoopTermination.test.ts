@@ -1,4 +1,4 @@
-import { jsonSchema, type StepResult, type Tool, type ToolSet } from 'ai'
+import { jsonSchema, type StepResult, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
@@ -96,16 +96,19 @@ describe('tool-loop termination', () => {
         description: 'Local lookup',
         inputSchema: jsonSchema({ type: 'object' }),
         execute: async () => output
-      } as Tool
+      }
     })
     const invoke = createToolInvokeTool(registry, new Set(['local_lookup']), new Set(['local_lookup']))
     if (typeof invoke.execute !== 'function') throw new Error('tool_invoke is not executable')
 
-    const wrappedOutput = await invoke.execute({ name: 'local_lookup', params: {} }, {
-      toolCallId: 'outer-1',
-      messages: [],
-      experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-    } as Parameters<NonNullable<Tool['execute']>>[1])
+    const wrappedOutput = await invoke.execute(
+      { name: 'local_lookup', params: {} },
+      {
+        toolCallId: 'outer-1',
+        messages: [],
+        experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+      }
+    )
     const wrapped = makeSteps([wrappedOutput], 1, {
       toolName: TOOL_INVOKE_TOOL_NAME,
       input: { opaque: 'wrapper-owned-payload' }

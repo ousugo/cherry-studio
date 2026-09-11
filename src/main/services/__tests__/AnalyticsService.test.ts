@@ -29,8 +29,8 @@ const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy
         }
       }),
       captured: {
-        prefHandlers: {} as Record<string, (value: never) => void>,
-        preferenceValues: {} as Record<string, boolean | string>
+        prefHandlers: {},
+        preferenceValues: {}
       }
     }
   })
@@ -63,7 +63,7 @@ let destroyResolvers: Array<() => void>
 
 function changePreference(key: string, value: boolean | string): void {
   captured.preferenceValues[key] = value
-  captured.prefHandlers[key]?.(value as never)
+  captured.prefHandlers[key]?.(value)
 }
 
 beforeEach(() => {

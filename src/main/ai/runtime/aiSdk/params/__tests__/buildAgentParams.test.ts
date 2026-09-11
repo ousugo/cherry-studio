@@ -1720,8 +1720,10 @@ describe('applyCallOverrides', () => {
 })
 
 describe('applyResponsesInstructions', () => {
-  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions =>
-    ({ maxRetries: 0, ...(providerOptions && { providerOptions }) }) as AgentOptions
+  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions => ({
+    maxRetries: 0,
+    ...(providerOptions && { providerOptions })
+  })
 
   it('mirrors the system prompt into instructions and drops the duplicate system input message', () => {
     const options = optionsWith()
@@ -1797,8 +1799,8 @@ describe('composeStopWhen', () => {
     expect(conditions).toHaveLength(2)
     expect(conditions[1]).toBe(feature)
     // The injected fallback caps the tool loop at the SDK default of 20 steps.
-    expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
-    expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
+    expect(await conditions[0]({ steps: new Array(20) })).toBe(true)
+    expect(await conditions[0]({ steps: new Array(19) })).toBe(false)
   })
 })
 

@@ -298,8 +298,8 @@ describe('pathStorage relative-path safety', () => {
     it('ignores items with non-string or missing path fields', () => {
       const reserved = collectKnowledgeReservedRelativePaths([
         { type: 'url', data: { source: 'https://x', url: 'https://x' } },
-        { type: 'file', data: null as unknown as object },
-        { type: 'file', data: { relativePath: 42 } as unknown as object }
+        { type: 'file', data: null },
+        { type: 'file', data: { relativePath: 42 } }
       ])
 
       expect(reserved.size).toBe(0)

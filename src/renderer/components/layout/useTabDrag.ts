@@ -32,6 +32,22 @@ interface DragState {
   insertIndex: number
 }
 
+interface DragRuntimeState {
+  pointerId: number
+  startX: number
+  startY: number
+  currentX: number
+  tabType: 'pinned' | 'normal'
+  detachedCreated: boolean
+  tabClosed: boolean
+  originalRects: Map<string, HorizontalRect>
+  boundaryRect: DOMRectReadOnly | null
+  leftInsetWidth: number
+  rightInsetWidth: number
+  grabOffsetX: number
+  grabOffsetY: number
+}
+
 interface UseTabDragOptions {
   pinnedTabs: Tab[]
   normalTabs: Tab[]
@@ -71,16 +87,16 @@ export function useTabDrag({
   const [settling, setSettling] = useState(false)
 
   // High-frequency data (does not trigger re-render)
-  const dragRef = useRef({
+  const dragRef = useRef<DragRuntimeState>({
     pointerId: 0,
     startX: 0,
     startY: 0,
     currentX: 0,
-    tabType: 'normal' as 'pinned' | 'normal',
+    tabType: 'normal',
     detachedCreated: false,
     tabClosed: false,
     originalRects: new Map<string, HorizontalRect>(),
-    boundaryRect: null as DOMRectReadOnly | null,
+    boundaryRect: null,
     leftInsetWidth: 0,
     rightInsetWidth: 0,
     grabOffsetX: 0,

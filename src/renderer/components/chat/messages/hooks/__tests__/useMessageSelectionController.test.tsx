@@ -160,6 +160,10 @@ describe('useMessageSelectionController', () => {
       messages: ReturnType<typeof message>[]
       partsByMessageId: Record<string, CherryMessagePart[]>
     }
+    const initialProps: HookProps = {
+      messages: [message('a')],
+      partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
+    }
     const { result, rerender } = renderHook(
       ({ messages, partsByMessageId }: HookProps) =>
         useMessageSelectionController({
@@ -167,12 +171,7 @@ describe('useMessageSelectionController', () => {
           messages,
           partsByMessageId
         }),
-      {
-        initialProps: {
-          messages: [message('a')],
-          partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
-        } as HookProps
-      }
+      { initialProps }
     )
     const initialActions = result.current.actions
 

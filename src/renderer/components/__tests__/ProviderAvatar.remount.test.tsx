@@ -51,7 +51,7 @@ class StubImage {
 const IMAGE_LOGO = 'data:image/png;base64,abc'
 
 beforeEach(() => {
-  vi.stubGlobal('Image', StubImage as unknown as typeof Image)
+  vi.stubGlobal('Image', StubImage)
 })
 
 afterEach(() => {

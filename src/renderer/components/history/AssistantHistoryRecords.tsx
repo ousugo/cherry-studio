@@ -4,10 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type {
-  TopicActionContext,
-  TopicExportMenuOptions
-} from '@renderer/components/chat/actions/topicContextMenuActions'
+import type { TopicActionContext } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -341,7 +338,7 @@ const AssistantHistoryRecords = ({
       const topic = getRendererTopic(apiTopic)
 
       return createTopicActionContext({
-        exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
+        exportMenuOptions: exportMenuOptions,
         isActiveInCurrentTab: false,
         isRenaming: isTopicRenaming(topic.id),
         onAutoRename: handleAutoRename,
