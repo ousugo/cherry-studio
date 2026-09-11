@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
@@ -8,7 +10,6 @@ import {
   MODELS_DELETE_MAX_IDS,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 

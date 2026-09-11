@@ -2,6 +2,11 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { and, eq, or } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
@@ -19,10 +24,6 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { and, eq, or } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
