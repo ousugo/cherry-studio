@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "助手",
   "globalSearch.resultTypes.session": "任务",
   "globalSearch.resultTypes.topic": "对话",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "查看更多 {{count}} 条",
   "globalSearch.timeFilters.any": "不限时间",
   "globalSearch.timeFilters.label": "更新时间",

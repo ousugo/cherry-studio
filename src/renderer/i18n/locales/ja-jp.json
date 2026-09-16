@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "アシスタント",
   "globalSearch.resultTypes.session": "タスク",
   "globalSearch.resultTypes.topic": "会話",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "さらに {{count}} 件を表示",
   "globalSearch.timeFilters.any": "いつでも",
   "globalSearch.timeFilters.label": "更新時刻",

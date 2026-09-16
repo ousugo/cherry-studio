@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Trợ lý",
   "globalSearch.resultTypes.session": "Nhiệm vụ",
   "globalSearch.resultTypes.topic": "Cuộc trò chuyện",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "Hiển thị thêm {{count}}",
   "globalSearch.timeFilters.any": "Bất cứ lúc nào",
   "globalSearch.timeFilters.label": "Thời gian cập nhật",

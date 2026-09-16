@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Asistan",
   "globalSearch.resultTypes.session": "Görev",
   "globalSearch.resultTypes.topic": "Konuşma",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "{{count}} sonuç daha göster",
   "globalSearch.timeFilters.any": "Herhangi bir zaman",
   "globalSearch.timeFilters.label": "Güncellenme zamanı",

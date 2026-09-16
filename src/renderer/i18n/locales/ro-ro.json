@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Asistent",
   "globalSearch.resultTypes.session": "Sarcină",
   "globalSearch.resultTypes.topic": "Conversație",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "Afișează încă {{count}}",
   "globalSearch.timeFilters.any": "Oricând",
   "globalSearch.timeFilters.label": "Ora actualizată",

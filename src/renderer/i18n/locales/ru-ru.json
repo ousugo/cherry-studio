@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Ассистент",
   "globalSearch.resultTypes.session": "Задача",
   "globalSearch.resultTypes.topic": "Разговор",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "Показать ещё {{count}}",
   "globalSearch.timeFilters.any": "В любое время",
   "globalSearch.timeFilters.label": "Обновленное время",

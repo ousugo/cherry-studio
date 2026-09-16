@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Assistent",
   "globalSearch.resultTypes.session": "Aufgabe",
   "globalSearch.resultTypes.topic": "Gespräch",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "{{count}} weitere anzeigen",
   "globalSearch.timeFilters.any": "Jederzeit",
   "globalSearch.timeFilters.label": "Aktualisierte Zeit",

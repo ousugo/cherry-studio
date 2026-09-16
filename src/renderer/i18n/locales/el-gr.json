@@ -1487,6 +1487,7 @@
   "globalSearch.resultTypes.assistant": "Βοηθός",
   "globalSearch.resultTypes.session": "Εργασία",
   "globalSearch.resultTypes.topic": "Συνομιλία",
+  "globalSearch.settingsTitle": "$t(title.settings) - {{section}}",
   "globalSearch.showMore": "Εμφάνιση {{count}} ακόμα",
   "globalSearch.timeFilters.any": "Οποιαδήποτε στιγμή",
   "globalSearch.timeFilters.label": "Ενημερωμένη ώρα",
