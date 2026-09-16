@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserChrome } from './BrowserChrome'
 import { BrowserOverlays } from './BrowserOverlays'
@@ -168,7 +168,7 @@ export function WebviewBrowser({
         key={guestAuthorizationKey}
         id={target.id}
         src={initialUrl}
-        securityProfile={securityProfile}
+        partition={getWebviewPartition(securityProfile)}
         allowPopups={securityProfile === WebviewSecurityProfile.AgentBrowser}
         reloadKey={reloadKey}
         ariaLabel={target.label}
