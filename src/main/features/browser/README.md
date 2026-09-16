@@ -30,6 +30,10 @@ Actions and snapshots use separate `async-mutex` locks so an action can capture 
 snapshot without locking itself out. Synchronous guest disposal cancels queued
 work and interrupts pending commands; it does not await arbitrary running callbacks
 or promise that Chromium has cancelled an already-dispatched command.
+Native WebMCP retains the debugger for bounded invocation acknowledgements and cancellation
+before detaching; `settleWebTools()` awaits this cleanup, including IDs returned after disposal.
+Acquisition waits for the previous session on the same guest to finish cleanup, then rechecks
+service and guest availability before sharing or creating a session.
 
 Snapshots combine main-frame AX and DOM data. References remain stable within a
 live document and are never reused during a session, including after navigation
@@ -79,7 +83,11 @@ keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWa
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
 cookies remain unsupported, with per-reason counts. See the
 [import support matrix](../../../../docs/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
-Uploads, retained-tab freezing and WebMCP remain follow-ups.
+`list_web_tools` / `call_web_tool` use native CDP WebMCP in managed and Agent-bound guests.
+`GuestSession` owns the memory-only `WebMcpTools` registry; document changes invalidate tool IDs.
+Invocation results and metadata are untrusted, input schemas use the MCP SDK validator, and
+cancellation/cleanup are bounded. Main-document imperative tools are supported; declarative forms
+are listed as unsupported. Uploads and retained-tab freezing remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or
 times out, initialization stops and detaches; cancellation by one caller leaves other

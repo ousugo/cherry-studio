@@ -27,6 +27,7 @@ import { sanitizeSnapshotUrl, serializeSnapshot, type SnapshotRevision } from '.
 import { BrowserInspection, type ConsoleLevel } from './BrowserInspection'
 import { BrowserSessionError } from './BrowserSessionError'
 import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type CdpMethod } from './cdpAllowList'
+import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
 
@@ -51,6 +52,8 @@ export class GuestSession implements Disposable {
   private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
   private observers = 0
   private readonly inspection = new BrowserInspection()
+  readonly webTools = new WebMcpTools(this)
+  private readonly webToolCleanup = new Set<Promise<void>>()
   private readonly pending = new Set<(error: Error) => void>()
   private dialogTimer?: ReturnType<typeof setTimeout>
   private revision?: SnapshotRevision
@@ -138,6 +141,7 @@ export class GuestSession implements Disposable {
 
   private invalidateDocument() {
     this.epoch++
+    this.webTools.reset()
     this.invalidateAnnotationContext()
     this.clearBrowserRefs()
   }
@@ -198,6 +202,7 @@ export class GuestSession implements Disposable {
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
     if (this.observing) this.inspection.record(event)
+    this.webTools.record(event)
     this.events.fire(event)
   }
 
@@ -211,7 +216,7 @@ export class GuestSession implements Disposable {
 
   private readonly onDestroyed = () => this.dispose()
 
-  private wait<T>(operation: Promise<T>, options: CommandOptions): Promise<T> {
+  wait<T>(operation: Promise<T>, options: CommandOptions): Promise<T> {
     const deadline = options.deadline ?? Date.now() + 5_000
     return new Promise<T>((resolve, reject) => {
       const cleanup = () => {
@@ -599,6 +604,64 @@ export class GuestSession implements Disposable {
     }
   }
 
+  async invokeWebTool(
+    params: ProtocolMapping.Commands['WebMCP.invokeTool']['paramsType'][0],
+    onAcknowledged: (invocationId: string) => void | Promise<void>
+  ) {
+    if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
+    if (this.pendingDialog) throw new BrowserSessionError('dialog_open', this.pendingDialog)
+    let timer: ReturnType<typeof setTimeout>
+    const acknowledgement = Promise.race([
+      this.dispatch('WebMCP.invokeTool', params).then(({ invocationId }) => onAcknowledged(invocationId)),
+      new Promise<void>((_, reject) => {
+        timer = setTimeout(() => reject(new BrowserSessionError('timeout')), 5000)
+      })
+    ])
+    const cleanup = acknowledgement
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(timer)
+        this.webToolCleanup.delete(cleanup)
+      })
+    this.webToolCleanup.add(cleanup)
+    return acknowledgement
+  }
+
+  cancelWebTool(invocationId: string): Promise<void> {
+    if (
+      !this.attached ||
+      this.guest.isDestroyed() ||
+      this.guest.isDevToolsOpened() ||
+      !this.electronDebugger.isAttached()
+    )
+      return Promise.resolve()
+    let timer: ReturnType<typeof setTimeout>
+    const cancellation = Promise.race([
+      this.dispatch('WebMCP.cancelInvocation', { invocationId }),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 1000)
+      })
+    ])
+      .then(
+        () => undefined,
+        (error) => logger.debug('WebMCP cancellation failed', { error })
+      )
+      .finally(() => {
+        clearTimeout(timer)
+        this.webToolCleanup.delete(cancellation)
+      })
+    this.webToolCleanup.add(cancellation)
+    return cancellation
+  }
+
+  async settleWebTools(): Promise<void> {
+    while (this.webToolCleanup.size) await Promise.all(this.webToolCleanup)
+    if (this.disposed) {
+      this.detach()
+      this.electronDebugger.removeListener('detach', this.onDetach)
+    }
+  }
+
   private detach() {
     if (this.attached && !this.guest.isDestroyed() && this.electronDebugger.isAttached()) {
       try {
@@ -612,6 +675,7 @@ export class GuestSession implements Disposable {
 
   dispose(): void {
     if (this.disposed) return
+    this.webTools.reset()
     this.disposed = true
     this.actionMutex.cancel()
     this.snapshotMutex.cancel()
@@ -619,10 +683,9 @@ export class GuestSession implements Disposable {
     this.stopObserving()
     this.events.dispose()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
-    this.detach()
     this.invalidateDocument()
     this.electronDebugger.removeListener('message', this.onMessage)
-    this.electronDebugger.removeListener('detach', this.onDetach)
     this.guest.removeListener('destroyed', this.onDestroyed)
+    void this.settleWebTools()
   }
 }
