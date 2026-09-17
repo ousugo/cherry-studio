@@ -144,6 +144,10 @@ interface FilePreviewPluginProps {
 }
 ```
 
+A plugin that honours `onSelectionReference` also sets `supportsSelectionReference: true` on its
+descriptor. Hosts use `canProduceSelectionReference(filePath)` (exported from this module) to decide
+whether to offer selection capture for a file at all.
+
 The preview component must use a default export, read the file, and compose the module's internal layout:
 
 ```tsx
@@ -200,13 +204,44 @@ This composition lets the same plugin work in embedded and tab hosts without for
 `SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
 coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
 
-- A plugin that owns a view → structure inverse mapping calls the callback with the current reference, and with
-  `null` when the selection clears. Plugins without such a mapping ignore the prop entirely.
+- A plugin that owns a view → structure inverse mapping declares `supportsSelectionReference` and, while
+  the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide, pdf page,
+  xlsx cell range) and reports it; it reports `null` when the pick is cleared, and the pdf producer
+  reports `null` again the moment a new page pick starts, before that page's text has arrived. The callback's
+  presence is the capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
+  separate mode flag. Plugins without such a mapping ignore the prop entirely.
+- The xlsx grid follows the same picker model as the block producers: while the callback is present it starts
+  from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
+  It also picks from the keyboard — an arrow moves the cursor and commits the new cell, Shift+Arrow extends
+  the range and commits it on key release, and Enter or Space commits the cursor cell — which the block
+  producers do not: their pickers are pointer-only.
+- Unlike the block producers, the xlsx grid holds a selection whether or not capture is on — a cell clicked
+  to read a value stays selected. Capture therefore arms empty: the commit that switches capture on reports
+  nothing, so a browsing selection never becomes a pick the user did not make, and every selection after it
+  reports as usual, including re-picking the same range. Arming resets only when capture is switched off, so
+  a host must keep the callback's identity steady while capture stays on (the artifact pane passes a state
+  setter).
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
+- The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
+  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
+  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
+  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+- Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
+  navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
+  with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
+  propagation — so those links jump instead. External hyperlinks are intercepted and pick normally.
+  A press on a floating chart or image in the xlsx grid picks nothing either: the cell beneath it is reachable
+  only from the keyboard.
+- The docx excerpt is not the paragraph's `textContent`: it is walked so that docx-preview's `<br>` and
+  `<wbr>` become the `\n` and `-` python-docx's `Paragraph.text` spells, because the office-transform
+  skill checks the excerpt against that string. Two gaps remain — docx-preview drops `w:cr` and `w:ptab`
+  while python emits `\n` and `\t`, so a paragraph containing either can still fail that check; and page
+  and column breaks are never rendered inline (a page break splits the paragraph into a new section),
+  which the skill's patch-copy script refuses to rewrite anyway.
 - Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
   travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
   skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
