@@ -14,10 +14,13 @@ import {
   type DoctorCheckId,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
+  type DoctorPendingCheck,
   type DoctorRunTier,
-  type DoctorState
+  type DoctorScopeKey,
+  type DoctorState,
+  type DoctorSubjectRef
 } from '@shared/types/doctor'
-import { doctorCheckTitleKey, type DoctorPanel } from '@shared/utils/doctor'
+import { doctorCheckTitleKey, type DoctorPanel, doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 import { createDoctorSession, type DoctorInteraction, doctorSessionReducer } from './doctorSessionReducer'
 
@@ -27,6 +30,8 @@ const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
 interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly initialRunTier?: DoctorRunTier
+  readonly subject: DoctorSubjectRef
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -36,12 +41,14 @@ function assertNever(value: never): never {
 }
 
 function fixRequestFor(
+  scope: DoctorScopeKey,
   runId: string,
   checkId: DoctorCheckId,
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
   if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
   return {
+    scope,
     runId,
     checkId,
     fixId: action.fixId,
@@ -52,11 +59,14 @@ function fixRequestFor(
 export function useDoctorController({
   initialPanel,
   initialDescription,
+  initialRunTier,
+  subject,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
-  const cachedDoctorState = useSharedCacheValue('doctor.state')
+  const scope = doctorScopeKey(subject)
+  const cachedDoctorState = useSharedCacheValue(doctorStateCacheKey(scope))
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
@@ -66,6 +76,9 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
+  const [isAutoRunPending, setIsAutoRunPending] = useState(
+    initialPanel === 'checks' && (doctorState.status === 'idle' || initialRunTier !== undefined)
+  )
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -85,13 +98,22 @@ export function useDoctorController({
   }, [doctorState])
 
   const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
-
+  const confirmation = session.interaction
+  const evidenceConfirmationVisible =
+    confirmation.kind === 'confirm-evidence' &&
+    viewModel.status === 'completed' &&
+    viewModel.runId === confirmation.runId &&
+    viewModel.rows.some(
+      (row) =>
+        row.id === confirmation.checkId &&
+        (row.status === 'warn' || row.status === 'fail') &&
+        row.result?.evidence?.some((item) => item.dataClass === 'consent_required')
+    )
   useEffect(() => {
-    if (session.interaction.kind !== 'confirm-evidence' || session.interaction.runId === viewModel.runId) return
-    dispatch({ type: 'cancel-confirmation' })
-    toast.error(t('settings.doctor.messages.result_changed'))
-  }, [session.interaction, t, viewModel.runId])
-
+    if (session.interaction.kind === 'confirm-evidence' && !evidenceConfirmationVisible) {
+      dispatch({ type: 'cancel-confirmation' })
+    }
+  }, [evidenceConfirmationVisible, session.interaction])
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -101,13 +123,18 @@ export function useDoctorController({
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
   const run = useCallback(
-    async (tier: DoctorRunTier) => {
+    async (mode: DoctorRunTier | 'contextual') => {
+      const tier = mode === 'contextual' ? 'live' : mode
       dispatch({
         type: 'start-interaction',
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', { tier })
+        if (mode === 'contextual' && subject.kind !== 'global') {
+          await ipcApi.request('diagnostics.doctor.run_contextual', { subject })
+        } else {
+          await ipcApi.request('diagnostics.doctor.run', { tier, subject })
+        }
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -115,32 +142,64 @@ export function useDoctorController({
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
     },
-    [t]
+    [subject, t]
   )
 
   useEffect(() => {
-    if (!sharedCacheReady || autoRunRequestedRef.current) return
+    if (initialPanel !== 'checks' || !sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
+      setIsAutoRunPending(false)
       return
     }
-    if (doctorState.status !== 'idle') return
+    if (initialRunTier) {
+      autoRunRequestedRef.current = true
+      void run(initialRunTier).finally(() => setIsAutoRunPending(false))
+      return
+    }
+    if (doctorState.status !== 'idle') {
+      autoRunRequestedRef.current = true
+      setIsAutoRunPending(false)
+      return
+    }
     autoRunRequestedRef.current = true
-    void run('quick')
-  }, [doctorState.status, run, sharedCacheReady])
+    void run(subject.kind === 'global' ? 'quick' : 'contextual').finally(() => setIsAutoRunPending(false))
+  }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady, subject.kind])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
     try {
-      await ipcApi.request('diagnostics.doctor.cancel', { runId: doctorState.runId })
+      await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
       logger.error('Failed to cancel system diagnostics', error as Error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
     }
-  }, [doctorState, t])
+  }, [doctorState, scope, t])
+
+  const confirmCheck = useCallback(
+    async (pending: DoctorPendingCheck) => {
+      if (!viewModel.runId) return
+      dispatch({ type: 'start-interaction', interaction: { kind: 'confirm-check' } })
+      try {
+        const result = await ipcApi.request('diagnostics.doctor.confirm_check', {
+          scope,
+          runId: viewModel.runId,
+          requestId: pending.requestId
+        })
+        if (result.status === 'stale') toast.error(t('settings.doctor.messages.result_changed'))
+        if (result.status === 'busy') toast.error(t('settings.doctor.messages.run_failed'))
+      } catch (error) {
+        logger.error('Failed to confirm a diagnostic check', error as Error)
+        toast.error(t('settings.doctor.messages.action_failed'))
+      } finally {
+        dispatch({ type: 'finish-interaction', kind: 'confirm-check' })
+      }
+    },
+    [scope, t, viewModel.runId]
+  )
 
   const performAction = useCallback(
     async (
@@ -168,9 +227,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
@@ -200,7 +261,7 @@ export function useDoctorController({
       switch (action.kind) {
         case 'fix': {
           if (!runId) return
-          const request = fixRequestFor(runId, checkId, action)
+          const request = fixRequestFor(scope, runId, checkId, action)
           if (!request) return
           await performFix(request)
           return
@@ -252,7 +313,7 @@ export function useDoctorController({
           return assertNever(action)
       }
     },
-    [onNavigate, onReportProblem, performAction, performFix, session.descriptionDraft, t, viewModel.isStale]
+    [onNavigate, onReportProblem, performAction, performFix, scope, session.descriptionDraft, t, viewModel.isStale]
   )
 
   const openPath = useCallback(
@@ -289,19 +350,14 @@ export function useDoctorController({
   )
 
   const confirmEvidence = useCallback(() => {
-    if (session.interaction.kind !== 'confirm-evidence') return
-    if (session.interaction.runId !== viewModel.runId) {
-      dispatch({ type: 'cancel-confirmation' })
-      toast.error(t('settings.doctor.messages.result_changed'))
-      return
-    }
+    if (session.interaction.kind !== 'confirm-evidence' || !evidenceConfirmationVisible) return
     dispatch({
       type: 'reveal-evidence',
       runId: session.interaction.runId,
       checkId: session.interaction.checkId
     })
     dispatch({ type: 'finish-interaction', kind: 'confirm-evidence' })
-  }, [session.interaction, t, viewModel.runId])
+  }, [evidenceConfirmationVisible, session.interaction])
 
   const requestEvidence = useCallback(
     (checkId: DoctorCheckId) => {
@@ -327,14 +383,16 @@ export function useDoctorController({
     cancel,
     canChangePanel,
     cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
+    confirmCheck,
     confirmEvidence,
     executeAction,
+    isAutoRunPending,
     isInteracting,
     isCloseBlocked,
     openLogsPath,
     openPath,
     run,
-    session,
+    session: { ...session, fixedCheckIds: session.fixedRunId === viewModel.runId ? session.fixedCheckIds : [] },
     setDescription: (description: string) => dispatch({ type: 'set-description', description }),
     setPanel,
     setPanelInteraction,

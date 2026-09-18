@@ -5,6 +5,7 @@ import type { DoctorFixRequest } from '@shared/types/doctor'
 import { createDoctorSession, doctorSessionReducer } from '../doctorSessionReducer'
 
 const fixRequest: DoctorFixRequest = {
+  scope: 'global',
   runId: 'run-1',
   checkId: 'permission-screen-capture',
   fixId: 'request'
@@ -74,6 +75,24 @@ describe('doctorSessionReducer', () => {
     state = doctorSessionReducer(state, { type: 'set-panel', panel: 'report' })
 
     expect(state.descriptionDraft).toBe('reviewed draft')
+  })
+
+  it('records each successfully fixed check once', () => {
+    const initial = createDoctorSession({ initialPanel: 'checks' })
+    const fixed = doctorSessionReducer(initial, {
+      type: 'mark-check-fixed',
+      runId: 'test-run',
+      checkId: 'config-boot-config-valid'
+    })
+
+    expect(fixed.fixedCheckIds).toEqual(['config-boot-config-valid'])
+    expect(
+      doctorSessionReducer(fixed, {
+        type: 'mark-check-fixed',
+        runId: 'test-run',
+        checkId: 'config-boot-config-valid'
+      })
+    ).toBe(fixed)
   })
 
   it('finishes only the matching execution interaction', () => {
