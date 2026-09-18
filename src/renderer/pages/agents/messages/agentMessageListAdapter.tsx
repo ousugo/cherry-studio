@@ -33,11 +33,13 @@ import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
+import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
   consumePendingAgentSessionImageActions,
   rejectPendingAgentSessionImageActions,
@@ -362,6 +364,27 @@ export function useAgentMessageListProviderValue({
     [sessionId]
   )
 
+  const { notifyError } = leafCapabilities
+  const forkSession = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return
+      try {
+        const result = await ipcApi.request('ai.agent.session.fork', {
+          sourceSessionId: sessionId,
+          messageId
+        })
+        openRoute('/app/agents', { sessionId: result.sessionId })
+      } catch (error) {
+        const reason = agentSessionForkFailureReason(error)
+        if (reason) {
+          notifyError(agentSessionForkReasonLabel(t, reason))
+          return
+        }
+        throw error
+      }
+    },
+    [sessionId, t, notifyError]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -407,6 +430,13 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      forkSession: normalInteractionsEnabled
+        ? {
+            label: t('agent_session_fork.label'),
+            availability: (message) => agentSessionForkAvailability(t, message),
+            run: forkSession
+          }
+        : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
@@ -434,6 +464,8 @@ export function useAgentMessageListProviderValue({
       updateRenderConfig
     }),
     [
+      forkSession,
+      t,
       abortTool,
       bindRuntime,
       bindMessageGroupRuntime,

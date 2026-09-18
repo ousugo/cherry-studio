@@ -4,6 +4,7 @@
   "agent.heartbeat.workspace_name": "心跳 — {{name}}",
   "agent.session.dsh.bun_unavailable": "DSH 无法启动，因为内置运行时不可用。请重新安装 Cherry Studio 后重试。",
   "agent.session.dsh.bun_unavailable_dev": "DSH 无法启动，因为内置运行时不可用。请在开发仓库中运行 pnpm download:binaries 后重试。",
+  "agent.session.fork.execution_not_inherited": "此分叉会话未继承原来的执行状态。",
   "agent.session.new": "新任务",
   "agent.session.run_status.busy": "Agent 会话正忙，请稍后重试。",
   "agent.session.run_status.unavailable": "Agent 会话已不可用。",
