@@ -223,7 +223,7 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   setter).
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
-- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+- The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
@@ -275,6 +275,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
 - Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
+- Refresh revalidates metadata and plugin selection without unmounting a compatible preview of the same path.
+  Plugins retain valid reading state (zoom, position, mode, worksheet) across content replacement and effect
+  reconnection. Different paths or plugin types start a new preview. Clamp positions to the new content and
+  discard content selections; never relabel an old selection with the refreshed file's stamp.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
