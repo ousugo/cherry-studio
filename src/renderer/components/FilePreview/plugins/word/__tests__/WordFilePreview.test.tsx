@@ -121,7 +121,7 @@ describe('WordFilePreview', () => {
     rerender(view('/tmp/other.docx' as AbsoluteFilePath, 1))
     await screen.findByText('Fresh page 2')
     expect(screen.getByText('100%')).toBeInTheDocument()
-    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
   })
 
   it('retains zoom and reading position while refreshing content and clamps a shortened document', async () => {

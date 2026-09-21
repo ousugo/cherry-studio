@@ -221,7 +221,7 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   reports as usual, including re-picking the same range. Arming resets only when capture is switched off, so
   a host must keep the callback's identity steady while capture stays on (the artifact pane passes a state
   setter).
-- The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
+- The host forwards selection results only for the current request. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
@@ -279,6 +279,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   Plugins retain valid reading state (zoom, position, mode, worksheet) across content replacement and effect
   reconnection. Different paths or plugin types start a new preview. Clamp positions to the new content and
   discard content selections; never relabel an old selection with the refreshed file's stamp.
+  The consumer that stores `onSelectionReference` results owns clearing its captured reference when it
+  requests a refresh, before asynchronous metadata resolution completes. Plugins clear their internal
+  picks and cancel stale selection work when the refresh reaches them. `ArtifactPane` implements the
+  consumer-side reset; plugins need not emit a duplicate null callback solely to acknowledge a refresh.
+  `FilePreview` also rejects selection callbacks from an older resolution as soon as a new request starts,
+  so delayed selection work cannot repopulate the consumer while refreshed metadata is still pending.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
