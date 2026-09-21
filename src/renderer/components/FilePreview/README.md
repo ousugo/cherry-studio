@@ -277,8 +277,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - Refresh revalidates metadata and plugin selection without unmounting a compatible preview of the same path.
   Plugins retain valid reading state (zoom, position, mode, worksheet) across content replacement and effect
-  reconnection. Different paths or plugin types start a new preview. Clamp positions to the new content and
+  reconnection. Different paths or format plugins (for example, HTML versus PDF) start a new preview;
+  this refers to plugin identity, not the `file`/`artifact` presentation context. Clamp positions to the new content and
   discard content selections; never relabel an old selection with the refreshed file's stamp.
+  Ordinary HTML refreshes reload the restricted iframe document after the file read completes, even when
+  the HTML text is unchanged, so referenced resources are requested again. The outer preview/source mode
+  is retained; the iframe's internal document state is not retained across this reload.
   The consumer that stores `onSelectionReference` results owns clearing its captured reference when it
   requests a refresh, before asynchronous metadata resolution completes. Plugins clear their internal
   picks and cancel stale selection work when the refresh reaches them. `ArtifactPane` implements the
