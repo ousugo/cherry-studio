@@ -17,14 +17,18 @@ export interface FollowupQueueItem {
 const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 const drainedKeyFor = (scopeKey: string) => `followup-queue-drained.${scopeKey}`
-const sendingKeyFor = (scopeKey: string, id: string) => `followup-queue-sending.${scopeKey}.${id}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
 const EMPTY_QUEUE: FollowupQueueItem[] = []
 
-interface CompletionClaim {
-  completedAt: number
-  inFlight: boolean
+interface CompletionState {
+  completedAt: number | undefined
+  consumed: boolean
+  pendingIds: string[]
 }
+
+const EMPTY_COMPLETION: CompletionState = { completedAt: undefined, consumed: false, pendingIds: [] }
+const loadCompletion = (scopeKey: string): CompletionState =>
+  cacheService.getCasual<CompletionState>(drainedKeyFor(scopeKey)) ?? EMPTY_COMPLETION
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
@@ -44,7 +48,7 @@ interface UseFollowupQueueParams {
   lastCompletedAt: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  /** Called when auto-drain fails and leaves the queued item in place. */
+  /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
 }
 
@@ -72,7 +76,12 @@ export function useFollowupQueue({
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
   const readState = useCallback(
-    () => ({ scopeKey, items: loadQueue(scopeKey), paused: loadPaused(scopeKey) }),
+    () => ({
+      scopeKey,
+      items: loadQueue(scopeKey),
+      paused: loadPaused(scopeKey),
+      completion: loadCompletion(scopeKey)
+    }),
     [scopeKey]
   )
   const [state, setState] = useState(readState)
@@ -86,17 +95,22 @@ export function useFollowupQueue({
     const reload = () => {
       const next = readState()
       setState((current) =>
-        current.scopeKey === next.scopeKey && current.items === next.items && current.paused === next.paused
+        current.scopeKey === next.scopeKey &&
+        current.items === next.items &&
+        current.paused === next.paused &&
+        current.completion === next.completion
           ? current
           : next
       )
     }
     const unsubscribeQueue = cacheService.subscribe(keyFor(scopeKey), reload)
     const unsubscribePaused = cacheService.subscribe(pausedKeyFor(scopeKey), reload)
+    const unsubscribeCompletion = cacheService.subscribe(drainedKeyFor(scopeKey), reload)
     reload()
     return () => {
       unsubscribeQueue()
       unsubscribePaused()
+      unsubscribeCompletion()
     }
   }, [readState, scopeKey])
 
@@ -119,43 +133,45 @@ export function useFollowupQueue({
   const sendItem = useCallback(
     async (id: string, completedAt?: number): Promise<boolean> => {
       const item = loadQueue(scopeKey).find((entry) => entry.id === id)
-      const sendingKey = sendingKeyFor(scopeKey, id)
-      if (!item || cacheService.getCasual<boolean>(sendingKey)) return false
+      const drained = loadCompletion(scopeKey)
+      if (!item || drained.pendingIds.includes(id)) return false
 
-      // Manual steer and auto-drain share the claim, including across component remounts.
-      // It lives until the send settles; a TTL must not release an active send.
-      cacheService.setCasual(sendingKey, true)
-      const drained = cacheService.getCasual<CompletionClaim>(drainedKeyFor(scopeKey))
-      const claimedCompletion =
-        completedAt != null && !drained?.inFlight && drained?.completedAt !== completedAt ? completedAt : undefined
-      if (claimedCompletion != null) {
-        cacheService.setCasual(drainedKeyFor(scopeKey), { completedAt: claimedCompletion, inFlight: true }, QUEUE_TTL)
-      }
+      // Every send owns its dispatch-time completion, including peers on the same completed turn.
+      // Keep item exclusion and pending sends in one observable record, without an in-flight TTL.
+      cacheService.setCasual(drainedKeyFor(scopeKey), {
+        completedAt: completedAt ?? drained.completedAt,
+        consumed: completedAt == null || completedAt === drained.completedAt ? drained.consumed : false,
+        pendingIds: [...drained.pendingIds, id]
+      })
       const reportFailure = onDrainFailedRef.current
+      let sent = false
       try {
-        let sent = false
         try {
           sent = await onDrainRef.current(item.payload)
         } catch {
           // Both rejected sends and explicit failures retain the draft for retry.
         }
         if (sent) {
-          if (claimedCompletion != null) {
-            cacheService.setCasual(
-              drainedKeyFor(scopeKey),
-              { completedAt: claimedCompletion, inFlight: false },
-              QUEUE_TTL
-            )
-          }
           removeId(id)
-        } else if (claimedCompletion != null) {
+        } else {
           setPaused(true)
-          cacheService.deleteCasual(drainedKeyFor(scopeKey))
           reportFailure?.()
         }
         return sent
       } finally {
-        cacheService.deleteCasual(sendingKey)
+        const current = loadCompletion(scopeKey)
+        const pendingIds = current.pendingIds.filter((pendingId) => pendingId !== id)
+        // A failure cannot undo a successful peer, and an older send cannot consume a newer turn.
+        // Publish settlement even when the queue write was suppressed because the item was removed.
+        cacheService.setCasual(
+          drainedKeyFor(scopeKey),
+          {
+            completedAt: current.completedAt,
+            consumed: current.consumed || (sent && completedAt != null && current.completedAt === completedAt),
+            pendingIds
+          },
+          pendingIds.length > 0 ? undefined : QUEUE_TTL
+        )
       }
     },
     [scopeKey, removeId, setPaused]
@@ -168,8 +184,8 @@ export function useFollowupQueue({
   useEffect(() => {
     if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
     const head = state.items[0]
-    const drained = cacheService.getCasual<CompletionClaim>(drainedKeyFor(scopeKey))
-    if (!head || drained?.inFlight || drained?.completedAt === lastCompletedAt) return
+    const drained = loadCompletion(scopeKey)
+    if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
     void sendItem(head.id, lastCompletedAt)
   }, [scopeKey, status, lastCompletedAt, state, sendItem])
 
