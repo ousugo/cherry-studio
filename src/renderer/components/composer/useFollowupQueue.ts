@@ -21,6 +21,11 @@ const sendingKeyFor = (scopeKey: string, id: string) => `followup-queue-sending.
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
 const EMPTY_QUEUE: FollowupQueueItem[] = []
 
+interface CompletionClaim {
+  completedAt: number
+  inFlight: boolean
+}
+
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
   const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
@@ -120,8 +125,11 @@ export function useFollowupQueue({
       // Manual steer and auto-drain share the claim, including across component remounts.
       // It lives until the send settles; a TTL must not release an active send.
       cacheService.setCasual(sendingKey, true)
-      if (completedAt != null) {
-        cacheService.setCasual(drainedKeyFor(scopeKey), { completedAt, inFlight: true }, QUEUE_TTL)
+      const drained = cacheService.getCasual<CompletionClaim>(drainedKeyFor(scopeKey))
+      const claimedCompletion =
+        completedAt != null && !drained?.inFlight && drained?.completedAt !== completedAt ? completedAt : undefined
+      if (claimedCompletion != null) {
+        cacheService.setCasual(drainedKeyFor(scopeKey), { completedAt: claimedCompletion, inFlight: true }, QUEUE_TTL)
       }
       const reportFailure = onDrainFailedRef.current
       try {
@@ -132,11 +140,15 @@ export function useFollowupQueue({
           // Both rejected sends and explicit failures retain the draft for retry.
         }
         if (sent) {
-          if (completedAt != null) {
-            cacheService.setCasual(drainedKeyFor(scopeKey), { completedAt, inFlight: false }, QUEUE_TTL)
+          if (claimedCompletion != null) {
+            cacheService.setCasual(
+              drainedKeyFor(scopeKey),
+              { completedAt: claimedCompletion, inFlight: false },
+              QUEUE_TTL
+            )
           }
           removeId(id)
-        } else if (completedAt != null) {
+        } else if (claimedCompletion != null) {
           setPaused(true)
           cacheService.deleteCasual(drainedKeyFor(scopeKey))
           reportFailure?.()
@@ -148,12 +160,15 @@ export function useFollowupQueue({
     },
     [scopeKey, removeId, setPaused]
   )
-  const sendId = useCallback((id: string) => sendItem(id), [sendItem])
+  const sendId = useCallback(
+    (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
+    [sendItem, status, lastCompletedAt]
+  )
 
   useEffect(() => {
-    if (state.scopeKey !== scopeKey || status !== 'done' || lastCompletedAt == null || state.paused) return
+    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
     const head = state.items[0]
-    const drained = cacheService.getCasual<{ completedAt: number; inFlight: boolean }>(drainedKeyFor(scopeKey))
+    const drained = cacheService.getCasual<CompletionClaim>(drainedKeyFor(scopeKey))
     if (!head || drained?.inFlight || drained?.completedAt === lastCompletedAt) return
     void sendItem(head.id, lastCompletedAt)
   }, [scopeKey, status, lastCompletedAt, state, sendItem])

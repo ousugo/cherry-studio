@@ -288,30 +288,162 @@ it.each(['automatic', 'manual'] as const)(
   }
 )
 
-it.each(['false', 'reject'] as const)(
-  'releases a failed manual claim (%s) so its preserved draft can be retried',
-  async (failure) => {
-    let finish!: () => void
-    let attempts = 0
-    const delivered: string[] = []
-    const { result } = renderHook(() =>
+it('consumes an idle completion when manually sending from a paused queue', async () => {
+  const delivered: string[] = []
+  const { result, rerender } = renderHook(
+    ({ lastCompletedAt }) =>
       useFollowupQueue({
         scopeKey: 'topic',
-        status: 'streaming',
-        lastCompletedAt: null,
+        status: 'done',
+        lastCompletedAt,
         onDrain: async ({ text }) => {
-          attempts += 1
-          if (attempts === 1) {
-            return new Promise<boolean>((resolve, reject) => {
-              finish = () => (failure === 'reject' ? reject(new Error('send failed')) : resolve(false))
-            })
-          }
           delivered.push(text)
           return true
         }
+      }),
+    { initialProps: { lastCompletedAt: 100 } }
+  )
+  act(() => {
+    result.current.setPaused(true)
+    result.current.enqueue({ text: 'one', tokens: [] }, { text: 'one', userMessageParts: [] })
+    result.current.enqueue({ text: 'two', tokens: [] }, { text: 'two', userMessageParts: [] })
+  })
+  await act(async () => {
+    expect(await result.current.sendId(result.current.items[0].id)).toBe(true)
+  })
+  await act(async () => result.current.setPaused(false))
+  expect(delivered).toEqual(['one'])
+  expect(result.current.items.map(({ payload }) => payload.text)).toEqual(['two'])
+  await act(async () => rerender({ lastCompletedAt: 200 }))
+  expect(delivered).toEqual(['one', 'two'])
+  expect(result.current.items).toEqual([])
+})
+
+it.each<TopicStreamStatus>(['streaming', 'done'])(
+  'preserves a new completion after a manual send starts while %s and settles unmounted',
+  async (initialStatus) => {
+    let finish!: (sent: boolean) => void
+    const delivered: string[] = []
+    const setStatus = (status: TopicStreamStatus, lastCompletedAt: number) =>
+      cacheService.setShared('topic.stream.statuses.topic', {
+        status,
+        lastCompletedAt,
+        activeExecutions: [],
+        awaitingApprovalAnchors: []
       })
+    setStatus(initialStatus, 100)
+    const useQueue = () =>
+      useFollowupQueue({
+        scopeKey: 'topic',
+        ...useTopicStreamStatus('topic'),
+        onDrain: async ({ text }) => {
+          delivered.push(text)
+          return text === 'one'
+            ? new Promise<boolean>((resolve) => {
+                finish = resolve
+              })
+            : true
+        }
+      })
+    const first = renderHook(useQueue)
+    act(() => {
+      first.result.current.setPaused(true)
+      first.result.current.enqueue({ text: 'one', tokens: [] }, { text: 'one', userMessageParts: [] })
+      first.result.current.enqueue({ text: 'two', tokens: [] }, { text: 'two', userMessageParts: [] })
+    })
+    act(() => {
+      void first.result.current.sendId(first.result.current.items[0].id)
+    })
+    first.unmount()
+    await act(async () => setStatus('done', 200))
+    await act(async () => finish(true))
+    const second = renderHook(useQueue, { wrapper: StrictMode })
+    expect(delivered).toEqual(['one'])
+    await act(async () => second.result.current.setPaused(false))
+    expect(delivered).toEqual(['one', 'two'])
+    expect(second.result.current.items).toEqual([])
+  }
+)
+
+it.each(['pending', 'settled'] as const)(
+  'does not release another manual send completion claim when it is %s',
+  async (firstState) => {
+    let finish!: (sent: boolean) => void
+    const attempted: string[] = []
+    const { result, rerender } = renderHook(
+      ({ lastCompletedAt }) =>
+        useFollowupQueue({
+          scopeKey: 'topic',
+          status: 'done',
+          lastCompletedAt,
+          onDrain: async ({ text }) => {
+            attempted.push(text)
+            return text === 'one'
+              ? new Promise<boolean>((resolve) => {
+                  finish = resolve
+                })
+              : false
+          }
+        }),
+      { initialProps: { lastCompletedAt: 100 } }
     )
-    act(() => result.current.enqueue({ text: 'retry me', tokens: [] }, { text: 'retry me', userMessageParts: [] }))
+    act(() => {
+      result.current.setPaused(true)
+      result.current.enqueue({ text: 'one', tokens: [] }, { text: 'one', userMessageParts: [] })
+      result.current.enqueue({ text: 'two', tokens: [] }, { text: 'two', userMessageParts: [] })
+    })
+    const [first, second] = result.current.items
+    act(() => {
+      void result.current.sendId(first.id)
+    })
+    if (firstState === 'settled') await act(async () => finish(true))
+    await act(async () => {
+      expect(await result.current.sendId(second.id)).toBe(false)
+    })
+    await act(async () => result.current.setPaused(false))
+    if (firstState === 'pending') await act(async () => finish(true))
+    expect(attempted).toEqual(['one', 'two'])
+    expect(result.current.items.map(({ payload }) => payload.text)).toEqual(['two'])
+    await act(async () => rerender({ lastCompletedAt: 200 }))
+    expect(attempted).toEqual(['one', 'two', 'two'])
+    expect(result.current.paused).toBe(true)
+  }
+)
+
+it.each([
+  { failure: 'false', completes: false },
+  { failure: 'reject', completes: false },
+  { failure: 'false', completes: true },
+  { failure: 'reject', completes: true }
+])(
+  'releases a failed manual claim ($failure, completion=$completes) so its preserved draft can be retried',
+  async ({ failure, completes }) => {
+    let finish!: () => void
+    let attempts = 0
+    const delivered: string[] = []
+    const { result } = renderHook(
+      ({ status }: { status: TopicStreamStatus }) =>
+        useFollowupQueue({
+          scopeKey: 'topic',
+          status,
+          lastCompletedAt: status === 'done' ? 100 : null,
+          onDrain: async ({ text }) => {
+            attempts += 1
+            if (attempts === 1) {
+              return new Promise<boolean>((resolve, reject) => {
+                finish = () => (failure === 'reject' ? reject(new Error('send failed')) : resolve(false))
+              })
+            }
+            delivered.push(text)
+            return true
+          }
+        }),
+      { initialProps: { status: (completes ? 'done' : 'streaming') as TopicStreamStatus } }
+    )
+    act(() => {
+      result.current.setPaused(true)
+      result.current.enqueue({ text: 'retry me', tokens: [] }, { text: 'retry me', userMessageParts: [] })
+    })
     const id = result.current.items[0].id
     let pending!: Promise<boolean>
     act(() => {
@@ -325,7 +457,12 @@ it.each(['false', 'reject'] as const)(
     expect(attempts).toBe(1)
     expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['retry me'])
     await act(async () => {
-      expect(await result.current.sendId(id)).toBe(true)
+      if (completes) {
+        expect(result.current.paused).toBe(true)
+        result.current.setPaused(false)
+      } else {
+        expect(await result.current.sendId(id)).toBe(true)
+      }
     })
     expect(delivered).toEqual(['retry me'])
     expect(result.current.items).toEqual([])
