@@ -32,6 +32,7 @@ import {
   prepareComposerQuickPanelSearch
 } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -1467,6 +1468,7 @@ const AgentComposerInner = ({
 
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
+      if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
@@ -1507,6 +1509,7 @@ const AgentComposerInner = ({
     [
       accessiblePaths,
       agentId,
+      sendDisabled,
       chatSendMessage,
       initialDraft.files,
       launchOptions,
@@ -1564,7 +1567,7 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    status: launchOptions?.editing ? undefined : sessionStatus,
+    status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
     onDrain: sendQueuedPayload
   })
@@ -1664,6 +1667,7 @@ const AgentComposerInner = ({
     getAdditionalItems: getEntityReferenceItems
   })
 
+  const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Session, agent })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
     const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
@@ -1698,11 +1702,12 @@ const AgentComposerInner = ({
         id: ComposerPanelSymbol.McpStatus,
         label: 'MCP',
         icon: <McpLogo width={18} height={18} aria-hidden />,
+        active: mcpToolbarActive,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, t])
+  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({

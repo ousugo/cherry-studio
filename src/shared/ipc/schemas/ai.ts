@@ -2,6 +2,8 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -183,6 +185,13 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.agent.attachment_selections.list': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<AgentAttachmentSelection[]>()
+  }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
@@ -425,6 +434,12 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
     output: z.boolean()
   }),
+  // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
+  // main owns that resolution, so the renderer never joins paths itself.
+  'ai.agent.session.open_path': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), path: z.string().min(1) }),
+    output: z.void()
+  }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
   // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on
@@ -477,6 +492,8 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
+  'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
