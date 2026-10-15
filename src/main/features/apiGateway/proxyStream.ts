@@ -144,9 +144,13 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
+  const isInternalTranslationRequest =
+    inputFormat === 'openai' &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isTranslationCredential(config.requestHeaders, modelString)
   let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
   try {
-    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
+    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest || isInternalTranslationRequest)
   } catch (error) {
     throw asClientError(error)
   }
