@@ -17,6 +17,7 @@ import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { completeTranscriptionOperation } from './completeExecution'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { withScratch } from './nativeSupport'
 import { voiceAudioProcess } from './voiceAudioProcess'
@@ -174,7 +175,7 @@ export const funAsrTranscriptionDefinition: TranscriptionModelDefinition = {
   }),
   status: (_options, signal) => getFunAsrStatus(signal),
   locales: async () => ({ supported: [], installed: [] }),
-  createModel: createFunAsrTranscriptionModel,
+  transcriptionOperations: [completeTranscriptionOperation(createFunAsrTranscriptionModel)],
   download: () =>
     application
       .get('LocalModelService')

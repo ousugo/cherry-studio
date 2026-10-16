@@ -8,7 +8,7 @@ import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
 import { loggerService } from '@logger'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { VoiceCleanupError, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { voiceAudioProcess } from './voiceAudioProcess'
 
 const logger = loggerService.withContext('NativeVoiceSupport')
@@ -83,7 +83,7 @@ export async function withScratch<T>(
     await rm(directory, { recursive: true, force: true })
   } catch {
     logger.warn('Voice scratch cleanup failed')
-    failure ??= new VoiceRuntimeError('operation_failed')
+    failure = new VoiceCleanupError(failure?.reason)
   }
   if (failure) throw failure
   return result

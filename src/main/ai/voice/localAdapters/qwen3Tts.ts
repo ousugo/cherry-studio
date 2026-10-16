@@ -23,6 +23,7 @@ import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 import type { LocalVoiceStatus, SpeechModelDefinition } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { completeSpeechOperation } from './completeExecution'
 import { checkAbort, withScratch } from './nativeSupport'
 
 const LANGUAGES: Record<string, string> = {
@@ -162,7 +163,7 @@ export const qwen3SpeechDefinition: SpeechModelDefinition = {
     ]
   }),
   status: (_options, signal) => getQwen3TtsStatus(signal),
-  createModel: createQwen3SpeechModel,
+  speechOperations: [completeSpeechOperation(createQwen3SpeechModel)],
   voices: async (signal) => {
     checkAbort(signal)
     return VOICES

@@ -18,6 +18,7 @@ import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voi
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { completeSpeechOperation, completeTranscriptionOperation } from './completeExecution'
 import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 
 function supportsWindows(): boolean {
@@ -174,7 +175,7 @@ export const windowsTranscriptionDefinition: TranscriptionModelDefinition = {
   }),
   status: getWindowsAsrStatus,
   locales: listWindowsAsrLocales,
-  createModel: createWindowsTranscriptionModel
+  transcriptionOperations: [completeTranscriptionOperation(createWindowsTranscriptionModel)]
 }
 
 export const windowsSpeechDefinition: SpeechModelDefinition = {
@@ -189,5 +190,5 @@ export const windowsSpeechDefinition: SpeechModelDefinition = {
   status: getWindowsVoiceStatus,
   voices: listWindowsVoices,
   getDefaultVoice: getDefaultWindowsVoice,
-  createModel: createWindowsSpeechModel
+  speechOperations: [completeSpeechOperation(createWindowsSpeechModel)]
 }

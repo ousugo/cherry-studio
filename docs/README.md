@@ -51,6 +51,8 @@
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
+| [TTS 与 ASR 统一接口和流式执行方案](./references/ai/voice-streaming-design.md) | Proposed unified TTS and ASR execution contracts, service dependencies, bounded transport, file ownership, and staged validation |
+| [TTS 与 ASR 逐 PR 实现方案](./references/ai/voice-streaming-implementation.md) | Per-PR implementation plan for unified voice execution, bounded process streams, TTS playback, MLX ASR, dictation, and incremental reading |
 
 ### API Gateway
 
