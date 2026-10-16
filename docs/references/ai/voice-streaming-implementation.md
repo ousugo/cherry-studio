@@ -18,7 +18,7 @@ sources:
 
 # TTS 与 ASR 逐 PR 实现方案
 
-状态：PR 1 已完成本地实现，PR 2–6 待实现。方案基于 `9d1bf05fe2c` 的代码结构，细化 [统一接口和流式执行方案](./voice-streaming-design.md) 中的六个 PR。下文保留各 PR 的实施目标，不能将后续接口、文件和验收项视为已交付。
+状态：PR 1 已创建 [Draft PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795)，PR 2–6 待实现。方案基于 `9d1bf05fe2c` 的代码结构，并在合入 `425b15397e7` 后补齐 Kokoro 完整结果适配，细化 [统一接口和流式执行方案](./voice-streaming-design.md) 中的六个 PR。下文保留各 PR 的实施目标，不能将后续接口、文件和验收项视为已交付。
 
 PR 1 已提供完整结果操作表、统一执行句柄和能力描述，迁移了 VoiceSessionService 的调用与依赖；清理失败通过 `closed` 保持可观察。共享层目前只定义已支持的完整输入输出标签，PCM 与增量标签随对应 PR 加入。定向自动化及 Node/Web 类型检查通过；开发版 Electron 已验证 Apple/Qwen3 TTS 生成、播放结束、Qwen 取消与随后重启操作。原生 ASR 因本地资源未安装尚未完成实机识别，Windows 与打包产物也仍需对应环境验收。
 
@@ -93,9 +93,9 @@ PR 1 已提供完整结果操作表、统一执行句柄和能力描述，迁移
 2. 逐个包装现有后端 → 用真实完整输入验证音色、语言、语速、错误原因和最终文本保留。
 3. 迁移 session 调用与依赖、删除旧包装 → 搜索确认没有生产调用者遗留；执行生命周期回归。
 
-定向测试覆盖现有 `VoiceSessionService.test.ts`、`voiceAdmissionCoordination.test.ts`、四个 adapter 测试、IPC handler 的 `voice.test.ts` 和 aiCore `voice.test.ts`。把 `src/main/ai/__tests__/AiService.voice.test.ts` 中有价值的契约断言迁至新增 `src/main/ai/voice/__tests__/execution.test.ts`，不保留只验证包装调用次数的测试。
+定向测试覆盖现有 `VoiceSessionService.test.ts`、`voiceAdmissionCoordination.test.ts`、Apple、Windows、FunASR、Qwen3-TTS、Kokoro adapter 测试、IPC handler 的 `voice.test.ts` 和 aiCore `voice.test.ts`。把 `src/main/ai/__tests__/AiService.voice.test.ts` 中有价值的契约断言迁至新增 `src/main/ai/voice/__tests__/execution.test.ts`，不保留只验证包装调用次数的测试。
 
-合并门槛：系统 TTS/ASR、FunASR、Qwen3-TTS 的原路径均不要求流式客户端；失败和取消后可再次启动；无临时文件与媒体 URL 泄漏。PR 1 不引入工作线程、PCM 通道或新的包依赖。
+合并门槛：系统 TTS/ASR、FunASR、Qwen3-TTS、Kokoro 的原路径均不要求流式客户端；失败和取消后可再次启动；无临时文件与媒体 URL 泄漏。PR 1 不引入工作线程、PCM 通道或新的包依赖。
 
 ## PR 2：通用请求级有界流
 

@@ -149,7 +149,7 @@ IpcApi schema 引用同一常量对象建立枚举校验，路由类型继续从
 
 | 适配路径 | 首期对外能力 |
 | --- | --- |
-| 现有系统 TTS | 完整文本 → 完整音频 |
+| 现有系统 TTS 与 Kokoro | 完整文本 → 完整音频 |
 | Qwen3-TTS MLX | 完整文本 → PCM 流；完整音频路径保留 |
 | 现有系统 ASR 与 FunASR | 完整音频 → 最终文本 |
 | 后续 MLX Qwen3-ASR | 连续 PCM → 文本修订与最终结果，完成打包和实机验证后开放 |
@@ -322,7 +322,7 @@ ASR 批次需要补齐模型包、JS API 和原生运行时版本匹配。fork �
 
 | PR | 建议标题 | 范围 | 依赖 | 独立验收 |
 | --- | --- | --- | --- | --- |
-| 1 | `refactor(voice): unify speech and transcription execution` | 常量与能力契约、统一执行句柄、完整结果适配；迁出 `AiService` 语音方法，补齐生命周期依赖。只声明本 PR 真正可执行的能力 | 无 | 现有系统语音、FunASR、Qwen3-TTS 的完整结果路径经过统一入口；选择、取消、文件释放和错误语义保持正确 |
+| 1 | `refactor(voice): unify speech and transcription execution` | 常量与能力契约、统一执行句柄、完整结果适配；迁出 `AiService` 语音方法，补齐生命周期依赖。只声明本 PR 真正可执行的能力 | 无 | 现有系统语音、FunASR、Qwen3-TTS、Kokoro 的完整结果路径经过统一入口；选择、取消、文件释放和错误语义保持正确 |
 | 2 | `feat(utility-process): support bounded request streams` | 通用请求级输入输出流、容量控制、EOF、取消和进程退出结算；保持原 request/event 接口兼容。流量控制不携带 voice 业务语义 | 无硬性代码依赖；接口与 PR 1、3 对齐 | 真实 Electron 子进程中，慢消费和输入过载均有界，取消唤醒阻塞读写，退出后旧代帧无效，现有请求不受影响 |
 | 3 | `feat(voice): stream Qwen3 speech to playback` | TTS producer、推理执行全程占用、Main 会话与 IpcApi 流控、Renderer PCM 输出、播放状态迁移；有限媒体输出适配随真实消费者一起提取 | 1、2 | 试听与朗读在生成结束前出声；暂停、恢复、排空、停止、跨窗口仲裁、卸载和 worker 崩溃恢复通过；打包后的 AudioWorklet 可用 |
 | 4 | `feat(local-asr): add MLX Qwen3 transcription` | MLX ASR 的模型定义、包依赖、原生版本校验、模型下载与选择、完整音频识别适配。复用现有资源管理，不改流式听写 UI | 1；必要时依赖配套引擎发布 | 下载后可选择并识别；与 FunASR 切换不串模型；缺少选中模型时明确失败；取消、卸载、国内外源及打包加载正确，TTS 共用运行时无回归 |
