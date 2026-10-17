@@ -138,14 +138,6 @@
       "sources": ["src/main/ipc/handlers/translate.ts","src/main/services/translate/translateService.ts","src/renderer/pages/home/messages/homeMessageListAdapter.tsx","src/renderer/pages/translate/TranslateSettings.tsx","src/renderer/pages/translate/useTranslateReasoningEffort.ts","src/renderer/utils/translate/translateText.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/ipc/schemas/translate.ts"]
     },
     {
-      "path": "docs/references/ai/voice-streaming-design.md",
-      "sources": ["packages/aiCore/src/core/runtime/voice.ts","src/main/ai/AiService.ts","src/main/ai/localModel","src/main/ai/voice","src/main/core/lifecycle/LifecycleManager.ts","src/main/core/utilityProcess","src/main/ipc/handlers/voice.ts","src/renderer/services/voice","src/shared/ai/localVoice.ts","src/shared/ipc/schemas/voice.ts"]
-    },
-    {
-      "path": "docs/references/ai/voice-streaming-implementation.md",
-      "sources": ["packages/aiCore/src/core/runtime/voice.ts","scripts/utility-process-smoke","src/main/ai/AiService.ts","src/main/ai/localModel","src/main/ai/voice","src/main/core/utilityProcess","src/main/ipc/handlers/voice.ts","src/renderer/pages/agents/useAgentChatRuntimeState.ts","src/renderer/pages/home/useChatRuntimeState.ts","src/renderer/services/voice","src/renderer/windows/quickAssistant/home/HomeWindow.tsx","src/shared/ai/localVoice.ts","src/shared/ipc/schemas/voice.ts"]
-    },
-    {
       "path": "docs/references/api-gateway/README.md",
       "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
     },
