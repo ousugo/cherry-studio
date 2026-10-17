@@ -22,7 +22,7 @@ const QueritSearchParamsSchema = z.object({
 })
 
 const QueritSearchResponseSchema = z.object({
-  error_code: z.number(),
+  error_code: z.coerce.number(),
   error_msg: z.string(),
   query_context: z.object({
     query: z.string()
@@ -48,7 +48,7 @@ const QueritContentsParamsSchema = z.object({
 })
 
 const QueritContentsResponseSchema = z.object({
-  error_code: z.number(),
+  error_code: z.coerce.number(),
   error_msg: z.string(),
   results: z
     .array(
@@ -91,6 +91,12 @@ export class QueritProvider extends BaseWebSearchProvider {
     return this.buildContentsResponse(context, contentsPayload)
   }
 
+  private resolveQueritUrl(capability: 'searchKeywords' | 'fetchUrls', endpoint: 'search' | 'contents'): string {
+    const url = new URL(this.resolveApiUrl(capability, endpoint))
+    url.pathname = url.pathname.replace(/\/(?:v1\/)?(search|contents)$/, '/v1/$1')
+    return url.toString()
+  }
+
   private buildHeaders(apiKey: string): Record<string, string> {
     return {
       ...defaultAppHeaders(),
@@ -121,7 +127,7 @@ export class QueritProvider extends BaseWebSearchProvider {
       apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('searchKeywords', '/v1/search'),
+      requestUrl: this.resolveQueritUrl('searchKeywords', 'search'),
       requestBody,
       signal: httpOptions?.signal ?? undefined
     }
@@ -185,7 +191,7 @@ export class QueritProvider extends BaseWebSearchProvider {
       apiKey: this.resolveApiKey(),
       query: url,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('fetchUrls', '/v1/contents'),
+      requestUrl: this.resolveQueritUrl('fetchUrls', 'contents'),
       requestBody: QueritContentsParamsSchema.parse({
         urls: [url],
         format: 'markdown',
