@@ -12,9 +12,9 @@ visible through `closed` and `cancel()`; the owning session retains that failed 
 Cancellation checks use `checkAbort` from the voice error module.
 
 `voiceAudioProcess` declares the `voice.audio` utility process. VoiceSessionService
-registers it. Apple and FunASR pass canonical WAV bytes through `inspectCanonicalWav`
-and request `decode` only for WebM. Windows ASR requests `decode` for its accepted
-input. Every decode uses a combined owner/caller/timeout AbortSignal. The process
+registers it. Apple, FunASR, and Windows ASR pass canonical WAV bytes through
+`inspectCanonicalWav` and request `decode` only for WebM. Every decode uses a
+combined owner/caller/timeout AbortSignal. The process
 uses terminate cancellation, so the caller cannot release its operation lease before
 the old generation exits.
 
