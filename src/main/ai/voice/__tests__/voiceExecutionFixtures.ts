@@ -1,6 +1,6 @@
 import type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from '@cherrystudio/ai-core'
 
-import { completeSpeechOperation, completeTranscriptionOperation } from '../localAdapters/completeExecution'
+import { completeSpeechOperation, completeTranscriptionOperation } from '../localAdapters/sdkOperations'
 
 export function speechFixture(
   modelId: string,

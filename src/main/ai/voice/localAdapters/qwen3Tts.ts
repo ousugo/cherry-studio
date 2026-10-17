@@ -22,9 +22,9 @@ import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
 import type { LocalVoiceStatus, SpeechModelDefinition } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
-import { completeSpeechOperation } from './completeExecution'
-import { checkAbort, withScratch } from './nativeSupport'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
+import { withScratch } from './scratch'
+import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES: Record<string, string> = {
   'zh-CN': 'chinese',
