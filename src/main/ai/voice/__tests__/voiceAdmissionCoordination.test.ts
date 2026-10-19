@@ -18,6 +18,7 @@ import { voiceRequestSchemas, type VoiceSessionEvent } from '@shared/ipc/schemas
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import type * as LocalAdapters from '../localAdapters'
+import type * as AppleAdapter from '../localAdapters/apple'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
@@ -34,12 +35,22 @@ vi.hoisted(() => {
   Object.assign(globalThis, { window: new EventTarget() })
 })
 
-vi.mock('../localAdapters', async (importOriginal) => {
-  const actual = await importOriginal<typeof LocalAdapters>()
+vi.mock('../localAdapters/apple', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppleAdapter>()
   const { speechFixture } = await import('./voiceExecutionFixtures')
   return {
     ...actual,
-    getSpeechOperations: (id: string) => [speechFixture(id, native.speech)],
+    appleSpeechDefinition: {
+      ...actual.appleSpeechDefinition,
+      speechOperations: [speechFixture(actual.appleSpeechDefinition.id, native.speech)]
+    }
+  }
+})
+
+vi.mock('../localAdapters', async (importOriginal) => {
+  const actual = await importOriginal<typeof LocalAdapters>()
+  return {
+    ...actual,
     resolveSpeechConfiguration: (...args: Parameters<typeof actual.resolveSpeechConfiguration>) =>
       native.resolveSpeech(...args),
     resolveTranscriptionConfiguration: (...args: Parameters<typeof actual.resolveTranscriptionConfiguration>) =>
