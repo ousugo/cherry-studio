@@ -67,7 +67,7 @@ This is a retrospective record of the user-authorized design and PR 1 implementa
 | AC5 | PR 3 implements typed PCM output, attachment/consumption credits, native backpressure, source-rate Worklet playback, EOF drain and fresh-attempt retry. Real Qwen3 development Electron measured hot first consumption at 514 ms, generation completion at 13,950 ms, zero underruns and a peak of 23,936 frames against a 24,000-frame renderer bound. Pause preserved the consumption cursor; stop released the session in 40 ms and restart succeeded. Fresh-attempt retry preserved frozen options, and 0.75×/1.5× runs drained without underruns on a 48 kHz output device. UI pause/resume/stop also passed. Production Vite Worklet assets played 12,000 stereo frames at 24 kHz from both unpacked and ASAR paths. | Device output timing was observed through Web Audio; human listening, Windows and full packaged-application Qwen3 inference were not exercised. The native/utility limits are enforced budgets, not measured RSS. |
 | AC6 (partial) | PR 4 adds typed Sherpa/MLX dispatch, selected-bundle installation and Qwen3-ASR 1.7B complete recognition. Electron WebM recognition passed for English and Chinese; cancellation/retry and native recognition from unpacked/ASAR package paths passed. All 18 GitHub/ModelScope model-file URLs are anonymously readable with matching published SHA-256 metadata. | Real microphone dictation and other platforms are not covered; complete application packaging is distinct from the ASAR utility/package harness. Formal Spec Approval is still absent. |
 | AC7 (partial) | PR 5 connects bounded PCM capture, typed input IPC, Qwen streaming, revisions, and exactly-once completion. Electron 48 kHz audio routed through the real 16 kHz capture worklet produced correct English and Chinese final text, intermediate revisions, nonzero analyser levels and released tracks. Cancelling during capture inserted no text; subsequent English and Chinese sessions succeeded. A roughly 50-second non-repeating native recording retained its final sentence across window rollover. | The actual microphone produced silence: capture/release passed, live spoken recognition remains unverified. A separate 53-second repeated-sentence native probe omitted the final repetition; no application-side repair is applied. Packaged capture and full-duration stress acceptance remain outstanding. |
-| AC8 | Detailed proposal exists in the implementation plan. | PR 6 is not implemented or verified by this branch. |
+| AC8 (partial) | PR 6 implements capability-selected incremental reading, bounded text input, and lifecycle wiring in main chat, Agent and Quick Assistant. Focused integration tests and the real Qwen3/Electron pipeline passed. | Provider-driven acceptance in all three windows and other platforms remain unverified; formal Spec Approval is absent. |
 | AC9 (partial) | Apple PCM helper and adapter are implemented. Native early output, exact framing/tail, blocked cancellation/restart, visible Electron waveform/pause/resume/stop, and production package loading from unpacked/ASAR paths passed. A warm Electron run consumed first audio at 1,184 ms, ended production at 8,968 ms and drained all 194,744 frames with zero underruns; peak renderer occupancy was 21,944/22,050 frames. Stop returned idle in 31 ms. | Full signed application packaging, human listening and older macOS/Intel devices were not exercised. Transport bounds do not measure native-engine RSS. |
 
 PR 3 uses the existing service graph without new singleton services. `VoiceSessionService` owns each `VoiceStream`; the relay receives narrow send/expiry callbacks. Renderer output adapters own their audio graphs and observable close promises. MLX segments the finite text in its bounded two-segment queue while playback continues. The implementation delegates device-rate conversion to a source-rate AudioContext instead of introducing a custom resampler. Runtime budgets are one second of native PCM, four utility messages / 131,072 bytes, one second of renderer PCM, 15 seconds for attachment, 120 seconds for loading or an unblocked producer read, and 15 minutes of stream retention. These budgets include pauses without treating blocked credit as a producer stall. The Worklet starts after 500 ms of source audio (or EOF for shorter clips), within the existing one-second bound; this eliminated the underruns observed in the initial 1.5× run.
@@ -755,6 +755,31 @@ Add `incrementalReadableText.test.ts`. Run `readableText.test.ts`, `AutoReadServ
 Cover interleaved body/reasoning, unclosed code fences/links, replayed snapshots, revisions before/after submission, retry attempts, duplicate completion callbacks, paused backlogs, chat failure, and manual preemption. Assert final readable input is submitted exactly once in order, with no new voice input after cancellation.
 
 On real Electron, verify main chat, Agent, and Quick Assistant separately: audible body before generation ends, retained tail on success, and immediate speech stop on cancellation/toggle-off without disrupting chat. Do not claim incremental support for unintegrated message runtimes.
+
+#### PR 6 implementation evidence
+
+The user authorized implementation on 2026-10-19. `SpeechTextInput` owns the renderer
+backlog, `VoiceTextInput` owns the Main input handshake, and `VoiceSessionService` owns
+both execution and input lifetime. No lifecycle service or same-phase dependency was added.
+Qwen3 reuses the pinned native package's incremental text input and segmentation. Shared
+operation types discriminate text versus text-stream inputs; complete adapters cannot
+accidentally receive an async input. Transport budgets and public behavior are documented in
+[Local Models](../../../../docs/references/ai/local-models.md).
+
+Focused tests cover stable Markdown boundaries, reasoning exclusion, duplicate snapshots,
+EOF tail drain, cumulative overflow, cancellation during capability discovery, late updates,
+owner/request identity, and the three production entry callbacks. These entry tests exercise
+the coordinator with controlled snapshots, not a real provider conversation.
+
+A native-package probe produced first PCM in 142 ms before input EOF. A development Electron
+run on macOS arm64 exercised the real renderer/Main/utility/Qwen3/player pipeline: first
+consumption in 2,358 ms before answer completion; pause kept the cursor at 1,024 frames;
+success drained all 234,240 frames with zero underruns and peak buffering of 23,808 / 24,000
+frames. Cancellation rejected late text, and restart drained 186,240 frames. The application
+playback bar showed 16 distinct waveform frames before answer EOF; pause flattened the bars
+and resume restarted animation. Timings describe
+this local controlled-snapshot run, not a latency guarantee. Provider-driven acceptance in
+main chat, Agent and Quick Assistant separately remains outstanding, so AC8 stays partial.
 
 ### Optional supporting PR: MLX ASR distribution
 
