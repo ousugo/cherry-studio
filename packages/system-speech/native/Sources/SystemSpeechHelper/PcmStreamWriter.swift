@@ -47,7 +47,9 @@ final class PcmStreamWriter {
     }
 
     private func write<Value: Encodable>(_ value: Value) throws {
-        var data = try JSONEncoder().encode(value)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        var data = try encoder.encode(value)
         data.append(0x0A)
         try output.write(contentsOf: data)
     }

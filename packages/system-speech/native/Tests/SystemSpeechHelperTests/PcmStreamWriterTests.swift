@@ -53,6 +53,38 @@ struct PcmStreamWriterTests {
     }
 
     @Test
+    func keepsSlashHeavyStereoWithinWireLineLimit() throws {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 2))
+        let audio = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024))
+        audio.frameLength = 1024
+        let channels = try #require(audio.floatChannelData)
+        let sample = Float(bitPattern: 0xbf7fffff)
+        for channel in 0 ..< 2 {
+            for frame in 0 ..< 1024 { channels[channel][frame] = sample }
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let file = try FileHandle(forWritingTo: url)
+        defer { try? file.close() }
+        let writer = PcmStreamWriter(output: file)
+        try writer.receive(audio)
+        let tail = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1))
+        try writer.receive(tail)
+        let lines = try Data(contentsOf: url).split(separator: 10)
+        #expect(lines.count == 3)
+        for line in lines { #expect(line.count <= 16384) }
+        let pcm = try #require(JSONSerialization.jsonObject(with: Data(lines[1])) as? [String: Any])
+        let encoded = try #require(pcm["data"] as? String)
+        let bytes = try #require(Data(base64Encoded: encoded))
+        #expect(bytes.count == 8192)
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let bits = bytes.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self)) }
+            #expect(bits == sample.bitPattern)
+        }
+    }
+
+    @Test
     func rejectsEmptyAndNonFiniteAudio() throws {
         let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1))
         let audio = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1))
