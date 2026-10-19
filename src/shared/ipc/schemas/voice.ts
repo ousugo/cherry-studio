@@ -19,7 +19,7 @@ import {
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
-import type { SpeechStreamEvent } from '@shared/ai/voice'
+import type { SpeechStreamEvent, TranscriptionStreamEvent } from '@shared/ai/voice'
 import { LOCAL_MODEL_DOWNLOAD_RESULTS } from '@shared/data/presets/localModel'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
@@ -155,6 +155,7 @@ export type VoiceSessionEvent =
     }
 
 export type VoiceEventSchemas = {
+  'ai.voice.transcript_event': TranscriptionStreamEvent
   'ai.voice.stream_event': SpeechStreamEvent
   'ai.voice.session_event': VoiceSessionEvent
 }
@@ -175,7 +176,8 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       modelId: asrModelId.optional(),
       language: transcriptionLanguage.optional(),
-      status: voiceStatus
+      status: voiceStatus,
+      capabilities: voiceCapabilities.optional()
     })
   }),
   'ai.voice.speech.resolve': defineRoute({
@@ -236,6 +238,33 @@ export const voiceRequestSchemas = {
   'ai.voice.stream.attach': defineRoute({ input: abort.extend({ attemptId: revision }), output: z.void() }),
   'ai.voice.stream.acknowledge': defineRoute({
     input: abort.extend({ attemptId: revision, frames: revision }),
+    output: z.void()
+  }),
+  'ai.voice.transcription.start': defineRoute({
+    input: request.extend({
+      modelId: asrModelId,
+      language: transcriptionLanguage.optional(),
+      format: z.strictObject({ sampleRate: z.literal(16000), channels: z.literal(1) })
+    }),
+    output: z.strictObject({ text: z.string() })
+  }),
+  'ai.voice.input.write': defineRoute({
+    input: abort.extend({
+      startFrame: z.number().int().nonnegative(),
+      samples: z
+        .instanceof(Float32Array)
+        .refine((samples) => samples.length > 0 && samples.length <= 1600 && samples.every(Number.isFinite))
+    }),
+    output: z.void()
+  }),
+  'ai.voice.input.finish': defineRoute({
+    input: abort.extend({
+      frames: z
+        .number()
+        .int()
+        .positive()
+        .max(16000 * 300)
+    }),
     output: z.void()
   }),
   'ai.transcription.generate': defineRoute({
