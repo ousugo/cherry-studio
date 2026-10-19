@@ -1,6 +1,7 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -24,12 +25,31 @@ async function helper(source: string, timeoutMs = 2000) {
   const directory = await mkdtemp(join(tmpdir(), 'speech-stream-'))
   directories.push(directory)
   const helperPath = join(directory, 'helper')
-  await writeFile(helperPath, `#!${process.execPath}\nprocess.stdin.resume();\n${source}\n`)
-  await chmod(helperPath, 0o700)
-  return { directory, client: new SystemSpeechNativeClient({ helperPath, timeoutMs, killGraceMs: 250 }) }
+  const sourcePath = join(directory, 'scenario.cjs')
+  await writeFile(sourcePath, `process.stdin.resume();\n${source}\n`)
+  // Keep the executable immutable: Linux can reject a newly written executable with ETXTBSY.
+  await symlink(fileURLToPath(new URL('./fixtures/runScenario.cjs', import.meta.url)), helperPath)
+  return { directory, sourcePath, client: new SystemSpeechNativeClient({ helperPath, timeoutMs, killGraceMs: 250 }) }
 }
 
 describe.skipIf(process.platform === 'win32')('system speech streaming process contract', () => {
+  it('runs a writable scenario without executing its writable inode', async () => {
+    const { client, sourcePath } = await helper(
+      `process.stdout.write(${JSON.stringify(lines(format, pcm(), { type: 'end', frames: 3 }))})`
+    )
+    const writer = await open(sourcePath, 'r+')
+    try {
+      const stream = await client.stream(request)
+      const samples: number[] = []
+      for await (const chunk of (await stream.output).chunks) samples.push(...chunk.samples)
+      await stream.completed
+      await stream.closed
+      expect(samples).toEqual([0.25, -0.5, 0.75])
+    } finally {
+      await writer.close()
+    }
+  })
+
   it('delivers early PCM without losing fragmented lines or the final tail, and joins exit', async () => {
     const data = lines(format, pcm(), pcm(3, [-0.25]), { type: 'end', frames: 4 })
     const { client } = await helper(`
