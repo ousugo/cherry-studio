@@ -3383,6 +3383,7 @@
   "richEditor.toolbar.undo": "Rückgängig",
   "screenshot.action.cancel": "Abbrechen",
   "screenshot.action.confirm": "Kopieren und schließen",
+  "screenshot.action.copy": "In Zwischenablage kopieren",
   "screenshot.action.redo": "Wiederholen",
   "screenshot.action.save": "Bild speichern",
   "screenshot.action.send_to_chat": "Zum Chat hinzufügen",
