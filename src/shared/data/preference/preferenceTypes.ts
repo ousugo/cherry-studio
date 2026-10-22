@@ -265,6 +265,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'crawl4ai',
   'parallel',
   'serply',
+  'yuanbao',
   'deepseek',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
