@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
@@ -454,3 +455,5 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type AdvertisedRemoteEndpoint = DirectEndpoint
