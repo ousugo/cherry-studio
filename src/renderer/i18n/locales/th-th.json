@@ -5619,6 +5619,7 @@
   "settings.skills.enableToTry.confirm": "เปิดใช้แล้วลอง",
   "settings.skills.enableToTry.description": "{{name}} ต้องเปิดใช้ระดับส่วนกลางก่อน Cherry Assistant จึงจะใช้ได้",
   "settings.skills.enableToTry.title": "เปิดใช้ Skill นี้?",
+  "settings.skills.enabledOnly": "แสดงเฉพาะสกิลที่เปิดใช้งาน",
   "settings.skills.globalToggle": "เปิดใช้สกิล {{name}} ทั่วโลก",
   "settings.skills.install": "ติดตั้ง",
   "settings.skills.installFailed": "ติดตั้งสกิลไม่สำเร็จ: {{name}}",
