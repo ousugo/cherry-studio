@@ -304,22 +304,24 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  name: 'Bailian',
+  // Keep the 'dashscope' identity so existing credentials and saved endpoint
+  // overrides stay attached to the rebranded mainland provider (ref #18432).
+  name: 'Qwen AI Platform',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://maas.qianwenaiapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },
@@ -366,10 +368,10 @@ export default defineProvider({
   ],
   metadata: {
     website: {
-      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
-      docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market',
-      official: 'https://www.aliyun.com/product/bailian'
+      apiKey: 'https://platform.qianwenai.com/home/api-keys',
+      docs: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call',
+      models: 'https://www.qianwenai.com/models',
+      official: 'https://www.qianwenai.com/'
     }
   },
   overrides: [
