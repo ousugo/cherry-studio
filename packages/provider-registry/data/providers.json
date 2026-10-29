@@ -1759,10 +1759,79 @@
       "name": "Bailian",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
           "id": "web-search",
           "modelScope": "model-dependent"
         },
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "QwenCloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwencloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://home.qwencloud.com/api-keys",
+          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+          "models": "https://www.qwencloud.com/models",
+          "official": "https://www.qwencloud.com/"
+        }
+      },
+      "name": "QwenCloud",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
           "id": "url-context",
           "modelScope": "model-dependent"
         }
@@ -2772,5 +2841,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "afa17e5976dcef2e"
+  "version": "3db5816ab6a36709"
 }
